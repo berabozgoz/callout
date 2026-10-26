@@ -3,7 +3,7 @@
 Oyuncular için düşük gecikmeli sesli sohbet. Rust çekirdek, Tauri 2 + Svelte arayüz,
 kendi barındırabileceğin QUIC tabanlı SFU sunucusu.
 
-Durum: **Faz 1, adım 6.** Masaüstü uygulamasıyla bağlanıp oda açılıp konuşulabiliyor (doğrulama sürüyor).
+Durum: **Faz 1 tamam.** Masaüstü uygulamasıyla bağlanıp oda açılıp konuşulabiliyor; sırada Faz 2 (ses kalitesi).
 
 ## Gereksinimler
 
@@ -23,6 +23,25 @@ cargo run -p callout-core --example talk -- "<davet>" Ad --room KOD   # odaya gi
 cd ui && npm install && cd ..
 cd apps/callout-app && cargo tauri dev                 # masaüstü uygulaması
 ```
+
+## Arkadaşlarla test (sürüm çıkarma)
+
+```sh
+cargo tauri build          # apps/callout-app içinde; target/release/bundle/nsis/CallOut_*_x64-setup.exe
+cargo build --release -p callout-server   # target/release/callout-server.exe
+```
+
+Ya da bir etiket at, GitHub Actions kurulum dosyasını Releases sayfasına koysun:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Sunucuyu internete açmak: modemde **UDP 4433** portunu sunucu bilgisayarına yönlendir, dış IP'ni öğren
+(tarayıcıda "what is my ip") ve sunucuyu `CALLOUT_PUBLIC_IP=<dış-ip> callout-server.exe` ile başlat;
+basılan `callout://<dış-ip>:4433#...` linkini arkadaşlarına gönder. Windows Güvenlik Duvarı ilk seferde
+izin ister. Kurulum dosyası imzasız olduğu için SmartScreen "bilinmeyen yayımcı" uyarısı verir
+("Daha fazla bilgi → Yine de çalıştır"); kod imzalama Faz 4'te.
 
 Mimari ve yol haritası: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 Geliştirme kuralları: [`CLAUDE.md`](CLAUDE.md).

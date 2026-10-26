@@ -87,8 +87,25 @@ async fn engine_connects_creates_room_and_disconnects() {
     };
     assert_eq!(code.len(), 8);
 
-    // Sunucuda bilinmeyen kod → Error olayı.
+    // Ayrılınca arayüze "odada değilsin" gelmeli (sunucu onay yollamaz, motor temizler).
     engine.send(Command::LeaveRoom);
+    let mut left = false;
+    for _ in 0..6 {
+        match next(&mut rx).await {
+            Event::RoomUpdated {
+                room: None,
+                members,
+            } => {
+                assert!(members.is_empty());
+                left = true;
+                break;
+            }
+            _ => continue,
+        }
+    }
+    assert!(left, "RoomUpdated{{room: None}} gelmedi");
+
+    // Sunucuda bilinmeyen kod → Error olayı.
     engine.send(Command::JoinRoom {
         code: "ZZZZZZZZ".into(),
     });

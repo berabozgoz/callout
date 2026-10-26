@@ -27,12 +27,27 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
     "windows": {
       "nsis": {
-        "languages": ["Turkish", "English"]
+        "languages": [
+          "Turkish",
+          "English"
+        ],
+        "installerIcon": "icons/icon.ico"
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
       }
-    }
+    },
+    "shortDescription": "Oyuncular için düşük gecikmeli sesli sohbet",
+    "publisher": "berabozgoz"
   }
 }

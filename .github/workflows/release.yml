@@ -1,0 +1,52 @@
+name: Release
+
+# `v*` etiketi atılınca: Windows kurulum (NSIS), taşınabilir exe ve sunucu exe'sini
+# derleyip GitHub Releases'a yükler.
+#   git tag v0.1.0 && git push origin v0.1.0
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+        working-directory: ui
+      - name: Tauri uygulaması (NSIS kurulum + exe)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/callout-app
+          tagName: ${{ github.ref_name }}
+          releaseName: "CallOut ${{ github.ref_name }}"
+          releaseBody: |
+            **Arkadaşlar için:** `CallOut_*_x64-setup.exe` dosyasını indirip kurun (SmartScreen uyarısında
+            "Daha fazla bilgi → Yine de çalıştır"). Kurulum istemeyenler `callout-app.exe`'yi doğrudan çalıştırabilir.
+            Uygulamayı açınca takma ad ve size gönderilen `callout://` davet linkini girin.
+
+            **Sunucu kuran için:** `callout-server.exe`'yi çalıştırın; ekrana basılan davet linkini paylaşın.
+          releaseDraft: false
+          prerelease: false
+      - name: Sunucu ve taşınabilir exe
+        run: |
+          cargo build --release -p callout-server
+          Copy-Item target/release/callout-server.exe callout-server.exe
+          Copy-Item target/release/callout-app.exe callout-app.exe
+      - name: Ek dosyaları sürüme ekle
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.ref_name }} callout-server.exe callout-app.exe --clobber

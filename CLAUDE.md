@@ -48,7 +48,7 @@ Linux'ta `libasound2-dev` gerekir; `callout-app` yalnızca Windows'ta derlenir/C
 ## Faz durumu
 
 - [x] Faz 0 — iskelet
-- [ ] Faz 1 — ses MVP: loopback ✓ → Opus ✓ → QUIC iki istemci ✓ → jitter/karıştırıcı ✓ → oda kodları ✓ → Tauri arayüzü (kod yazıldı; Windows'ta doğrulanacak)
+- [x] Faz 1 — ses MVP: loopback, Opus, QUIC, jitter/karıştırıcı, oda kodları, Tauri arayüzü (27 Ekim 2026: iki PC uygulama ile konuştu). Kapı testi (4 kişi 1 saat) bekliyor.
 - [ ] Faz 2 — ses kalitesi (nnnoiseless, AGC, FEC, uyarlanabilir jitter)
 - [ ] Faz 3 — sosyal katman (hesap, arkadaş, varlık, metin)
 - [ ] Faz 4 — yayın (imzalı NSIS, güncelleme, çökme raporu)

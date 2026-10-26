@@ -566,7 +566,16 @@ async fn run(
                         Command::Connect { .. } => Err("zaten bağlı".into()),
                         Command::CreateRoom { name } => client.create_room(&name).await.map_err(|e| e.to_string()),
                         Command::JoinRoom { code } => client.join_room(&code).await.map_err(|e| e.to_string()),
-                        Command::LeaveRoom => client.leave_room().await.map_err(|e| e.to_string()),
+                        Command::LeaveRoom => {
+                            // Sunucu ayrılana onay yollamaz; yerel durumu hemen temizle.
+                            let r = client.leave_room().await.map_err(|e| e.to_string());
+                            if room.is_some() {
+                                room = None;
+                                members.clear();
+                                emit(Event::RoomUpdated { room: None, members: Vec::new() });
+                            }
+                            r
+                        }
                         Command::SetMuted { muted } => {
                             ctl.muted.store(muted, Ordering::Relaxed);
                             client.control().send(&ClientMsg::SetMuted(muted)).await.map_err(|e| e.to_string())
@@ -643,15 +652,6 @@ async fn run(
                         received: ctl.received.swap(0, Ordering::Relaxed),
                     });
                 }
-            }
-            // LeaveRoom yerel durumu: sunucu MemberLeft'i başkalarına yollar, bize yollamaz.
-            if room.is_some() && members.iter().all(|m| m.user_id != my_id) {
-                room = None;
-                members.clear();
-                emit(Event::RoomUpdated {
-                    room: None,
-                    members: Vec::new(),
-                });
             }
         };
 
