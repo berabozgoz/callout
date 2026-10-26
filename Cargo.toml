@@ -1,0 +1,56 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/callout-proto",
+    "crates/callout-audio",
+    "crates/callout-net",
+    "crates/callout-core",
+    "crates/callout-server",
+    "apps/callout-app",
+]
+# callout-app Tauri eklentilerini (webkit vb.) çeker; Linux CI'da yalnızca
+# kütüphane crate'leri derlenir: `cargo check --workspace --exclude callout-app`.
+default-members = [
+    "crates/callout-proto",
+    "crates/callout-audio",
+    "crates/callout-net",
+    "crates/callout-core",
+    "crates/callout-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/berabozgoz/callout"
+rust-version = "1.80"
+
+[workspace.dependencies]
+callout-proto = { path = "crates/callout-proto" }
+callout-audio = { path = "crates/callout-audio" }
+callout-net = { path = "crates/callout-net" }
+callout-core = { path = "crates/callout-core" }
+
+serde = { version = "1", features = ["derive"] }
+postcard = { version = "1", features = ["alloc"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "net", "time"] }
+quinn = "0.11"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2"
+anyhow = "1"
+cpal = "0.15"
+ringbuf = "0.4"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+rand = "0.8"
+proptest = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+# Ses geri çağrısı debug derlemede bile makul hızda çalışsın.
+[profile.dev.package."*"]
+opt-level = 2

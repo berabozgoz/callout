@@ -1,0 +1,17 @@
+[package]
+name = "callout-audio"
+description = "Ses yakalama/oynatma, kodlama ve karıştırma hattı"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+cpal.workspace = true
+ringbuf.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+tracing-subscriber.workspace = true

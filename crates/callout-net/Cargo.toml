@@ -1,0 +1,16 @@
+[package]
+name = "callout-net"
+description = "QUIC taşıma: kontrol akışı ve ses datagramları"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+callout-proto.workspace = true
+quinn.workspace = true
+serde.workspace = true
+rustls.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

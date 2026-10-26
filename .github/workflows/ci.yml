@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # Hızlı kapı: kütüphane crate'leri Linux'ta fmt + clippy + test.
+  lib:
+    name: Kütüphaneler (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --exclude callout-app --all-targets
+      - run: cargo test --workspace --exclude callout-app
+
+  # Asıl hedef: Windows'ta Tauri uygulaması derlenir (paketlenmez; paketleme Faz 4).
+  app-windows:
+    name: Tauri uygulaması (Windows)
+    runs-on: windows-latest
+    needs: lib
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci --prefix ui
+      - run: npm run build --prefix ui
+      - run: cargo build -p callout-app

@@ -1,0 +1,7 @@
+/target
+**/target
+/ui/node_modules
+/ui/dist
+/apps/callout-app/gen
+*.log
+.DS_Store

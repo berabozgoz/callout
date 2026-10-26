@@ -1,0 +1,59 @@
+# CallOut — geliştirici kuralları
+
+Oyuncular için düşük gecikmeli sesli sohbet. Rust çekirdek, Tauri 2 + Svelte 5 arayüz,
+kendi SFU sunucumuz (QUIC). MVP yalnızca Windows. Tam mimari: `docs/ARCHITECTURE.md`.
+
+## Yapı
+
+```
+crates/callout-proto   protokol tipleri (istemci + sunucu paylaşır)
+crates/callout-audio   cpal yakalama/oynatma, Opus, jitter, karıştırıcı
+crates/callout-net     quinn QUIC: kontrol akışı + ses datagramları
+crates/callout-core    istemci durum makinesi; Command/Event ile arayüze bağlanır
+crates/callout-server  SFU + oda + kimlik, tek binary
+apps/callout-app       Tauri kabuğu (yalnızca komut/olay köprüsü)
+ui/                    Svelte 5 (runes) + TypeScript + Vite
+```
+
+## Değişmez kurallar
+
+1. **cpal geri çağrısında yalnızca halka tampona kopyalama.** Bellek ayırma, kilit,
+   `println!`/`tracing`, kodlama, ağ yok. İhlal = çıtırtı.
+2. **Ses verisi webview'a geçmez.** Tauri yalnızca `callout_core::Command` / `Event` taşır.
+3. **Protokol değişikliği = `callout-proto`.** Tel biçimi `postcard`; enum varyantları
+   sonuna eklenir, uyumsuzlukta `PROTOCOL_VERSION` artar.
+4. **Sunucu Opus'u çözmez.** SFU paketi `AudioPacket::stamp_sender` ile damgalayıp iletir.
+5. **Lisans MIT OR Apache-2.0.** GPL/AGPL crate eklenmez. Yeni crate eklerken
+   `cargo deny`/lisansını kontrol et.
+6. `#![forbid(unsafe_code)]` kütüphane crate'lerinde kalır. Gerekirse ayrı, küçük bir
+   crate'te izole edilir.
+7. Hata tipleri: kütüphanede `thiserror`, uygulama/sunucu `main`'de `anyhow`.
+8. Kapsam dışı istekler (overlay, video, ekran paylaşımı) koda değil
+   `docs/ARCHITECTURE.md` "Sonrası" listesine yazılır.
+
+## Komutlar
+
+```
+cargo test                                  # kütüphane crate'leri (default-members)
+cargo clippy --workspace --exclude callout-app --all-targets -- -D warnings
+cargo run -p callout-audio --example loopback   # mikrofon → kulaklık, gecikme ölçümü
+cargo run -p callout-server                 # sunucu
+npm --prefix ui install && cargo tauri dev  # uygulama (cargo install tauri-cli --version ^2)
+```
+
+Linux'ta `libasound2-dev` gerekir; `callout-app` yalnızca Windows'ta derlenir/CI'da test edilir.
+
+## Faz durumu
+
+- [x] Faz 0 — iskelet
+- [ ] Faz 1 — ses MVP (sırayla: loopback → Opus → QUIC iki istemci → jitter/karıştırıcı → oda → arayüz)
+- [ ] Faz 2 — ses kalitesi (nnnoiseless, AGC, FEC, uyarlanabilir jitter)
+- [ ] Faz 3 — sosyal katman (hesap, arkadaş, varlık, metin)
+- [ ] Faz 4 — yayın (imzalı NSIS, güncelleme, çökme raporu)
+
+## Kararlar (26 Ekim 2026)
+
+SFU, QUIC/quinn, Opus 48 kHz 20 ms, cpal/WASAPI, Tauri+Svelte, yalnızca Windows,
+cihaz anahtarı + takma ad kimliği (hesap Faz 3), self-host destekli sunucu
+(kendinden imzalı sertifika + parmak izi, `callout://` davet linki), MIT/Apache-2.0,
+hedef oda 5–10 kişi (üst sınır 16).

@@ -1,0 +1,15 @@
+[package]
+name = "callout-core"
+description = "İstemci durum makinesi: oturum, oda, üyeler; audio ile net'i bağlar"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+callout-proto.workspace = true
+callout-audio.workspace = true
+callout-net.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
