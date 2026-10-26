@@ -3,7 +3,7 @@
 Oyuncular için düşük gecikmeli sesli sohbet. Rust çekirdek, Tauri 2 + Svelte arayüz,
 kendi barındırabileceğin QUIC tabanlı SFU sunucusu.
 
-Durum: **Faz 1, adım 5.** Headless istemciyle oda açıp konuşulabiliyor; masaüstü arayüzü sırada.
+Durum: **Faz 1, adım 6.** Masaüstü uygulamasıyla bağlanıp oda açılıp konuşulabiliyor (doğrulama sürüyor).
 
 ## Gereksinimler
 

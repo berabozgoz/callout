@@ -3,5 +3,16 @@
   "identifier": "default",
   "description": "Ana pencerenin izinleri",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:event:allow-listen",
+    "core:event:allow-emit",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister-all",
+    "global-shortcut:allow-is-registered",
+    "clipboard-manager:allow-write-text"
+  ]
 }

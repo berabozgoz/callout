@@ -9,9 +9,9 @@ kendi SFU sunucumuz (QUIC). MVP yalnızca Windows. Tam mimari: `docs/ARCHITECTUR
 crates/callout-proto   protokol tipleri (istemci + sunucu paylaşır)
 crates/callout-audio   cpal yakalama/oynatma, Opus, jitter, karıştırıcı
 crates/callout-net     quinn QUIC: kontrol akışı + ses datagramları
-crates/callout-core    istemci durum makinesi; Command/Event ile arayüze bağlanır
+crates/callout-core    Engine: Command/Event motoru (ses iş parçacığı + ağ görevleri); examples/talk.rs headless istemci
 crates/callout-server  SFU + oda + kimlik, tek binary
-apps/callout-app       Tauri kabuğu (yalnızca komut/olay köprüsü)
+apps/callout-app       Tauri kabuğu: engine_command/get_settings/save_settings, "engine" olay kanalı, PTT kısayolu, tepsi
 ui/                    Svelte 5 (runes) + TypeScript + Vite
 ```
 
@@ -48,7 +48,7 @@ Linux'ta `libasound2-dev` gerekir; `callout-app` yalnızca Windows'ta derlenir/C
 ## Faz durumu
 
 - [x] Faz 0 — iskelet
-- [ ] Faz 1 — ses MVP: loopback ✓ → Opus ✓ → QUIC iki istemci ✓ → jitter/karıştırıcı ✓ → oda kodları ✓ → Tauri arayüzü (adım 6, sırada)
+- [ ] Faz 1 — ses MVP: loopback ✓ → Opus ✓ → QUIC iki istemci ✓ → jitter/karıştırıcı ✓ → oda kodları ✓ → Tauri arayüzü (kod yazıldı; Windows'ta doğrulanacak)
 - [ ] Faz 2 — ses kalitesi (nnnoiseless, AGC, FEC, uyarlanabilir jitter)
 - [ ] Faz 3 — sosyal katman (hesap, arkadaş, varlık, metin)
 - [ ] Faz 4 — yayın (imzalı NSIS, güncelleme, çökme raporu)
