@@ -38,7 +38,7 @@ cargo test                                  # kütüphane crate'leri (default-me
 cargo clippy --workspace --exclude callout-app --all-targets -- -D warnings
 cargo run -p callout-audio --example loopback   # mikrofon → kulaklık, gecikme ölçümü
 cargo run -p callout-server                 # sunucu
-npm --prefix ui install && cargo tauri dev  # uygulama (cargo install tauri-cli --version ^2)
+cd ui && npm install && cd ../apps/callout-app && cargo tauri dev   # uygulama
 ```
 
 Linux'ta `libasound2-dev` gerekir; `callout-app` yalnızca Windows'ta derlenir/CI'da test edilir.
@@ -57,3 +57,9 @@ SFU, QUIC/quinn, Opus 48 kHz 20 ms, cpal/WASAPI, Tauri+Svelte, yalnızca Windows
 cihaz anahtarı + takma ad kimliği (hesap Faz 3), self-host destekli sunucu
 (kendinden imzalı sertifika + parmak izi, `callout://` davet linki), MIT/Apache-2.0,
 hedef oda 5–10 kişi (üst sınır 16).
+
+## Tauri notu
+
+`beforeDevCommand` / `beforeBuildCommand` Tauri tarafından `apps/` klasöründen (tauri klasörünün
+bir üstü) çalıştırılır; bu yüzden `cd ../ui` doğrudur, `../../ui` yanlıştır. `frontendDist` ise
+`tauri.conf.json`'a göre çözülür (`../../ui/dist`).

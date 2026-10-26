@@ -18,8 +18,8 @@ Durum: **Faz 0 — iskelet.** Henüz ses iletmiyor.
 cargo test                                      # kütüphane testleri
 cargo run -p callout-audio --example loopback   # mikrofon → kulaklık yerel döngü
 cargo run -p callout-server                     # sunucu iskeleti
-npm --prefix ui install
-cargo tauri dev --config apps/callout-app/tauri.conf.json   # masaüstü uygulaması
+cd ui && npm install && cd ..
+cd apps/callout-app && cargo tauri dev                 # masaüstü uygulaması
 ```
 
 Mimari ve yol haritası: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
