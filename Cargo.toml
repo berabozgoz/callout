@@ -42,6 +42,8 @@ thiserror = "2"
 anyhow = "1"
 cpal = "0.15"
 ringbuf = "0.4"
+opus = "0.4"
+rubato = { version = "0.16", default-features = false, features = ["fft_resampler"] }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 rand = "0.8"
 proptest = "1"

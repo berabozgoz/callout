@@ -9,6 +9,9 @@ rust-version.workspace = true
 [dependencies]
 cpal.workspace = true
 ringbuf.workspace = true
+opus.workspace = true
+rubato.workspace = true
+callout-proto.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 

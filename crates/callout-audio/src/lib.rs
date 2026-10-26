@@ -5,9 +5,14 @@
 //! **yalnızca** halka tampona kopyalama yapılır: bellek ayırma, kilit, I/O,
 //! günlükleme ve kodlama yasaktır. Bu kural ihlal edilirse çıtırtı kaçınılmazdır.
 //!
-//! Faz 0 kapsamı: cihaz listesi + mikrofon → hoparlör yerel döngü (`examples/loopback.rs`).
+//! Modüller: [`codec`] (Opus), [`resample`] (cihaz hızı ↔ 48 kHz), [`framer`] (20 ms çerçeve).
+//! Loopback örneği: `cargo run -p callout-audio --example loopback`.
 
 #![forbid(unsafe_code)]
+
+pub mod codec;
+pub mod framer;
+pub mod resample;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 
