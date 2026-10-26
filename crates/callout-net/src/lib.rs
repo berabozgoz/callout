@@ -5,13 +5,19 @@
 //!   ([`callout_proto::ClientMsg`] / [`callout_proto::ServerMsg`]);
 //! - ses: QUIC datagramları ([`callout_proto::AudioPacket`]).
 //!
-//! Faz 0: yalnızca ortak sabitler ve çerçeveleme yardımcıları. Bağlantı kurma,
-//! yeniden bağlanma ve parmak izi doğrulaması Faz 1'de gelir.
+//! Modüller: [`cert`] (sertifika, parmak izi, davet linki, TOFU), [`identity`] (Ed25519
+//! cihaz anahtarı), [`control`] (kontrol akışı), [`client`] (bağlantı + el sıkışma).
 
 #![forbid(unsafe_code)]
 
+pub mod cert;
+pub mod client;
+pub mod control;
+pub mod identity;
+
 use callout_proto::ProtoError;
 use serde::{de::DeserializeOwned, Serialize};
+use std::time::Duration;
 
 /// QUIC ALPN kimliği; sunucu ve istemci aynı değeri sunmalıdır.
 pub const ALPN: &[u8] = b"callout/1";
@@ -30,6 +36,21 @@ pub enum NetError {
     FrameTooLarge(usize),
     #[error("eksik veri: {0} bayt daha gerekli")]
     Incomplete(usize),
+}
+
+/// İstemci ve sunucunun ortak QUIC taşıma ayarları.
+pub fn transport_config() -> quinn::TransportConfig {
+    let mut t = quinn::TransportConfig::default();
+    t.max_idle_timeout(Some(
+        Duration::from_secs(10).try_into().expect("idle timeout"),
+    ));
+    t.keep_alive_interval(Some(Duration::from_secs(3)));
+    // Ses datagramları için tampon: ~1 s @ 16 kişi × 130 bayt × 50/s.
+    t.datagram_receive_buffer_size(Some(128 * 1024));
+    t.datagram_send_buffer_size(128 * 1024);
+    t.max_concurrent_bidi_streams(4u8.into());
+    t.max_concurrent_uni_streams(0u8.into());
+    t
 }
 
 /// `msg`'yi `[u32 LE uzunluk][postcard gövde]` olarak `out`'a ekler.

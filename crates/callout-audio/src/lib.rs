@@ -13,6 +13,7 @@
 pub mod codec;
 pub mod framer;
 pub mod resample;
+pub mod vad;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 

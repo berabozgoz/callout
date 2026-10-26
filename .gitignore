@@ -5,3 +5,4 @@
 /apps/callout-app/gen
 *.log
 .DS_Store
+callout-data/
