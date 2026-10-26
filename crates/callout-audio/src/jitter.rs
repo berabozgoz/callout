@@ -41,6 +41,9 @@ pub struct JitterBuffer {
     last_unwrapped: Option<u64>,
     prefilling: bool,
     misses: u32,
+    /// Boş tamponla geçen tikler; akışın gerçekten geciktiği anlaşılınca
+    /// (aynı sırayla, TALK_START olmadan devam ederse) underflow'a yazılır.
+    pending_misses: u32,
     target: u32,
     min_target: u32,
     max_target: u32,
@@ -65,6 +68,7 @@ impl JitterBuffer {
             last_unwrapped: None,
             prefilling: true,
             misses: 0,
+            pending_misses: 0,
             target,
             min_target: 2,
             max_target: 12,
@@ -94,17 +98,27 @@ impl JitterBuffer {
     /// başlangıcını işaretler; tampon sıfırlanıp yeniden prefill yapılır.
     pub fn push(&mut self, seq: u16, talk_start: bool, opus: &[u8]) {
         if talk_start || self.next.is_none() {
+            // Yeni konuşma: önceki boşluk gönderenin susmasıydı, ceza yok.
             self.packets.clear();
             self.last_unwrapped = None;
             let u = self.unwrap_seq(seq);
             self.next = Some(u);
             self.prefilling = true;
             self.misses = 0;
+            self.pending_misses = 0;
             self.packets.insert(u, opus.to_vec());
             return;
         }
         let u = self.unwrap_seq(seq);
         let next = self.next.unwrap();
+        if self.pending_misses > 0 {
+            if u <= next {
+                // Akış kesintisiz devam ediyormuş, biz beklemişiz: gerçek gecikme.
+                self.stats.underflow += self.pending_misses;
+                self.window_underflow += self.pending_misses;
+            }
+            self.pending_misses = 0;
+        }
         if u < next {
             // Çalma sırası geçmiş: geç paket.
             self.stats.late += 1;
@@ -148,10 +162,11 @@ impl JitterBuffer {
                 // Konuşma bitti: boşta. Bir sonraki paket yeniden prefill başlatır.
                 self.next = None;
                 self.misses = 0;
+                self.pending_misses = 0;
                 return Playout::Idle;
             }
-            self.stats.underflow += 1;
-            self.window_underflow += 1;
+            // Henüz ağ mı, susma mı bilinmiyor; bir sonraki push karar verir.
+            self.pending_misses += 1;
             self.next = Some(next + 1);
             return Playout::Lost { next: None };
         }
@@ -272,6 +287,25 @@ mod tests {
         for n in 1..=4 {
             assert_eq!(jb.pop(), Playout::Packet(pkt(n)));
         }
+    }
+
+    #[test]
+    fn vad_pause_is_not_underflow_but_stall_is() {
+        // Susma: 2 kaçırma, sonra TALK_START ile yeni konuşma → underflow 0.
+        let mut jb = JitterBuffer::new(1);
+        jb.push(1, true, &pkt(1));
+        jb.pop();
+        jb.pop();
+        jb.pop();
+        jb.push(2, true, &pkt(2));
+        assert_eq!(jb.stats().underflow, 0);
+        // Ağ duraklaması: 2 kaçırma, sonra aynı sırayla devam → underflow 2.
+        jb.pop(); // 2
+        assert_eq!(jb.pop(), Playout::Lost { next: None });
+        assert_eq!(jb.pop(), Playout::Lost { next: None });
+        jb.push(3, false, &pkt(3)); // geç (3 atlanmıştı) → gecikme kanıtı
+        assert_eq!(jb.stats().underflow, 2);
+        assert_eq!(jb.stats().late, 1);
     }
 
     #[test]
