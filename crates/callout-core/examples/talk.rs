@@ -6,13 +6,16 @@
 //! Hat: mikrofon → 48 kHz → VAD → Opus → datagram ─┐
 //!      kulaklık ← karıştırıcı ← çözücü(gönderen) ← datagram ┘
 //!
-//! Alım tarafında küçük bir çalma kuyruğu vardır (gönderen başına 2–6 çerçeve);
-//! gerçek jitter tamponu adım 4'te gelir.
+//! Alım: gönderen başına jitter tamponu (seq sıralama, PLC/FEC, uyarlanabilir
+//! derinlik) → çözücü → karıştırıcı (kişi başına kazanç, sınırlayıcı).
+//! `--volume ID=KAZANÇ` ile bir kullanıcının sesi ayarlanabilir (ör. `--volume 1=0.5`).
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use callout_audio::codec::{Decoder, Encoder, EncoderConfig, FRAME};
 use callout_audio::framer::Framer;
+use callout_audio::jitter::{JitterBuffer, JitterStats, Playout};
+use callout_audio::mixer::Mixer;
 use callout_audio::resample::Resampler;
 use callout_audio::vad::Vad;
 use callout_audio::{find_device, Direction};
@@ -25,21 +28,29 @@ use callout_proto::{
 use cpal::traits::{DeviceTrait, StreamTrait};
 use ringbuf::traits::{Consumer, Observer, Producer, Split};
 use ringbuf::HeapRb;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-const MIN_QUEUE: usize = 2; // çalmaya başlamak için gereken çerçeve (40 ms)
-const MAX_QUEUE: usize = 6; // bundan fazlası birikirse en eskisi düşer (120 ms)
+/// Jitter tamponu başlangıç derinliği (20 ms birimi): 3 = 60 ms. Uyarlanabilir.
+const JITTER_TARGET: u32 = 3;
+
+/// Gönderen başına alım durumu.
+struct Receiver {
+    decoder: Decoder,
+    jitter: JitterBuffer,
+    last_packet: Instant,
+}
 
 struct Args {
     invite: Invite,
     nickname: String,
     /// `None` = otomatik kalibrasyon (gürültü tabanı + 6 dB, uyarlanabilir).
     threshold_db: Option<f32>,
+    volumes: Vec<(UserId, f32)>,
 }
 
 fn parse_args() -> Result<Args> {
@@ -47,15 +58,25 @@ fn parse_args() -> Result<Args> {
     let invite = Invite::parse(&it.next().context("1. argüman: callout:// davet linki")?)?;
     let nickname = it.next().context("2. argüman: takma ad")?;
     let mut threshold_db = None;
+    let mut volumes = Vec::new();
     while let Some(a) = it.next() {
-        if a == "--threshold-db" {
-            threshold_db = Some(it.next().context("--threshold-db değer")?.parse()?);
+        match a.as_str() {
+            "--threshold-db" => {
+                threshold_db = Some(it.next().context("--threshold-db değer")?.parse()?);
+            }
+            "--volume" => {
+                let v = it.next().context("--volume ID=KAZANÇ")?;
+                let (id, g) = v.split_once('=').context("--volume ID=KAZANÇ")?;
+                volumes.push((id.parse()?, g.parse()?));
+            }
+            other => anyhow::bail!("bilinmeyen argüman: {other}"),
         }
     }
     Ok(Args {
         invite,
         nickname,
         threshold_db,
+        volumes,
     })
 }
 
@@ -128,6 +149,18 @@ async fn main() -> Result<()> {
     let recv_pkts = Arc::new(AtomicU64::new(0));
     let (sp, rp) = (sent_pkts.clone(), recv_pkts.clone());
     let threshold_db = args.threshold_db;
+    let volumes = args.volumes.clone();
+    // Jitter istatistikleri (tüm gönderenlerin toplamı), 5 sn'de bir sıfırlanır.
+    let jit_lost = Arc::new(AtomicU64::new(0));
+    let jit_late = Arc::new(AtomicU64::new(0));
+    let jit_fec = Arc::new(AtomicU64::new(0));
+    let jit_target = Arc::new(AtomicU64::new(JITTER_TARGET as u64));
+    let (jl, jla, jf, jt) = (
+        jit_lost.clone(),
+        jit_late.clone(),
+        jit_fec.clone(),
+        jit_target.clone(),
+    );
     // İstatistik için: son 5 sn'de en yüksek mikrofon seviyesi (dBFS×100, i32), VAD açık çerçeve sayısı, eşik.
     let mic_peak_db = Arc::new(std::sync::atomic::AtomicI32::new(-10000));
     let vad_open = Arc::new(AtomicU64::new(0));
@@ -151,8 +184,13 @@ async fn main() -> Result<()> {
             let calibrating = threshold_db.is_none();
             vt.store((vad.threshold_db() * 100.0) as i32, Ordering::Relaxed);
             let mut enc = Encoder::new(EncoderConfig::default())?;
-            let mut decoders: HashMap<UserId, (Decoder, VecDeque<Vec<f32>>, Instant)> =
-                HashMap::new();
+            let mut receivers: HashMap<UserId, Receiver> = HashMap::new();
+            let mut mixer = Mixer::new();
+            for (id, g) in &volumes {
+                mixer.set_gain(*id, *g);
+            }
+            let mut last_adapt = Instant::now();
+            let mut prev_stats: HashMap<UserId, JitterStats> = HashMap::new();
 
             let mut chunk = Vec::with_capacity(1024);
             let mut at48 = Vec::with_capacity(4096);
@@ -161,6 +199,7 @@ async fn main() -> Result<()> {
             let mut seq: u16 = 0;
             let mut timestamp: u32 = 0;
             let mut mix = vec![0f32; FRAME];
+            let mut decoded = vec![0f32; FRAME];
             let mut out = Vec::with_capacity(4096);
             let out_low_water = (out_rate as usize) * 40 / 1000; // 40 ms
 
@@ -226,56 +265,73 @@ async fn main() -> Result<()> {
                     }
                 }
 
-                // 2) Alım: ağ → gönderen başına kuyruk
+                // 2) Alım: ağ → gönderen başına jitter tamponu
                 while let Ok(bytes) = rx_audio_in.try_recv() {
                     let Ok(p) = AudioPacket::parse(&bytes) else {
                         continue;
                     };
                     rp.fetch_add(1, Ordering::Relaxed);
-                    let entry = decoders.entry(p.sender_id).or_insert_with(|| {
+                    let r = receivers.entry(p.sender_id).or_insert_with(|| {
                         tracing::info!(sender = p.sender_id, "ilk ses paketi");
-                        (
-                            Decoder::new().expect("decoder"),
-                            VecDeque::new(),
-                            Instant::now(),
-                        )
-                    });
-                    let mut decoded = vec![0f32; FRAME];
-                    if entry.0.decode(Some(p.opus), &mut decoded).is_ok() {
-                        if entry.1.len() >= MAX_QUEUE {
-                            entry.1.pop_front();
+                        Receiver {
+                            decoder: Decoder::new().expect("decoder"),
+                            jitter: JitterBuffer::new(JITTER_TARGET),
+                            last_packet: Instant::now(),
                         }
-                        entry.1.push_back(decoded);
-                    }
-                    entry.2 = Instant::now();
+                    });
+                    r.jitter
+                        .push(p.seq, p.flags & flags::TALK_START != 0, p.opus);
+                    r.last_packet = Instant::now();
                 }
 
                 // 3) Karıştırma: çıkış tamponu azaldıysa bir 20 ms çerçeve üret
                 if out_prod.occupied_len() < out_low_water {
-                    mix.iter_mut().for_each(|s| *s = 0.0);
-                    for (_, queue, _) in decoders.values_mut() {
-                        // Kuyruk MIN_QUEUE'ya ulaşana kadar bekle (mini jitter tamponu); sonra her tikte bir çerçeve.
-                        if queue.len() >= MIN_QUEUE {
-                            if let Some(f) = queue.pop_front() {
-                                for (m, s) in mix.iter_mut().zip(f.iter()) {
-                                    *m += s;
-                                }
+                    mixer.begin();
+                    for (id, r) in receivers.iter_mut() {
+                        let ok = match r.jitter.pop() {
+                            Playout::Packet(pkt) => {
+                                r.decoder.decode(Some(&pkt), &mut decoded).is_ok()
                             }
+                            Playout::Lost { next: Some(nxt) } => {
+                                r.decoder.decode_fec(&nxt, &mut decoded).is_ok()
+                            }
+                            Playout::Lost { next: None } => {
+                                r.decoder.decode(None, &mut decoded).is_ok()
+                            }
+                            Playout::Idle => false,
+                        };
+                        if ok {
+                            mixer.add(*id, &decoded);
                         }
                     }
-                    // Yumuşak sınırlayıcı: tanh benzeri, 1.0 üstünü ezer.
-                    for s in mix.iter_mut() {
-                        if s.abs() > 0.9 {
-                            *s = s.signum() * (0.9 + (s.abs() - 0.9).tanh() * 0.1);
-                        }
-                    }
+                    mixer.finish(&mut mix);
                     out.clear();
                     down.process(&mix, &mut out)?;
                     for &s in &out {
                         let _ = out_prod.try_push(s);
                     }
-                    // Uzun süre paket gelmeyen göndereni unut.
-                    decoders.retain(|_, (_, _, last)| last.elapsed() < Duration::from_secs(30));
+                    // 5 sn'de bir: hedef derinliği uyarla, istatistikleri topla.
+                    if last_adapt.elapsed() >= Duration::from_secs(5) {
+                        last_adapt = Instant::now();
+                        let mut max_target = 0u64;
+                        for (id, r) in receivers.iter_mut() {
+                            r.jitter.adapt();
+                            let st = r.jitter.stats();
+                            let prev = prev_stats.insert(*id, st).unwrap_or_default();
+                            jl.fetch_add((st.lost - prev.lost) as u64, Ordering::Relaxed);
+                            jla.fetch_add((st.late - prev.late) as u64, Ordering::Relaxed);
+                            jf.fetch_add(
+                                (st.fec_recovered - prev.fec_recovered) as u64,
+                                Ordering::Relaxed,
+                            );
+                            max_target = max_target.max(st.target as u64);
+                        }
+                        if !receivers.is_empty() {
+                            jt.store(max_target, Ordering::Relaxed);
+                        }
+                        // Uzun süre paket gelmeyen göndereni unut.
+                        receivers.retain(|_, r| r.last_packet.elapsed() < Duration::from_secs(60));
+                    }
                 } else {
                     std::thread::sleep(Duration::from_millis(2));
                 }
@@ -314,6 +370,9 @@ async fn main() -> Result<()> {
                 ServerMsg::MemberJoined(m) => tracing::info!(nick = m.nickname, id = m.user_id, "katıldı"),
                 ServerMsg::MemberLeft(id) => tracing::info!(id, "ayrıldı"),
                 ServerMsg::MemberUpdated { user_id, muted, deafened } => tracing::info!(user_id, muted, deafened, "güncellendi"),
+                ServerMsg::Speaking { user_id, speaking } => {
+                    tracing::info!(user_id, speaking, "konuşuyor");
+                }
                 ServerMsg::Pong(_) => {}
                 ServerMsg::Error { code, message } => tracing::warn!(?code, message, "sunucu hatası"),
                 other => tracing::debug!(?other, "mesaj"),
@@ -325,6 +384,10 @@ async fn main() -> Result<()> {
                     sent = sent_pkts.swap(0, Ordering::Relaxed),
                     recv = recv_pkts.swap(0, Ordering::Relaxed),
                     underruns = underruns.load(Ordering::Relaxed),
+                    lost = jit_lost.swap(0, Ordering::Relaxed),
+                    late = jit_late.swap(0, Ordering::Relaxed),
+                    fec = jit_fec.swap(0, Ordering::Relaxed),
+                    jitter_ms = jit_target.load(Ordering::Relaxed) * 20,
                     mic_peak_db = format!("{:.1}", mic_peak_db.swap(-10000, Ordering::Relaxed) as f32 / 100.0),
                     vad_open_pct = vad_open.swap(0, Ordering::Relaxed) * 100 / 250,
                     threshold_db = format!("{:.1}", vad_threshold.load(Ordering::Relaxed) as f32 / 100.0),

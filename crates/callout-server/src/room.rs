@@ -11,7 +11,11 @@ use bytes::{Bytes, BytesMut};
 use callout_proto::{AudioPacket, Member, ServerMsg, UserId, MAX_ROOM_MEMBERS};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
+
+/// Son ses paketinden bu kadar süre sonra "konuşmuyor" sayılır.
+pub const SPEAKING_TIMEOUT: Duration = Duration::from_millis(300);
 
 /// Bir üyenin bağlantı görevine giden kontrol mesajı kuyruğu.
 pub type ControlTx = mpsc::UnboundedSender<ServerMsg>;
@@ -20,6 +24,8 @@ struct Peer {
     member: Member,
     control: ControlTx,
     conn: quinn::Connection,
+    speaking: bool,
+    last_audio: Option<Instant>,
 }
 
 #[derive(Default)]
@@ -65,6 +71,8 @@ impl SharedRoom {
                 member,
                 control,
                 conn,
+                speaking: false,
+                last_audio: None,
             },
         );
         Some(())
@@ -103,6 +111,30 @@ impl SharedRoom {
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.0.lock().unwrap().peers.len()
+    }
+
+    /// Periyodik (100 ms): süresi dolan konuşmacılar için `Speaking{false}` yayınlar.
+    pub fn tick_speaking(&self) {
+        let mut room = self.0.lock().unwrap();
+        let now = Instant::now();
+        let ended: Vec<UserId> = room
+            .peers
+            .iter()
+            .filter(|(_, p)| p.speaking && p.last_audio.is_some_and(|t| now - t > SPEAKING_TIMEOUT))
+            .map(|(id, _)| *id)
+            .collect();
+        for id in ended {
+            if let Some(p) = room.peers.get_mut(&id) {
+                p.speaking = false;
+            }
+            let msg = ServerMsg::Speaking {
+                user_id: id,
+                speaking: false,
+            };
+            for p in room.peers.values() {
+                let _ = p.control.send(msg.clone());
+            }
+        }
     }
 
     /// SFU: `from`'dan gelen ham datagramı damgalayıp diğerlerine iletir.

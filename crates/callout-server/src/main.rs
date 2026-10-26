@@ -61,6 +61,16 @@ async fn main() -> Result<()> {
     let room = SharedRoom::new();
     let next_id = Arc::new(AtomicU32::new(1));
 
+    // Konuşuyor göstergesi: 100 ms'de bir süresi dolanları kapat.
+    let speaking_room = room.clone();
+    tokio::spawn(async move {
+        let mut t = tokio::time::interval(std::time::Duration::from_millis(100));
+        loop {
+            t.tick().await;
+            speaking_room.tick_speaking();
+        }
+    });
+
     while let Some(incoming) = endpoint.accept().await {
         let room = room.clone();
         let next_id = next_id.clone();

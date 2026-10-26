@@ -52,9 +52,12 @@ impl Vad {
         let active = rms >= self.threshold;
         if let Some((floor, margin)) = self.adaptive.as_mut() {
             if !active {
-                // Taban: yavaş EMA (~1 s zaman sabiti), yalnızca sessiz çerçevelerde.
+                // Taban: asimetrik EMA, yalnızca sessiz çerçevelerde. Aşağı hızlı
+                // (ortam sakinleşince hemen takip et), yukarı yavaş (kelime aralarındaki
+                // nefes/oda sesi tabanı tırmandırmasın).
                 let db = Self::to_db(rms);
-                *floor += (db - *floor) * 0.02;
+                let alpha = if db < *floor { 0.05 } else { 0.005 };
+                *floor += (db - *floor) * alpha;
                 self.threshold = 10f32.powf((*floor + *margin).clamp(-60.0, -20.0) / 20.0);
             }
         }

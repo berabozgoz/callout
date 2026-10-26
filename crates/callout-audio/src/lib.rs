@@ -5,13 +5,16 @@
 //! **yalnızca** halka tampona kopyalama yapılır: bellek ayırma, kilit, I/O,
 //! günlükleme ve kodlama yasaktır. Bu kural ihlal edilirse çıtırtı kaçınılmazdır.
 //!
-//! Modüller: [`codec`] (Opus), [`resample`] (cihaz hızı ↔ 48 kHz), [`framer`] (20 ms çerçeve).
+//! Modüller: [`codec`] (Opus), [`resample`] (cihaz hızı ↔ 48 kHz), [`framer`] (20 ms çerçeve),
+//! [`vad`] (konuşma algılama), [`jitter`] (gönderen başına jitter tamponu), [`mixer`] (karıştırıcı).
 //! Loopback örneği: `cargo run -p callout-audio --example loopback`.
 
 #![forbid(unsafe_code)]
 
 pub mod codec;
 pub mod framer;
+pub mod jitter;
+pub mod mixer;
 pub mod resample;
 pub mod vad;
 
