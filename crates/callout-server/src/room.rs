@@ -147,12 +147,23 @@ impl SharedRoom {
         let packet: Bytes = packet.freeze();
 
         let targets: Vec<quinn::Connection> = {
-            let room = self.0.lock().unwrap();
-            let Some(sender) = room.peers.get(&from) else {
+            let mut room = self.0.lock().unwrap();
+            let Some(sender) = room.peers.get_mut(&from) else {
                 return;
             };
             if sender.member.muted {
                 return;
+            }
+            sender.last_audio = Some(Instant::now());
+            if !sender.speaking {
+                sender.speaking = true;
+                let msg = ServerMsg::Speaking {
+                    user_id: from,
+                    speaking: true,
+                };
+                for p in room.peers.values() {
+                    let _ = p.control.send(msg.clone());
+                }
             }
             room.peers
                 .iter()

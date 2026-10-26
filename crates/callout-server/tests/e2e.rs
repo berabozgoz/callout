@@ -91,6 +91,30 @@ async fn two_clients_exchange_audio_through_sfu() {
     assert_eq!(p.seq, 7);
     assert_eq!(p.opus, &opus);
 
+    // Konuşuyor göstergesi: B'ye Speaking{true}, ~300 ms sonra Speaking{false} gelir.
+    let first = tokio::time::timeout(Duration::from_secs(2), b.control().recv())
+        .await
+        .expect("Speaking{true} gelmedi")
+        .unwrap();
+    assert_eq!(
+        first,
+        ServerMsg::Speaking {
+            user_id: a.user_id(),
+            speaking: true
+        }
+    );
+    let second = tokio::time::timeout(Duration::from_secs(2), b.control().recv())
+        .await
+        .expect("Speaking{false} gelmedi")
+        .unwrap();
+    assert_eq!(
+        second,
+        ServerMsg::Speaking {
+            user_id: a.user_id(),
+            speaking: false
+        }
+    );
+
     // A kendi paketini geri almamalı.
     assert!(
         tokio::time::timeout(Duration::from_millis(300), a.recv_audio())
