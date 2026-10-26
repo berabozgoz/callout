@@ -1,7 +1,9 @@
 //! Headless konuşma istemcisi: Faz 1 adım 3'ün ölçüm aracı.
 //!
 //! Çalıştır:
-//!   cargo run -p callout-core --example talk -- "callout://IP:4433#PARMAK_IZI" TakmaAd [--threshold-db -45]
+//!   cargo run -p callout-core --example talk -- "callout://IP:4433#PARMAK_IZI" TakmaAd --create [--name OdaAdı]
+//!   cargo run -p callout-core --example talk -- "callout://IP:4433#PARMAK_IZI" TakmaAd --room KOD
+//! Ek: [--threshold-db -45] [--volume ID=KAZANÇ]
 //!
 //! Hat: mikrofon → 48 kHz → VAD → Opus → datagram ─┐
 //!      kulaklık ← karıştırıcı ← çözücü(gönderen) ← datagram ┘
@@ -51,6 +53,12 @@ struct Args {
     /// `None` = otomatik kalibrasyon (gürültü tabanı + 6 dB, uyarlanabilir).
     threshold_db: Option<f32>,
     volumes: Vec<(UserId, f32)>,
+    room: RoomArg,
+}
+
+enum RoomArg {
+    Create(String),
+    Join(String),
 }
 
 fn parse_args() -> Result<Args> {
@@ -59,8 +67,20 @@ fn parse_args() -> Result<Args> {
     let nickname = it.next().context("2. argüman: takma ad")?;
     let mut threshold_db = None;
     let mut volumes = Vec::new();
+    let mut room = None;
     while let Some(a) = it.next() {
         match a.as_str() {
+            "--create" => room = Some(RoomArg::Create(String::new())),
+            "--name" => {
+                if let Some(RoomArg::Create(n)) = room.as_mut() {
+                    *n = it.next().context("--name OdaAdı")?;
+                } else {
+                    anyhow::bail!("--name yalnızca --create ile kullanılır");
+                }
+            }
+            "--room" => {
+                room = Some(RoomArg::Join(it.next().context("--room KOD")?));
+            }
             "--threshold-db" => {
                 threshold_db = Some(it.next().context("--threshold-db değer")?.parse()?);
             }
@@ -72,11 +92,13 @@ fn parse_args() -> Result<Args> {
             other => anyhow::bail!("bilinmeyen argüman: {other}"),
         }
     }
+    let room = room.context("--create ya da --room KOD gerekli")?;
     Ok(Args {
         invite,
         nickname,
         threshold_db,
         volumes,
+        room,
     })
 }
 
@@ -92,6 +114,10 @@ async fn main() -> Result<()> {
         .await
         .context("sunucuya bağlanma")?;
     let my_id = client.user_id();
+    match &args.room {
+        RoomArg::Create(name) => client.create_room(name).await?,
+        RoomArg::Join(code) => client.join_room(code).await?,
+    }
 
     // --- Ses cihazları ---
     let input = find_device(Direction::Input, None).context("giriş cihazı")?;
@@ -365,7 +391,8 @@ async fn main() -> Result<()> {
             msg = client.control().recv() => match msg? {
                 ServerMsg::RoomState { room, members } => {
                     let names: Vec<_> = members.iter().map(|m| format!("{}#{}", m.nickname, m.user_id)).collect();
-                    tracing::info!(room = room.name, ?names, "oda durumu");
+                    tracing::info!(name = room.name, ?names, "oda durumu");
+                    tracing::info!("ODA KODU: {}-{}  (arkadaşlarına ver: --room {})", &room.code[..4], &room.code[4..], room.code);
                 }
                 ServerMsg::MemberJoined(m) => tracing::info!(nick = m.nickname, id = m.user_id, "katıldı"),
                 ServerMsg::MemberLeft(id) => tracing::info!(id, "ayrıldı"),
@@ -374,7 +401,12 @@ async fn main() -> Result<()> {
                     tracing::info!(user_id, speaking, "konuşuyor");
                 }
                 ServerMsg::Pong(_) => {}
-                ServerMsg::Error { code, message } => tracing::warn!(?code, message, "sunucu hatası"),
+                ServerMsg::Error { code, message } => {
+                    tracing::error!(?code, message, "sunucu hatası");
+                    if matches!(code, callout_proto::ErrorCode::RoomNotFound | callout_proto::ErrorCode::RoomFull) {
+                        break;
+                    }
+                }
                 other => tracing::debug!(?other, "mesaj"),
             },
             _ = ping.tick() => { client.control().send(&ClientMsg::Ping(0)).await?; }

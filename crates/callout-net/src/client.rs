@@ -118,6 +118,30 @@ impl Client {
         &mut self.control
     }
 
+    /// Oda açar; yanıt kontrol akışından `RoomState` ya da `Error` olarak gelir.
+    pub async fn create_room(&mut self, name: &str) -> Result<(), ClientError> {
+        Ok(self
+            .control
+            .send(&ClientMsg::CreateRoom {
+                name: name.to_string(),
+            })
+            .await?)
+    }
+
+    /// Koda göre odaya girer; yanıt `RoomState` ya da `Error`.
+    pub async fn join_room(&mut self, code: &str) -> Result<(), ClientError> {
+        Ok(self
+            .control
+            .send(&ClientMsg::JoinRoom {
+                code: code.to_string(),
+            })
+            .await?)
+    }
+
+    pub async fn leave_room(&mut self) -> Result<(), ClientError> {
+        Ok(self.control.send(&ClientMsg::LeaveRoom).await?)
+    }
+
     pub fn rtt(&self) -> std::time::Duration {
         self.conn.rtt()
     }

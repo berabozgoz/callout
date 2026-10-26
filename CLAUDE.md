@@ -37,7 +37,9 @@ ui/                    Svelte 5 (runes) + TypeScript + Vite
 cargo test                                  # kütüphane crate'leri (default-members)
 cargo clippy --workspace --exclude callout-app --all-targets -- -D warnings
 cargo run -p callout-audio --example loopback   # mikrofon → kulaklık, gecikme ölçümü
-cargo run -p callout-server                 # sunucu
+cargo run -p callout-server                 # sunucu; davet linkini basar
+cargo run -p callout-core --example talk -- "<davet>" Ad --create   # oda aç (kodu basar)
+cargo run -p callout-core --example talk -- "<davet>" Ad --room KOD # odaya gir
 cd ui && npm install && cd ../apps/callout-app && cargo tauri dev   # uygulama
 ```
 
@@ -46,7 +48,7 @@ Linux'ta `libasound2-dev` gerekir; `callout-app` yalnızca Windows'ta derlenir/C
 ## Faz durumu
 
 - [x] Faz 0 — iskelet
-- [ ] Faz 1 — ses MVP (sırayla: loopback → Opus → QUIC iki istemci → jitter/karıştırıcı → oda → arayüz)
+- [ ] Faz 1 — ses MVP: loopback ✓ → Opus ✓ → QUIC iki istemci ✓ → jitter/karıştırıcı ✓ → oda kodları ✓ → Tauri arayüzü (adım 6, sırada)
 - [ ] Faz 2 — ses kalitesi (nnnoiseless, AGC, FEC, uyarlanabilir jitter)
 - [ ] Faz 3 — sosyal katman (hesap, arkadaş, varlık, metin)
 - [ ] Faz 4 — yayın (imzalı NSIS, güncelleme, çökme raporu)

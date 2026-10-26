@@ -13,11 +13,11 @@ use callout_net::cert::{Invite, ServerIdentity};
 use callout_net::control::ControlStream;
 use callout_net::{identity, transport_config, ALPN, DEFAULT_PORT};
 use callout_proto::{ClientMsg, ErrorCode, Member, ServerMsg, UserId, PROTOCOL_VERSION};
-use room::SharedRoom;
+use room::{Registry, SharedRoom};
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
 
 #[tokio::main]
@@ -58,27 +58,27 @@ async fn main() -> Result<()> {
         );
     }
 
-    let room = SharedRoom::new();
+    let registry = Registry::new();
     let next_id = Arc::new(AtomicU32::new(1));
 
     // Konuşuyor göstergesi: 100 ms'de bir süresi dolanları kapat.
-    let speaking_room = room.clone();
+    let speaking_reg = registry.clone();
     tokio::spawn(async move {
         let mut t = tokio::time::interval(std::time::Duration::from_millis(100));
         loop {
             t.tick().await;
-            speaking_room.tick_speaking();
+            speaking_reg.tick_speaking();
         }
     });
 
     while let Some(incoming) = endpoint.accept().await {
-        let room = room.clone();
+        let registry = registry.clone();
         let next_id = next_id.clone();
         tokio::spawn(async move {
             let remote = incoming.remote_address();
             match incoming.await {
                 Ok(conn) => {
-                    if let Err(e) = handle_connection(conn, room, next_id).await {
+                    if let Err(e) = handle_connection(conn, registry, next_id).await {
                         tracing::info!(%remote, "bağlantı bitti: {e}");
                     }
                 }
@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
 
 async fn handle_connection(
     conn: quinn::Connection,
-    room: SharedRoom,
+    registry: Registry,
     next_id: Arc<AtomicU32>,
 ) -> Result<()> {
     let (send, recv) = conn.accept_bi().await?;
@@ -136,7 +136,7 @@ async fn handle_connection(
     control.send(&ServerMsg::Authed).await?;
     tracing::info!(user_id, nickname, remote = %conn.remote_address(), "kimlik doğrulandı");
 
-    // --- Odaya katıl (Faz 1 adım 3: tek oda) ---
+    // --- Oda durumu: kullanıcı başta hiçbir odada değil ---
     let (tx, mut rx) = mpsc::unbounded_channel::<ServerMsg>();
     let member = Member {
         user_id,
@@ -144,24 +144,30 @@ async fn handle_connection(
         muted: false,
         deafened: false,
     };
-    if room.join(member, tx, conn.clone()).is_none() {
-        control
-            .send(&ServerMsg::Error {
-                code: ErrorCode::RoomFull,
-                message: "oda dolu".into(),
-            })
-            .await?;
-        anyhow::bail!("oda dolu");
-    }
+    let current: Arc<RwLock<Option<SharedRoom>>> = Arc::new(RwLock::new(None));
 
-    // --- Ses datagramları: ayrı görev ---
+    // --- Ses datagramları: ayrı görev; yalnızca odadayken iletilir ---
     let audio_conn = conn.clone();
-    let audio_room = room.clone();
+    let audio_current = current.clone();
     let audio_task = tokio::spawn(async move {
         while let Ok(bytes) = audio_conn.read_datagram().await {
-            audio_room.forward_audio(user_id, BytesMut::from(&bytes[..]));
+            let room = audio_current.read().unwrap().clone();
+            if let Some(room) = room {
+                room.forward_audio(user_id, BytesMut::from(&bytes[..]));
+            }
         }
     });
+
+    let leave = |current: &Arc<RwLock<Option<SharedRoom>>>, registry: &Registry| {
+        let room = current.write().unwrap().take();
+        if let Some(room) = room {
+            room.leave(user_id);
+            registry.remove_if_empty(&room);
+            true
+        } else {
+            false
+        }
+    };
 
     // --- Kontrol döngüsü ---
     let result: Result<()> = async {
@@ -169,11 +175,44 @@ async fn handle_connection(
             tokio::select! {
                 msg = control.recv() => match msg? {
                     ClientMsg::Ping(t) => control.send(&ServerMsg::Pong(t)).await?,
-                    ClientMsg::SetMuted(m) => room.set_flags(user_id, Some(m), None),
-                    ClientMsg::SetDeafened(d) => room.set_flags(user_id, None, Some(d)),
-                    ClientMsg::LeaveRoom => break,
-                    ClientMsg::CreateRoom { .. } | ClientMsg::JoinRoom { .. } => {
-                        control.send(&ServerMsg::Error { code: ErrorCode::Internal, message: "çoklu oda Faz 1 adım 5'te".into() }).await?;
+                    ClientMsg::CreateRoom { name } => {
+                        if current.read().unwrap().is_some() {
+                            control.send(&ServerMsg::Error { code: ErrorCode::AlreadyInRoom, message: "önce odadan ayrıl".into() }).await?;
+                            continue;
+                        }
+                        let name = if name.trim().is_empty() { format!("{nickname} odası") } else { name.trim().chars().take(32).collect() };
+                        let room = registry.create(name, user_id);
+                        room.join(member.clone(), tx.clone(), conn.clone());
+                        tracing::info!(user_id, code = room.code(), "oda açıldı");
+                        *current.write().unwrap() = Some(room);
+                    }
+                    ClientMsg::JoinRoom { code } => {
+                        if current.read().unwrap().is_some() {
+                            control.send(&ServerMsg::Error { code: ErrorCode::AlreadyInRoom, message: "önce odadan ayrıl".into() }).await?;
+                            continue;
+                        }
+                        match registry.get(&code) {
+                            None => control.send(&ServerMsg::Error { code: ErrorCode::RoomNotFound, message: format!("oda bulunamadı: {code}") }).await?,
+                            Some(room) => {
+                                if room.join(member.clone(), tx.clone(), conn.clone()).is_none() {
+                                    control.send(&ServerMsg::Error { code: ErrorCode::RoomFull, message: "oda dolu".into() }).await?;
+                                } else {
+                                    tracing::info!(user_id, code = room.code(), members = room.len(), "odaya katıldı");
+                                    *current.write().unwrap() = Some(room);
+                                }
+                            }
+                        }
+                    }
+                    ClientMsg::LeaveRoom => {
+                        if !leave(&current, &registry) {
+                            control.send(&ServerMsg::Error { code: ErrorCode::NotInRoom, message: "odada değilsin".into() }).await?;
+                        }
+                    }
+                    ClientMsg::SetMuted(m) => {
+                        if let Some(r) = current.read().unwrap().as_ref() { r.set_flags(user_id, Some(m), None); }
+                    }
+                    ClientMsg::SetDeafened(d) => {
+                        if let Some(r) = current.read().unwrap().as_ref() { r.set_flags(user_id, None, Some(d)); }
                     }
                     ClientMsg::Hello { .. } | ClientMsg::Auth { .. } => {}
                 },
@@ -188,8 +227,13 @@ async fn handle_connection(
     .await;
 
     audio_task.abort();
-    room.leave(user_id);
-    tracing::info!(user_id, nickname, members = room.len(), "ayrıldı");
+    leave(&current, &registry);
+    tracing::info!(
+        user_id,
+        nickname,
+        rooms = registry.len(),
+        "bağlantı kapandı"
+    );
     result
 }
 

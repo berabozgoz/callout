@@ -3,7 +3,7 @@
 Oyuncular için düşük gecikmeli sesli sohbet. Rust çekirdek, Tauri 2 + Svelte arayüz,
 kendi barındırabileceğin QUIC tabanlı SFU sunucusu.
 
-Durum: **Faz 0 — iskelet.** Henüz ses iletmiyor.
+Durum: **Faz 1, adım 5.** Headless istemciyle oda açıp konuşulabiliyor; masaüstü arayüzü sırada.
 
 ## Gereksinimler
 
@@ -17,7 +17,9 @@ Durum: **Faz 0 — iskelet.** Henüz ses iletmiyor.
 ```sh
 cargo test                                      # kütüphane testleri
 cargo run -p callout-audio --example loopback   # mikrofon → kulaklık yerel döngü
-cargo run -p callout-server                     # sunucu iskeleti
+cargo run -p callout-server                     # sunucu; callout:// davet linkini basar
+cargo run -p callout-core --example talk -- "<davet>" Ad --create     # oda aç
+cargo run -p callout-core --example talk -- "<davet>" Ad --room KOD   # odaya gir
 cd ui && npm install && cd ..
 cd apps/callout-app && cargo tauri dev                 # masaüstü uygulaması
 ```

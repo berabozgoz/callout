@@ -1,14 +1,16 @@
 //! Oda durumu ve SFU iletimi.
 //!
-//! Faz 1 adım 3: tek oda ("lobby"); kimlik doğrulayan herkes otomatik katılır.
-//! Oda kodları ve çoklu oda adım 5'te gelir; bu modülün arayüzü o zaman da aynı kalır.
+//! [`Registry`] oda kodundan odaya gider; oda boşalınca kayıttan silinir.
+//! Kodlar 8 karakterdir ve karışıklık yaratan harfler (I, O, 0, 1) kullanılmaz.
 //!
 //! İletim kuralı: gelen datagram `stamp_sender` ile damgalanır ve gönderen
 //! dışındaki, sağırlaştırılmamış üyelere kopyalanır. Susturulmuş üyenin paketi
 //! hiç iletilmez (istemci zaten göndermez; bu sunucu tarafı emniyet).
 
 use bytes::{Bytes, BytesMut};
-use callout_proto::{AudioPacket, Member, ServerMsg, UserId, MAX_ROOM_MEMBERS};
+use callout_proto::{
+    AudioPacket, Member, RoomInfo, ServerMsg, UserId, MAX_ROOM_MEMBERS, ROOM_CODE_LEN,
+};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -28,17 +30,100 @@ struct Peer {
     last_audio: Option<Instant>,
 }
 
-#[derive(Default)]
 pub struct Room {
+    info: RoomInfo,
     peers: HashMap<UserId, Peer>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SharedRoom(Arc<Mutex<Room>>);
 
-impl SharedRoom {
+/// Oda kodu alfabesi: I, O, 0, 1 yok.
+const CODE_ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/// Rastgele oda kodu üretir (ör. `K7Q2MX9P`).
+pub fn generate_code() -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    (0..ROOM_CODE_LEN)
+        .map(|_| CODE_ALPHABET[rng.gen_range(0..CODE_ALPHABET.len())] as char)
+        .collect()
+}
+
+/// Kullanıcının yazdığı kodu normalize eder: büyük harf, tire/boşluk atılır.
+pub fn normalize_code(input: &str) -> String {
+    input
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_uppercase())
+        .collect()
+}
+
+/// Kod → oda kaydı.
+#[derive(Clone, Default)]
+pub struct Registry(Arc<Mutex<HashMap<String, SharedRoom>>>);
+
+impl Registry {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Yeni oda açar ve kaydeder; benzersiz kod garanti edilir.
+    pub fn create(&self, name: String, owner: UserId) -> SharedRoom {
+        let mut map = self.0.lock().unwrap();
+        let code = loop {
+            let c = generate_code();
+            if !map.contains_key(&c) {
+                break c;
+            }
+        };
+        let room = SharedRoom::new(RoomInfo {
+            code: code.clone(),
+            name,
+            owner,
+        });
+        map.insert(code, room.clone());
+        room
+    }
+
+    pub fn get(&self, code: &str) -> Option<SharedRoom> {
+        self.0.lock().unwrap().get(&normalize_code(code)).cloned()
+    }
+
+    /// Oda boşsa kayıttan siler.
+    pub fn remove_if_empty(&self, room: &SharedRoom) {
+        let code = room.code();
+        let mut map = self.0.lock().unwrap();
+        if room.len() == 0 {
+            map.remove(&code);
+            tracing::info!(code, "oda kapandı");
+        }
+    }
+
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.0.lock().unwrap().len()
+    }
+
+    /// Tüm odalarda süresi dolan konuşmacıları kapatır.
+    pub fn tick_speaking(&self) {
+        let rooms: Vec<SharedRoom> = self.0.lock().unwrap().values().cloned().collect();
+        for r in rooms {
+            r.tick_speaking();
+        }
+    }
+}
+
+impl SharedRoom {
+    pub fn new(info: RoomInfo) -> Self {
+        Self(Arc::new(Mutex::new(Room {
+            info,
+            peers: HashMap::new(),
+        })))
+    }
+
+    pub fn code(&self) -> String {
+        self.0.lock().unwrap().info.code.clone()
     }
 
     /// Üye ekler; dolu ise `None`. Mevcut üyelere `MemberJoined` yayınlar,
@@ -58,11 +143,7 @@ impl SharedRoom {
             .chain(std::iter::once(member.clone()))
             .collect();
         let _ = control.send(ServerMsg::RoomState {
-            room: callout_proto::RoomInfo {
-                code: "LOBBY".into(),
-                name: "Lobi".into(),
-                owner: 0,
-            },
+            room: room.info.clone(),
             members,
         });
         room.peers.insert(
