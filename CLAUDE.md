@@ -3,6 +3,15 @@
 Oyuncular için düşük gecikmeli sesli sohbet. Rust çekirdek, Tauri 2 + Svelte 5 arayüz,
 kendi SFU sunucumuz (QUIC). MVP yalnızca Windows. Tam mimari: `docs/ARCHITECTURE.md`.
 
+## Oturum düzeni
+
+- **Başlarken** `docs/DURUM.md` dosyasını oku: nerede kaldık, sırada ne var.
+- **Bitirirken** `docs/DURUM.md` içindeki "Son oturum" ve "Sırada" bölümlerini güncelle; Faz
+  tamamlanınca aşağıdaki "Faz durumu" listesini de işaretle.
+- Sunucu IP'si, davet linki, SSH anahtar yolu gibi özel bilgiler `CLAUDE.local.md`'dedir
+  (git'e girmez). Bunları `docs/`, `README.md` ya da commit mesajlarına yazma.
+- Türkçe yaz; kod yorumları ve commit mesajları Türkçe.
+
 ## Yapı
 
 ```
@@ -48,7 +57,7 @@ Linux'ta `libasound2-dev` gerekir; `callout-app` yalnızca Windows'ta derlenir/C
 ## Faz durumu
 
 - [x] Faz 0 — iskelet
-- [x] Faz 1 — ses MVP: loopback, Opus, QUIC, jitter/karıştırıcı, oda kodları, Tauri arayüzü (27 Ekim 2026: iki PC uygulama ile konuştu). Kapı testi (4 kişi 1 saat) bekliyor.
+- [x] Faz 1 — ses MVP: loopback, Opus, QUIC, jitter/karıştırıcı, oda kodları, Tauri arayüzü (27 Ekim 2026: iki PC uygulama ile konuştu; sunucu Oracle Always Free üzerinde internette, v0.1.2 Releases'te). Kapı testi (4 kişi 1 saat) bekliyor.
 - [ ] Faz 2 — ses kalitesi (nnnoiseless, AGC, FEC, uyarlanabilir jitter)
 - [ ] Faz 3 — sosyal katman (hesap, arkadaş, varlık, metin)
 - [ ] Faz 4 — yayın (imzalı NSIS, güncelleme, çökme raporu)
