@@ -158,6 +158,30 @@ async fn handle_connection(
         }
     });
 
+    // --- İstatistik günlüğü: 10 sn'de bir RTT, kayıp ve datagram sayıları (kapı testi için) ---
+    let stats_conn = conn.clone();
+    let stats_current = current.clone();
+    let stats_task = tokio::spawn(async move {
+        let mut t = tokio::time::interval(std::time::Duration::from_secs(10));
+        t.tick().await;
+        loop {
+            t.tick().await;
+            let in_room = stats_current.read().unwrap().is_some();
+            let st = stats_conn.stats();
+            tracing::info!(
+                user_id,
+                in_room,
+                rtt_ms = st.path.rtt.as_millis() as u64,
+                lost_packets = st.path.lost_packets,
+                cwnd = st.path.cwnd,
+                dgram_rx = st.udp_rx.datagrams,
+                dgram_tx = st.udp_tx.datagrams,
+                "bağlantı istatistiği"
+            );
+        }
+    });
+    let connected_at = std::time::Instant::now();
+
     let leave = |current: &Arc<RwLock<Option<SharedRoom>>>, registry: &Registry| {
         let room = current.write().unwrap().take();
         if let Some(room) = room {
@@ -227,11 +251,17 @@ async fn handle_connection(
     .await;
 
     audio_task.abort();
+    stats_task.abort();
     leave(&current, &registry);
+    let st = conn.stats();
     tracing::info!(
         user_id,
         nickname,
         rooms = registry.len(),
+        secs = connected_at.elapsed().as_secs(),
+        rtt_ms = st.path.rtt.as_millis() as u64,
+        lost_packets = st.path.lost_packets,
+        close_reason = ?conn.close_reason(),
         "bağlantı kapandı"
     );
     result

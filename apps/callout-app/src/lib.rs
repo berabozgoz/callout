@@ -150,10 +150,38 @@ fn register_ptt(app: &AppHandle, shortcut: &str) -> Result<(), String> {
 // Kurulum
 // ---------------------------------------------------------------------------
 
+/// Günlük dosyası: `%APPDATA%/io.github.berabozgoz.callout/logs/callout.log`.
+/// 2 MB'ı aşarsa `callout.old.log`'a taşınır. Açılamazsa stderr'e düşülür.
+fn open_log_file() -> Option<std::fs::File> {
+    let dir = PathBuf::from(std::env::var_os("APPDATA")?)
+        .join("io.github.berabozgoz.callout")
+        .join("logs");
+    std::fs::create_dir_all(&dir).ok()?;
+    let path = dir.join("callout.log");
+    if std::fs::metadata(&path)
+        .map(|m| m.len() > 2_000_000)
+        .unwrap_or(false)
+    {
+        let _ = std::fs::rename(&path, dir.join("callout.old.log"));
+    }
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .ok()
+}
+
 pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()))
-        .init();
+    let filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
+    match open_log_file() {
+        Some(file) => tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .with_ansi(false)
+            .with_writer(Mutex::new(file))
+            .init(),
+        None => tracing_subscriber::fmt().with_env_filter(filter).init(),
+    }
+    tracing::info!(version = env!("CARGO_PKG_VERSION"), "CallOut başladı");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -176,7 +204,7 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            // Veri klasörü: %APPDATA%/com.masatenisiligleri.callout
+            // Veri klasörü: %APPDATA%/io.github.berabozgoz.callout
             let data_dir = app
                 .path()
                 .app_data_dir()

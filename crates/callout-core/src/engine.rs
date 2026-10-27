@@ -554,6 +554,7 @@ async fn run(
         let mut room: Option<RoomInfo> = None;
         let mut members: Vec<Member> = Vec::new();
         let mut stats = tokio::time::interval(Duration::from_secs(2));
+        let mut stats_ticks = 0u32;
         let mut ping = tokio::time::interval(Duration::from_secs(3));
 
         // ---------------- Bağlı ----------------
@@ -644,13 +645,21 @@ async fn run(
                     }
                 }
                 _ = stats.tick() => {
-                    emit(Event::Stats {
+                    let ev = Event::Stats {
                         rtt_ms: client.rtt().as_millis() as u32,
                         jitter_ms: ctl.jitter_target.load(Ordering::Relaxed) * 20,
                         lost: ctl.lost.load(Ordering::Relaxed),
                         sent: ctl.sent.swap(0, Ordering::Relaxed),
                         received: ctl.received.swap(0, Ordering::Relaxed),
-                    });
+                    };
+                    // Oturum günlüğü: 10 sn'de bir (2 sn'lik tikin her 5'i).
+                    stats_ticks += 1;
+                    if stats_ticks % 5 == 0 {
+                        if let Event::Stats { rtt_ms, jitter_ms, lost, sent, received } = &ev {
+                            tracing::info!(rtt_ms, jitter_ms, lost, sent, received, "istatistik (son 2 sn: gönderilen/alınan)");
+                        }
+                    }
+                    emit(ev);
                 }
             }
         };

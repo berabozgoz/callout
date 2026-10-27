@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CallOut",
   "version": "0.1.0",
-  "identifier": "com.masatenisiligleri.callout",
+  "identifier": "io.github.berabozgoz.callout",
   "build": {
     "frontendDist": "../../ui/dist",
     "devUrl": "http://localhost:5173",

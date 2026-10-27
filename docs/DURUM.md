@@ -16,8 +16,9 @@
 
 ## Sırada
 
-1. **Faz 1 kapı testi:** 4 kişi, 1 saat, Oracle sunucusu üzerinden. Gecikme, kopma, ses
-   sorunlarını not et.
+1. **Faz 1 kapı testi:** hazırlık kodu yazıldı (günlükler, `docs/KAPI_TESTI.md`). Kalan:
+   v0.1.3 etiketle → sunucuyu güncelle → 4 kişiyle 1 saatlik test → sonuçları `KAPI_TESTI.md`
+   "Sonuçlar"a yaz, Faz 2 sırasını veriye göre ayarla.
 2. **Faz 2 — ses kalitesi** (sırayla):
    1. Gürültü bastırma: `nnnoiseless` (RNNoise, 48 kHz, 10 ms = 480 örnek) VAD'dan önce;
       ayarlarda aç/kapa.
@@ -38,6 +39,14 @@
 - Protokol değişirse `callout-proto` + `PROTOCOL_VERSION`; istemci ve sunucu birlikte güncellenir.
 
 ## Son oturum
+
+- 28 Ekim (kapı testi hazırlığı): sunucuda 10 sn'de bir bağlantı istatistiği (RTT, QUIC kayıp,
+  datagram) + kapanışta süre/neden; motorda 10 sn'de bir `istatistik` günlüğü; uygulama günlüğü artık
+  `%APPDATA%\io.github.berabozgoz.callout\logs\callout.log` (2 MB'da döner); `docs/KAPI_TESTI.md`
+  yazıldı. fmt/clippy/test temiz (3 tekrar, flaky yok). CI Linux exit 1: `gh` kurulu olmadığından log
+  okunamadı; yerelde sorun yok, GitHub'da Actions günlüğüne bakılmalı. Commit/etiket henüz atılmadı.
+
+## Önceki oturum
 
 - 27–28 Ekim: `deploy/install.sh`'e Oracle (iptables) desteği eklendi; Oracle instance kuruldu,
   public IP ve UDP 4433 ingress kuralı eklendi; uygulama buluttaki sunucuya bağlandı.
