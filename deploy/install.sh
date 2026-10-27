@@ -54,6 +54,12 @@ systemctl restart callout
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   ufw allow "$PORT"/udp >/dev/null && echo "==> ufw: $PORT/udp açıldı"
 fi
+# Oracle Cloud imajları: ufw yok, iptables REJECT kuralı var; UDP portunu onun önüne ekle.
+if command -v iptables >/dev/null 2>&1 && ! iptables -C INPUT -p udp --dport "$PORT" -j ACCEPT 2>/dev/null; then
+  iptables -I INPUT 1 -p udp --dport "$PORT" -j ACCEPT
+  command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1
+  echo "==> iptables: $PORT/udp açıldı"
+fi
 
 sleep 1
 echo
