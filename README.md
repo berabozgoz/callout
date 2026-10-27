@@ -37,10 +37,16 @@ Ya da bir etiket at, GitHub Actions kurulum dosyasını Releases sayfasına koys
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-Sunucuyu internete açmak: modemde **UDP 4433** portunu sunucu bilgisayarına yönlendir, dış IP'ni öğren
-(tarayıcıda "what is my ip") ve sunucuyu `CALLOUT_PUBLIC_IP=<dış-ip> callout-server.exe` ile başlat;
-basılan `callout://<dış-ip>:4433#...` linkini arkadaşlarına gönder. Windows Güvenlik Duvarı ilk seferde
-izin ister. Kurulum dosyası imzasız olduğu için SmartScreen "bilinmeyen yayımcı" uyarısı verir
+Sunucuyu internete açmak, en kolayı bir VPS (Ubuntu 24.04, en küçük plan yeter); root olarak:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/berabozgoz/callout/main/deploy/install.sh | sudo bash
+```
+
+Betik son sürümü indirir, systemd servisi kurar, 4433/udp'yi açar ve `callout://...` davet linkini basar
+(`journalctl -u callout -f` ile günlük). Ev internetinden açmak için modemde **UDP 4433** yönlendirmesi ve
+`CALLOUT_PUBLIC_IP=<dış-ip>` gerekir; sağlayıcı CGNAT kullanıyorsa (modemdeki WAN IP ile dış IP farklıysa)
+bu yol çalışmaz. Kurulum dosyası imzasız olduğu için SmartScreen "bilinmeyen yayımcı" uyarısı verir
 ("Daha fazla bilgi → Yine de çalıştır"); kod imzalama Faz 4'te.
 
 Mimari ve yol haritası: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
