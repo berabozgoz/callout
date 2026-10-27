@@ -48,8 +48,11 @@ impl AppState {
         let s = self.settings.lock().unwrap().clone();
         let path = self.data_dir.join("settings.json");
         std::fs::create_dir_all(&self.data_dir).map_err(|e| e.to_string())?;
-        std::fs::write(path, serde_json::to_vec_pretty(&s).map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())
+        std::fs::write(
+            path,
+            serde_json::to_vec_pretty(&s).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())
     }
 }
 
@@ -139,7 +142,8 @@ fn register_ptt(app: &AppHandle, shortcut: &str) -> Result<(), String> {
     if shortcut.trim().is_empty() {
         return Ok(());
     }
-    gs.register(shortcut).map_err(|e| format!("kısayol '{shortcut}': {e}"))
+    gs.register(shortcut)
+        .map_err(|e| format!("kısayol '{shortcut}': {e}"))
 }
 
 // ---------------------------------------------------------------------------
