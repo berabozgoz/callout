@@ -182,15 +182,15 @@ async fn handle_connection(
     });
     let connected_at = std::time::Instant::now();
 
+    // Odadan çıkarır; çıkılan odanın kodunu döner (odada değilse `None`).
     let leave = |current: &Arc<RwLock<Option<SharedRoom>>>, registry: &Registry| {
         let room = current.write().unwrap().take();
-        if let Some(room) = room {
+        room.map(|room| {
+            let code = room.code();
             room.leave(user_id);
             registry.remove_if_empty(&room);
-            true
-        } else {
-            false
-        }
+            code
+        })
     };
 
     // --- Kontrol döngüsü ---
@@ -228,14 +228,18 @@ async fn handle_connection(
                         }
                     }
                     ClientMsg::LeaveRoom => {
-                        if !leave(&current, &registry) {
+                        if let Some(code) = leave(&current, &registry) {
+                            tracing::info!(user_id, code, "odadan ayrıldı");
+                        } else {
                             control.send(&ServerMsg::Error { code: ErrorCode::NotInRoom, message: "odada değilsin".into() }).await?;
                         }
                     }
                     ClientMsg::SetMuted(m) => {
+                        tracing::info!(user_id, muted = m, "mikrofon durumu");
                         if let Some(r) = current.read().unwrap().as_ref() { r.set_flags(user_id, Some(m), None); }
                     }
                     ClientMsg::SetDeafened(d) => {
+                        tracing::info!(user_id, deafened = d, "kulaklık durumu");
                         if let Some(r) = current.read().unwrap().as_ref() { r.set_flags(user_id, None, Some(d)); }
                     }
                     ClientMsg::Hello { .. } | ClientMsg::Auth { .. } => {}
@@ -252,7 +256,9 @@ async fn handle_connection(
 
     audio_task.abort();
     stats_task.abort();
-    leave(&current, &registry);
+    if let Some(code) = leave(&current, &registry) {
+        tracing::info!(user_id, code, "bağlantı kapanırken odadan çıkarıldı");
+    }
     let st = conn.stats();
     tracing::info!(
         user_id,

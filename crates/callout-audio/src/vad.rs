@@ -33,7 +33,7 @@ impl Vad {
     /// Uyarlanabilir eşik: `floor_db` başlangıç gürültü tabanı, `margin_db` üstüne pay.
     pub fn set_adaptive(&mut self, floor_db: f32, margin_db: f32) {
         self.adaptive = Some((floor_db, margin_db));
-        self.set_threshold_db(floor_db + margin_db);
+        self.set_threshold_db((floor_db + margin_db).clamp(-60.0, -20.0));
     }
 
     pub fn noise_floor_db(&self) -> Option<f32> {

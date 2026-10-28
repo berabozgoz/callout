@@ -103,6 +103,8 @@ struct AudioControl {
     deafened: AtomicBool,
     ptt_mode: AtomicBool,
     ptt_pressed: AtomicBool,
+    /// Yalnızca odadayken ses gönderilir (oda dışında sunucu zaten atıyor; ağa çıkmasın).
+    in_room: AtomicBool,
     gains: Mutex<HashMap<UserId, f32>>,
     // istatistik
     sent: AtomicU32,
@@ -119,6 +121,7 @@ impl AudioControl {
             deafened: AtomicBool::new(false),
             ptt_mode: AtomicBool::new(ptt),
             ptt_pressed: AtomicBool::new(false),
+            in_room: AtomicBool::new(false),
             gains: Mutex::new(HashMap::new()),
             sent: AtomicU32::new(0),
             received: AtomicU32::new(0),
@@ -269,7 +272,9 @@ fn audio_thread(
                 } else {
                     d.send
                 };
-                let send = gate && !ctl.muted.load(Ordering::Relaxed);
+                let send = gate
+                    && !ctl.muted.load(Ordering::Relaxed)
+                    && ctl.in_room.load(Ordering::Relaxed);
                 let talk_start = send && !was_transmitting;
                 was_transmitting = send;
                 if !send {
@@ -572,6 +577,7 @@ async fn run(
                             let r = client.leave_room().await.map_err(|e| e.to_string());
                             if room.is_some() {
                                 room = None;
+                                ctl.in_room.store(false, Ordering::Relaxed);
                                 members.clear();
                                 emit(Event::RoomUpdated { room: None, members: Vec::new() });
                             }
@@ -612,6 +618,7 @@ async fn run(
                     match msg {
                         ServerMsg::RoomState { room: r, members: m } => {
                             room = Some(r);
+                            ctl.in_room.store(true, Ordering::Relaxed);
                             members = m;
                             emit(Event::RoomUpdated { room: room.clone(), members: members.clone() });
                         }
@@ -666,7 +673,8 @@ async fn run(
 
         tracing::info!(reason, "bağlantı kapanıyor");
         let _ = client.control().send(&ClientMsg::LeaveRoom).await;
-        client.close();
+        ctl.in_room.store(false, Ordering::Relaxed);
+        client.close_graceful(Duration::from_millis(500)).await;
         send_task.abort();
         recv_task.abort();
         drop(audio);

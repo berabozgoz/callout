@@ -57,4 +57,23 @@ verisi belirler. Sunucu adresi ve davet linki `CLAUDE.local.md`'dedir; katılım
 
 ## Sonuçlar
 
-_(test sonrası doldurulacak)_
+### 28 Ekim 2026 — ikili ön test (v0.1.3, Bera + mamitest, ikisi ethernet masaüstü)
+
+- Ses iki yönde aktı; QUIC kaybı 0 (kesinti dışında), RTT Bera 37–42 ms, mamitest 45–51 ms,
+  jitter tamponu 40–80 ms, sunucu CPU'su boşta.
+- **Kablo çekme (~5–10 sn):** bağlantı kopmadı (aynı `user_id`, `max_idle_timeout` 10 sn'den kısa
+  kaldığı için); sunucu 73 paket kayıp saydı, `cwnd` 12000 → 2904. Kullanıcı kesinti sırasında ve
+  sonrasında ses/çıtırtı/sıçrama fark etmedi. >10 sn kesinti `TimedOut` olur, otomatik yeniden
+  bağlanma yok.
+- **Bulunan hatalar:** (1) bas-konuş kısayolu odadan sonra da tuşu yutuyordu (düzeltildi, `87a4f61`);
+  (2) uygulama kapanırken kapatma çerçevesi bazen gitmiyor, bağlantı ~15 sn `TimedOut` ile siliniyor.
+- **mamitest günlüğü (alındı):** ikinci oturumda RTT 45–50 ms, `lost=0`, jitter 40–80 ms, alım pencereleri
+  69–100/100; kablo kesintisi onun günlüğünde de aynı anda görünüyor ve toparlanmış.
+- **Açık gözlem (ilk oturum 18:39:59–18:40:31):** sunucu mamitest'i odaya aldı ("odaya katıldı") ama ~7 sn
+  sonra istatistikte `in_room=false`; Bera onu duymadı, mamitest `sent=100` gönderdi. Kullanıcı o sırada
+  uygulamayı kapatıp açtığını ve giriş ekranı gördüğünü söylüyor; mute/deafen düğmelerini kullanmıştı.
+  Kodda mute/deafen'in odadan çıkaracağı bir yol bulunamadı. Sunucu çıkışı/bayrakları günlüğe yazmıyordu;
+  v0.1.4'te "odadan ayrıldı", "mikrofon/kulaklık durumu" satırları eklendi — tekrar testte izlenecek.
+- **Oda dışında ses gönderiliyordu** (sunucu atıyordu): düzeltildi, yalnızca odadayken gönderilir.
+- Henüz yok: uzun süreli (1 saat) ve 4 kişilik yük, farklı ağlardan katılım.
+

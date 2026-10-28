@@ -283,6 +283,9 @@ pub fn run() {
                     "quit" => {
                         if let Some(state) = app.try_state::<AppState>() {
                             state.engine.send(Command::Disconnect);
+                            // Motorun kapatma çerçevesini göndermesine zaman ver (en çok ~500 ms);
+                            // süreç hemen çıkarsa sunucu bağlantıyı ~10 sn sonra zaman aşımıyla siler.
+                            std::thread::sleep(std::time::Duration::from_millis(700));
                         }
                         app.exit(0);
                     }

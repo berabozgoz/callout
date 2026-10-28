@@ -39,6 +39,8 @@ pub struct Client {
     conn: quinn::Connection,
     control: ControlStream<ClientMsg, ServerMsg>,
     user_id: UserId,
+    /// Kapatma çerçevesinin ağa çıkmasını beklemek için (`close_graceful`).
+    endpoint: quinn::Endpoint,
 }
 
 impl Client {
@@ -107,6 +109,7 @@ impl Client {
             conn,
             control,
             user_id,
+            endpoint,
         })
     }
 
@@ -163,5 +166,12 @@ impl Client {
 
     pub fn close(&self) {
         self.conn.close(0u32.into(), b"bye");
+    }
+
+    /// Bağlantıyı kapatır ve kapatma çerçevesinin gönderilmesini (en çok `wait` kadar) bekler.
+    /// Süreç hemen sonra çıkarsa çerçeve gitmez, sunucu bağlantıyı ~10 sn sonra zaman aşımıyla siler.
+    pub async fn close_graceful(&self, wait: std::time::Duration) {
+        self.conn.close(0u32.into(), b"bye");
+        let _ = tokio::time::timeout(wait, self.endpoint.wait_idle()).await;
     }
 }

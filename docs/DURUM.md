@@ -33,9 +33,10 @@
    (tepsi dahil) tuş serbest. Kalıcı çözüm Faz 2'de: tuşu tüketmeyen düşük seviye klavye/fare
    dinleyicisi (WH_KEYBOARD_LL; `unsafe` ayrı bir crate'te, kural 6) → oyun içinde düz tuş ve fare
    tuşu PTT. Odadayken düz tuş hâlâ yutulur; arayüzde uyarı notu var.
-4. **Hayalet bağlantı:** uygulama kapanırken QUIC kapatma çerçevesi bazen gitmiyor
-   (`close_reason=TimedOut`, ~15 sn sonra). Odadayken kapatılırsa üye 15 sn odada kalabilir.
-   Çözüm: `close()` sonrası `conn.closed()`/kısa bekleme.
+4. **Hayalet bağlantı:** düzeltildi (`Client::close_graceful`, tepsi "Çık"ta 700 ms bekleme) — gerçek
+   uygulamada doğrulanmadı: sunucu günlüğünde kapanış `ApplicationClosed ... "bye"` olmalı, `TimedOut` değil.
+   İlk ikili testte mamitest'in ilk oturumunda (odaya katıldı, ~7 sn sonra sunucuda `in_room=false`) neden
+   açık: sunucuya katılma/ayrılma/mute günlükleri eklendi, aynı test mute/deafen ile tekrarlanacak.
 5. Bilinen eksikler: PTT oyun içi (tam ekran) doğrulanmadı; fare tuşu PTT yok;
    `LICENSE-APACHE` tam metin eksik; CI "Kütüphaneler (Linux)" işi bir kez exit 1 verdi
    (yerelde tüm adımlar geçiyor, log bekleniyor).
