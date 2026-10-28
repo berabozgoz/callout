@@ -27,7 +27,16 @@
    4. UDP engelli ağ için yedek: ses paketlerini güvenilir QUIC akışından taşıyan mod.
    5. Kayıplı ağ simülasyonu testi (%5 kayıp, 100 ms jitter) — headless.
    6. UI cilası: VAD eşik payı ayarı, mikrofon test düğmesi, bağlantı kopunca uyarı.
-3. Bilinen eksikler: PTT oyun içi (tam ekran) doğrulanmadı; fare tuşu PTT yok;
+3. **Bas-konuş kısayolu tuşu yutuyordu** (28 Ekim, ikili testte bulundu): kısayol uygulama
+   açıldığından beri sistem genelinde kayıtlıydı, düz "T" başka uygulamalarda yazılamıyordu.
+   Düzeltildi: yalnızca bas-konuş açıkken **ve** odadayken kayıtlı (`sync_ptt`). Oda dışında
+   (tepsi dahil) tuş serbest. Kalıcı çözüm Faz 2'de: tuşu tüketmeyen düşük seviye klavye/fare
+   dinleyicisi (WH_KEYBOARD_LL; `unsafe` ayrı bir crate'te, kural 6) → oyun içinde düz tuş ve fare
+   tuşu PTT. Odadayken düz tuş hâlâ yutulur; arayüzde uyarı notu var.
+4. **Hayalet bağlantı:** uygulama kapanırken QUIC kapatma çerçevesi bazen gitmiyor
+   (`close_reason=TimedOut`, ~15 sn sonra). Odadayken kapatılırsa üye 15 sn odada kalabilir.
+   Çözüm: `close()` sonrası `conn.closed()`/kısa bekleme.
+5. Bilinen eksikler: PTT oyun içi (tam ekran) doğrulanmadı; fare tuşu PTT yok;
    `LICENSE-APACHE` tam metin eksik; CI "Kütüphaneler (Linux)" işi bir kez exit 1 verdi
    (yerelde tüm adımlar geçiyor, log bekleniyor).
 

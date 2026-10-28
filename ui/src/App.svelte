@@ -132,6 +132,7 @@
         <label>Bas-konuş tuşu
           <input type="text" bind:value={settings.ptt_shortcut} placeholder="F9, Ctrl+Space, Alt+Z…" />
         </label>
+        <p class="hint">Kısayol yalnızca bir odadayken etkindir. Düz bir harf (ör. T) seçersen odadayken diğer uygulamalarda o tuşla yazamazsın; F9 ya da Ctrl+Alt gibi birleşimler daha güvenlidir.</p>
       {/if}
       <div class="actions">
         <button class="primary" onclick={applySettings}>Kaydet</button>

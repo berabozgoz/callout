@@ -5,6 +5,7 @@
 use callout_core::{Command, DeviceInfo, Direction, Engine, EngineConfig, Event};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -41,6 +42,8 @@ struct AppState {
     engine: Engine,
     settings: Mutex<Settings>,
     data_dir: PathBuf,
+    /// Odada mıyız? Bas-konuş kısayolu yalnızca odadayken sistem genelinde tutulur.
+    in_room: AtomicBool,
 }
 
 impl AppState {
@@ -115,8 +118,8 @@ fn save_settings(app: AppHandle, state: State<AppState>, settings: Settings) -> 
     state.engine.send(Command::SetPushToTalkMode {
         enabled: settings.push_to_talk,
     });
-    if old.ptt_shortcut != settings.ptt_shortcut {
-        register_ptt(&app, &settings.ptt_shortcut)?;
+    if old.ptt_shortcut != settings.ptt_shortcut || old.push_to_talk != settings.push_to_talk {
+        sync_ptt(&app)?;
     }
     Ok(())
 }
@@ -136,14 +139,30 @@ fn app_version() -> &'static str {
 // Bas-konuş kısayolu
 // ---------------------------------------------------------------------------
 
-fn register_ptt(app: &AppHandle, shortcut: &str) -> Result<(), String> {
+/// Kısayol sistem genelinde tuşu tüketir (düz "T" gibi bir tuş başka uygulamalarda yazılamaz).
+/// Bu yüzden yalnızca bas-konuş açıkken **ve** odadayken kayıtlı tutulur; aksi halde bırakılır.
+fn sync_ptt(app: &AppHandle) -> Result<(), String> {
+    let Some(state) = app.try_state::<AppState>() else {
+        return Ok(());
+    };
+    let (enabled, shortcut) = {
+        let s = state.settings.lock().unwrap();
+        (s.push_to_talk, s.ptt_shortcut.trim().to_string())
+    };
     let gs = app.global_shortcut();
     gs.unregister_all().map_err(|e| e.to_string())?;
-    if shortcut.trim().is_empty() {
+    if shortcut.is_empty() {
         return Ok(());
     }
-    gs.register(shortcut)
-        .map_err(|e| format!("kısayol '{shortcut}': {e}"))
+    // Geçersiz sözdizimini oda dışında da kullanıcıya bildir.
+    shortcut
+        .parse::<tauri_plugin_global_shortcut::Shortcut>()
+        .map_err(|e| format!("kısayol '{shortcut}': {e}"))?;
+    if enabled && state.in_room.load(Ordering::Relaxed) {
+        gs.register(shortcut.as_str())
+            .map_err(|e| format!("kısayol '{shortcut}': {e}"))?;
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -223,18 +242,27 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 while let Some(ev) = events.recv().await {
+                    if let Event::RoomUpdated { room, .. } = &ev {
+                        // Yalnızca odaya giriş/çıkışta (değer değişince) kısayolu eşitle.
+                        let in_room = room.is_some();
+                        let changed = handle.try_state::<AppState>().is_some_and(|st| {
+                            st.in_room.swap(in_room, Ordering::Relaxed) != in_room
+                        });
+                        if changed {
+                            if let Err(e) = sync_ptt(&handle) {
+                                tracing::warn!("{e}");
+                            }
+                        }
+                    }
                     let _ = handle.emit("engine", &ev);
                 }
             });
-
-            if let Err(e) = register_ptt(app.handle(), &settings.ptt_shortcut) {
-                tracing::warn!("{e}");
-            }
 
             app.manage(AppState {
                 engine,
                 settings: Mutex::new(settings),
                 data_dir,
+                in_room: AtomicBool::new(false),
             });
 
             // Sistem tepsisi: göster / çık.
