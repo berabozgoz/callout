@@ -16,6 +16,15 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Sürümü etiketten al
+        shell: bash
+        run: |
+          # Etiket (v0.1.5) tek doğruluk kaynağı: kurulum dosyası adı ve arayüzdeki sürüm buradan gelir.
+          tag="${GITHUB_REF_NAME}"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "etiket vX.Y.Z olmalı: $tag"; exit 1; }
+          v="${tag#v}"
+          sed -i -E '/^\[workspace\.package\]/,/^version/ s/^version = .*/version = "'"$v"'"/' Cargo.toml
+          grep -q "^version = \"$v\"" Cargo.toml || { echo "Cargo.toml sürümü yazılamadı"; exit 1; }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
@@ -56,6 +65,15 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - name: Sürümü etiketten al
+        shell: bash
+        run: |
+          # Etiket (v0.1.5) tek doğruluk kaynağı: kurulum dosyası adı ve arayüzdeki sürüm buradan gelir.
+          tag="${GITHUB_REF_NAME}"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "etiket vX.Y.Z olmalı: $tag"; exit 1; }
+          v="${tag#v}"
+          sed -i -E '/^\[workspace\.package\]/,/^version/ s/^version = .*/version = "'"$v"'"/' Cargo.toml
+          grep -q "^version = \"$v\"" Cargo.toml || { echo "Cargo.toml sürümü yazılamadı"; exit 1; }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Sunucu (Linux x64)
