@@ -2,9 +2,12 @@
 //! `callout-core` motoruna komut iletir, olaylarını `engine` adıyla webview'a yayar,
 //! ayarları saklar, bas-konuş kısayolunu ve sistem tepsisini yönetir.
 
-use callout_core::{Command, DeviceInfo, Direction, Engine, EngineConfig, Event};
+use callout_core::{
+    Command, ConnectionState, DeviceInfo, Direction, Engine, EngineConfig, Event, Member, RoomInfo,
+    UserId,
+};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem};
@@ -38,8 +41,55 @@ impl Default for Settings {
     }
 }
 
+/// Arayüzün (webview) kaybolabilecek durumunun kopyası: webview yenilense bile motor bağlı kalır,
+/// arayüz açılışta `engine_snapshot` ile kendini buradan doldurur.
+#[derive(Debug, Clone, Serialize)]
+struct Snapshot {
+    connection: ConnectionState,
+    user_id: Option<UserId>,
+    room: Option<RoomInfo>,
+    members: Vec<Member>,
+    muted: bool,
+    deafened: bool,
+}
+
+impl Snapshot {
+    fn new() -> Self {
+        Self {
+            connection: ConnectionState::Disconnected,
+            user_id: None,
+            room: None,
+            members: Vec::new(),
+            muted: false,
+            deafened: false,
+        }
+    }
+
+    fn apply(&mut self, ev: &Event) {
+        match ev {
+            Event::ConnectionState { state } => {
+                self.connection = *state;
+                if *state == ConnectionState::Disconnected {
+                    self.user_id = None;
+                    self.room = None;
+                    self.members.clear();
+                }
+            }
+            Event::Connected { user_id } => self.user_id = Some(*user_id),
+            Event::RoomUpdated { room, members } => {
+                self.room = room.clone();
+                self.members = members.clone();
+            }
+            _ => {}
+        }
+    }
+}
+
 struct AppState {
     engine: Engine,
+    snapshot: Mutex<Snapshot>,
+    /// Ayarlarda tuş yakalama sürerken kısayol bırakılır (yoksa tuş arayüze ulaşmaz).
+    ptt_capture: AtomicBool,
     settings: Mutex<Settings>,
     data_dir: PathBuf,
     /// Odada mıyız? Bas-konuş kısayolu yalnızca odadayken sistem genelinde tutulur.
@@ -59,7 +109,7 @@ impl AppState {
     }
 }
 
-fn load_settings(data_dir: &PathBuf) -> Settings {
+fn load_settings(data_dir: &Path) -> Settings {
     std::fs::read(data_dir.join("settings.json"))
         .ok()
         .and_then(|b| serde_json::from_slice(&b).ok())
@@ -127,12 +177,34 @@ fn save_settings(app: AppHandle, state: State<AppState>, settings: Settings) -> 
 /// Motora komut: arayüz `Command`'ı JSON olarak (`{"type": "...", ...}`) gönderir.
 #[tauri::command]
 fn engine_command(state: State<AppState>, command: Command) {
+    {
+        let mut snap = state.snapshot.lock().unwrap();
+        match &command {
+            Command::SetMuted { muted } => snap.muted = *muted,
+            Command::SetDeafened { deafened } => snap.deafened = *deafened,
+            _ => {}
+        }
+    }
     state.engine.send(command);
 }
 
+/// Arayüz açılırken (ya da yenilenince) motorun gerçek durumunu okur.
 #[tauri::command]
-fn app_version() -> &'static str {
-    env!("CARGO_PKG_VERSION")
+fn engine_snapshot(state: State<AppState>) -> Snapshot {
+    state.snapshot.lock().unwrap().clone()
+}
+
+/// Ayarlarda tuş yakalama başlarken/biterken: bas-konuş kısayolunu geçici bırakır.
+#[tauri::command]
+fn ptt_capture(app: AppHandle, state: State<AppState>, active: bool) -> Result<(), String> {
+    state.ptt_capture.store(active, Ordering::Relaxed);
+    sync_ptt(&app)
+}
+
+#[tauri::command]
+fn app_version(app: AppHandle) -> String {
+    // Paketlenen sürüm (kurulum dosyasındakiyle aynı kaynak: Cargo.toml → etiketten yazılır).
+    app.package_info().version.to_string()
 }
 
 // ---------------------------------------------------------------------------
@@ -158,7 +230,10 @@ fn sync_ptt(app: &AppHandle) -> Result<(), String> {
     shortcut
         .parse::<tauri_plugin_global_shortcut::Shortcut>()
         .map_err(|e| format!("kısayol '{shortcut}': {e}"))?;
-    if enabled && state.in_room.load(Ordering::Relaxed) {
+    if enabled
+        && state.in_room.load(Ordering::Relaxed)
+        && !state.ptt_capture.load(Ordering::Relaxed)
+    {
         gs.register(shortcut.as_str())
             .map_err(|e| format!("kısayol '{shortcut}': {e}"))?;
     }
@@ -242,6 +317,9 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 while let Some(ev) = events.recv().await {
+                    if let Some(st) = handle.try_state::<AppState>() {
+                        st.snapshot.lock().unwrap().apply(&ev);
+                    }
                     if let Event::RoomUpdated { room, .. } = &ev {
                         // Yalnızca odaya giriş/çıkışta (değer değişince) kısayolu eşitle.
                         let in_room = room.is_some();
@@ -263,6 +341,8 @@ pub fn run() {
                 settings: Mutex::new(settings),
                 data_dir,
                 in_room: AtomicBool::new(false),
+                snapshot: Mutex::new(Snapshot::new()),
+                ptt_capture: AtomicBool::new(false),
             });
 
             // Sistem tepsisi: göster / çık.
@@ -321,6 +401,8 @@ pub fn run() {
             get_settings,
             save_settings,
             engine_command,
+            engine_snapshot,
+            ptt_capture,
             app_version
         ])
         .run(tauri::generate_context!())
@@ -330,4 +412,33 @@ pub fn run() {
 #[allow(dead_code)]
 fn _assert_event_serializable(e: &Event) -> String {
     serde_json::to_string(e).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use tauri_plugin_global_shortcut::Shortcut;
+
+    /// Arayüzün tuş yakalama alanı `KeyboardEvent.code` adlarını gönderir; hepsi kısayol
+    /// kütüphanesince çözümlenmeli.
+    #[test]
+    fn captured_key_codes_parse() {
+        for s in [
+            "F9",
+            "F4",
+            "Ctrl+F4",
+            "KeyT",
+            "Digit9",
+            "Ctrl+KeyT",
+            "Ctrl+Alt+KeyZ",
+            "Ctrl+Shift+Digit1",
+            "Alt+ArrowUp",
+            "Space",
+            "Ctrl+Space",
+            "Numpad5",
+            "Super+KeyV",
+            "Backquote",
+        ] {
+            assert!(s.parse::<Shortcut>().is_ok(), "çözümlenemedi: {s}");
+        }
+    }
 }

@@ -37,12 +37,23 @@
    uygulamada doğrulanmadı: sunucu günlüğünde kapanış `ApplicationClosed ... "bye"` olmalı, `TimedOut` değil.
    İlk ikili testte mamitest'in ilk oturumunda (odaya katıldı, ~7 sn sonra sunucuda `in_room=false`) neden
    açık: sunucuya katılma/ayrılma/mute günlükleri eklendi, aynı test mute/deafen ile tekrarlanacak.
-5. Bilinen eksikler: PTT oyun içi (tam ekran) doğrulanmadı; fare tuşu PTT yok;
+5. **Ayarlarda tuş yakalama + F5 hatası** (v0.1.4 sonrası, 31 Ekim): bas-konuş alanı artık "bir tuşa
+   bas" yakalayıcısı (`KeyboardEvent.code` → kısayol adı; yakalarken kısayol geçici bırakılır,
+   `ptt_capture`). F5 webview'i yenileyip arayüzü sıfırlıyor, motor bağlı kalıyordu ("zaten bağlı"):
+   app tarafında `Snapshot` + `engine_snapshot` komutu, arayüz açılışta kendini doldurur; motor bağlıyken
+   `Connect` alırsa durumu yeniden yayınlar; yayın sürümünde F5/Ctrl+R/sağ tık engelli. Gerçek
+   uygulamada denenmedi (commit edilmedi).
+6. Bilinen eksikler: PTT oyun içi (tam ekran) doğrulanmadı; fare tuşu PTT yok;
    `LICENSE-APACHE` tam metin eksik; CI "Kütüphaneler (Linux)" işi bir kez exit 1 verdi
    (yerelde tüm adımlar geçiyor, log bekleniyor).
 
 ## Çalışma düzeni
 
+- **Sürüm numarası:** tek kaynak etiket. `release.yml` etiketten (`v0.1.5` → `0.1.5`) `Cargo.toml`
+  `[workspace.package] version` değerini derleme öncesi yazar; kurulum dosyası adı
+  (`CallOut_0.1.5_x64-setup.exe`) ve arayüz altbilgisi (`app.package_info()`) buradan gelir.
+  `tauri.conf.json`'da `version` yok. Etiket `vX.Y.Z` biçiminde değilse akış hata verir. Repodaki
+  `Cargo.toml` sürümünü ara sıra son etikete eşitle (yerel çalıştırmalarda görünen sürüm).
 - Sunucu güncelleme: etiket at (`git tag v0.1.x && git push origin v0.1.x`), Actions bitince
   sunucuda `curl -fsSL https://raw.githubusercontent.com/berabozgoz/callout/main/deploy/install.sh | sudo bash`.
 - Kod değişikliğinden sonra: `cargo fmt && cargo clippy --workspace --exclude callout-app --all-targets -- -D warnings && cargo test`.

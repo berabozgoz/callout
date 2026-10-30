@@ -38,11 +38,24 @@ export type Settings = {
   ptt_shortcut: string;
 };
 
+/** Motorun gerçek durumu: webview yenilense bile motor bağlı kalır. */
+export type Snapshot = {
+  connection: ConnectionState;
+  user_id: number | null;
+  room: RoomInfo | null;
+  members: Member[];
+  muted: boolean;
+  deafened: boolean;
+};
+
 export type Device = { name: string; direction: "input" | "output"; is_default: boolean };
 
 export const send = (command: Command) => invoke<void>("engine_command", { command });
 export const getSettings = () => invoke<Settings>("get_settings");
 export const saveSettings = (settings: Settings) => invoke<void>("save_settings", { settings });
+export const engineSnapshot = () => invoke<Snapshot>("engine_snapshot");
+/** Tuş yakalama sürerken bas-konuş kısayolunu geçici bırakır (yoksa tuş arayüze ulaşmaz). */
+export const pttCapture = (active: boolean) => invoke<void>("ptt_capture", { active });
 export const listDevices = () => invoke<Device[]>("list_audio_devices");
 export const appVersion = () => invoke<string>("app_version");
 
@@ -52,6 +65,16 @@ export function onEngine(handler: (e: EngineEvent) => void): Promise<UnlistenFn>
 
 export function onPtt(handler: (pressed: boolean) => void): Promise<UnlistenFn> {
   return listen<boolean>("ptt", (ev) => handler(ev.payload));
+}
+
+/** `Ctrl+KeyT` → `Ctrl + T`, `Alt+ArrowUp` → `Alt + ↑` */
+export function prettyShortcut(s: string): string {
+  const arrows: Record<string, string> = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
+  return s
+    .split("+")
+    .filter(Boolean)
+    .map((p) => arrows[p] ?? p.replace(/^Key/, "").replace(/^Digit/, ""))
+    .join(" + ");
 }
 
 /** `ABCD1234` → `ABCD-1234` */

@@ -3,6 +3,7 @@
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import {
     send, getSettings, saveSettings, listDevices, appVersion, onEngine, onPtt, prettyCode,
+    engineSnapshot, pttCapture, prettyShortcut,
     type Settings, type Device, type Member, type RoomInfo, type ConnectionState,
   } from "./engine";
 
@@ -26,6 +27,7 @@
   let roomName = $state("");
   let showSettings = $state(false);
   let copied = $state(false);
+  let capturing = $state(false);
 
   const inputs = $derived(devices.filter((d) => d.direction === "input"));
   const outputs = $derived(devices.filter((d) => d.direction === "output"));
@@ -59,7 +61,50 @@
       }
     });
     await onPtt((pressed) => { transmitting = pressed && !muted; });
+
+    // Webview yenilenmiş olabilir (F5 vb.): motor hâlâ bağlıysa durumu ondan al.
+    // Dinleyiciler kurulduktan sonra okunur ki aradaki olaylar kaçmasın.
+    try {
+      const s = await engineSnapshot();
+      conn = s.connection; myId = s.user_id; room = s.room; members = s.members;
+      muted = s.muted; deafened = s.deafened;
+    } catch (e) { error = String(e); }
   });
+
+  // Yayın sürümünde yenileme tuşları ve sağ tık menüsü kapalı: yenileme arayüz durumunu sıfırlardı.
+  const MODIFIER_CODES = new Set(["ControlLeft", "ControlRight", "ShiftLeft", "ShiftRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight", "AltGraph"]);
+  function onWindowKey(e: KeyboardEvent) {
+    if (capturing) { captureKey(e); return; }
+    if (!import.meta.env.PROD) return;
+    const reload = e.code === "F5" || (e.ctrlKey && e.code === "KeyR");
+    if (reload) e.preventDefault();
+  }
+  function onContextMenu(e: MouseEvent) { if (import.meta.env.PROD) e.preventDefault(); }
+
+  // ---- bas-konuş tuşu yakalama ----
+  async function startCapture() {
+    capturing = true;
+    try { await pttCapture(true); } catch (e) { error = String(e); }
+  }
+  async function stopCapture() {
+    capturing = false;
+    try { await pttCapture(false); } catch (e) { error = String(e); }
+  }
+  function captureKey(e: KeyboardEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat || MODIFIER_CODES.has(e.code)) return; // yalnız değiştirici: asıl tuşu bekle
+    if (e.code === "Escape") { stopCapture(); return; }
+    if (e.code === "Backspace" || e.code === "Delete") { settings.ptt_shortcut = ""; stopCapture(); return; }
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.metaKey) parts.push("Super");
+    parts.push(e.code); // KeyT, Digit9, F9, ArrowUp… kısayol kütüphanesinin kendi adları
+    settings.ptt_shortcut = parts.join("+");
+    stopCapture();
+  }
 
   // ---- eylemler ----
   async function connect() {
@@ -87,10 +132,19 @@
     setTimeout(() => (copied = false), 1500);
   }
   async function applySettings() {
-    await saveSettings(settings);
+    if (capturing) await stopCapture();
+    try {
+      await saveSettings(settings);
+      showSettings = false;
+    } catch (e) { error = String(e); }
+  }
+  async function cancelSettings() {
+    if (capturing) await stopCapture();
     showSettings = false;
   }
 </script>
+
+<svelte:window onkeydowncapture={onWindowKey} oncontextmenu={onContextMenu} />
 
 <main>
   <header>
@@ -130,13 +184,15 @@
       </label>
       {#if settings.push_to_talk}
         <label>Bas-konuş tuşu
-          <input type="text" bind:value={settings.ptt_shortcut} placeholder="F9, Ctrl+Space, Alt+Z…" />
+          <button type="button" class="capture" class:listening={capturing} onclick={(e) => { if (e.detail === 0) return; /* Space/Enter ile yakalanan tuşun tıklamaya dönüşmesini yok say */ capturing ? stopCapture() : startCapture(); }}>
+            {capturing ? "Bir tuşa ya da kombinasyona bas… (Esc iptal)" : settings.ptt_shortcut ? prettyShortcut(settings.ptt_shortcut) : "Atanmamış — tıkla ve bir tuşa bas"}
+          </button>
         </label>
         <p class="hint">Kısayol yalnızca bir odadayken etkindir. Düz bir harf (ör. T) seçersen odadayken diğer uygulamalarda o tuşla yazamazsın; F9 ya da Ctrl+Alt gibi birleşimler daha güvenlidir.</p>
       {/if}
       <div class="actions">
         <button class="primary" onclick={applySettings}>Kaydet</button>
-        <button onclick={() => (showSettings = false)}>Vazgeç</button>
+        <button onclick={cancelSettings}>Vazgeç</button>
       </div>
     </section>
   {:else if conn !== "connected"}

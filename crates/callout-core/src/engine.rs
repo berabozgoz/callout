@@ -569,7 +569,14 @@ async fn run(
                     let Some(cmd) = cmd else { break "motor kapatıldı".into() };
                     let r: Result<(), String> = match cmd {
                         Command::Disconnect => break "kullanıcı ayrıldı".into(),
-                        Command::Connect { .. } => Err("zaten bağlı".into()),
+                        // Arayüz durumunu kaybetmiş olabilir (ör. webview yenilendi): hata verme,
+                        // mevcut durumu yeniden yayınla.
+                        Command::Connect { .. } => {
+                            emit(Event::ConnectionState { state: ConnectionState::Connected });
+                            emit(Event::Connected { user_id: my_id });
+                            emit(Event::RoomUpdated { room: room.clone(), members: members.clone() });
+                            Ok(())
+                        }
                         Command::CreateRoom { name } => client.create_room(&name).await.map_err(|e| e.to_string()),
                         Command::JoinRoom { code } => client.join_room(&code).await.map_err(|e| e.to_string()),
                         Command::LeaveRoom => {
