@@ -43,7 +43,12 @@
    app tarafında `Snapshot` + `engine_snapshot` komutu, arayüz açılışta kendini doldurur; motor bağlıyken
    `Connect` alırsa durumu yeniden yayınlar; yayın sürümünde F5/Ctrl+R/sağ tık engelli. Gerçek
    uygulamada denenmedi (commit edilmedi).
-6. Bilinen eksikler: PTT oyun içi (tam ekran) doğrulanmadı; fare tuşu PTT yok;
+6. **Çıkış/giriş cihazı kaybolunca ses kurtarma** (30 Ekim üç kişilik testte iki kez yaşandı, ~2,5 ve ~8 dk
+   sessizlik): cpal hata geri çağrısı artık `stream_error` bayrağını kurar; bağlıyken motor 1 sn'de bir
+   bakar, ses hattını yeniden kurar (başarısızsa 2/4/8/15 sn geri çekilme), seçili cihaz yoksa
+   varsayılan cihazlara geçer; arayüze `AudioRestored` olayı. Gerçek cihaz çıkarma ile denenmedi
+   (commit edilmedi) — denerken: bağlıyken kulaklığı çıkar/tak, günlükte `ses hattı kurtarıldı` görünmeli.
+7. Bilinen eksikler: PTT oyun içi (tam ekran) doğrulanmadı; fare tuşu PTT yok;
    `LICENSE-APACHE` tam metin eksik; CI "Kütüphaneler (Linux)" işi bir kez exit 1 verdi
    (yerelde tüm adımlar geçiyor, log bekleniyor).
 

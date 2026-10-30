@@ -13,6 +13,7 @@ export type EngineEvent =
   | { type: "speaking_changed"; user_id: number; speaking: boolean }
   | { type: "input_level"; level: number; transmitting: boolean }
   | { type: "stats"; rtt_ms: number; jitter_ms: number; lost: number; sent: number; received: number }
+  | { type: "audio_restored"; fallback_to_default: boolean }
   | { type: "error"; message: string };
 
 export type Command =

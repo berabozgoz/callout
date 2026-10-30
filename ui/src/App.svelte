@@ -57,6 +57,11 @@
         }
         case "input_level": level = e.level; transmitting = e.transmitting; break;
         case "stats": stats = { rtt_ms: e.rtt_ms, jitter_ms: e.jitter_ms, lost: e.lost }; break;
+        case "audio_restored":
+          error = e.fallback_to_default
+            ? "Seçili ses cihazı bulunamadı; varsayılan cihaza geçildi."
+            : error.startsWith("Ses cihazı") ? "" : error;
+          break;
         case "error": error = e.message; break;
       }
     });

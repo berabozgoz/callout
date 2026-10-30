@@ -77,3 +77,21 @@ verisi belirler. Sunucu adresi ve davet linki `CLAUDE.local.md`'dedir; katılım
 - **Oda dışında ses gönderiliyordu** (sunucu atıyordu): düzeltildi, yalnızca odadayken gönderilir.
 - Henüz yok: uzun süreli (1 saat) ve 4 kişilik yük, farklı ağlardan katılım.
 
+### 30 Ekim 2026 — üç kişilik test (v0.1.4: Bera, "at" (kuzen, farklı ağ), mamitest)
+
+- Üçü de ~20–50 dk odada; 3 kişi aynı anda konuşma çalıştı (alınan pencereler 180'e kadar).
+  RTT: Bera ort. 45 ms (sunucu max 55), at 36–38 ms, mamitest 36–37 ms. Jitter tamponu ort. 44–63 ms,
+  3 kişide en çok 100 ms. İstemci `lost`: at 21, Bera/mamitest 0. Sunucu QUIC kaybı: at 106 (~%0,1,
+  kuzenin ağı), diğerleri 0.
+- 22:17–22:25 UTC'deki 8 dk sessizlik (sent=0 received=0) ve 22:13'teki 30 sn sessizlik kesinti değil:
+  sunucu günlüğüne göre ikisi de mute/deafen yapmıştı / kimse konuşmadı; RTT sabit.
+- Mute/deafen onlarca kez açılıp kapandı, hiçbir zaman `in_room` düşmedi → ilk testteki `in_room=false`
+  mute/deafen'den değil; hâlâ açıklanamadı.
+- **Hata: çıkış cihazı kaybında ses kurtarılmıyor.** `çıkış hatası: The requested device is no longer
+  available` — Bera 22:44:14, at 22:18:30. Motor yalnızca günlüğe yazıyor; çıkış akışı ölü kalıyor
+  (Bera ~2,5 dk, at ~8 dk duyamadı), ses hattı elle cihaz seçilince yeniden kuruldu (Bera 22:46:50,
+  at 22:26:33).
+- mamitest'in bağlantısı odadan ayrıldıktan 18 sn sonra `TimedOut` ile kapandı (log kopyası uygulama
+  açıkken alınmış, kapanış satırı yok); pencere X'i tepsiye gizler, yalnızca tepsi "Çık" kapatma
+  çerçevesi gönderir.
+

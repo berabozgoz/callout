@@ -103,6 +103,8 @@ struct AudioControl {
     deafened: AtomicBool,
     ptt_mode: AtomicBool,
     ptt_pressed: AtomicBool,
+    /// cpal akış hata geri çağrısı (cihaz çıkarıldı/kayboldu) bunu kurar; motor ses hattını yeniden kurar.
+    stream_error: AtomicBool,
     /// Yalnızca odadayken ses gönderilir (oda dışında sunucu zaten atıyor; ağa çıkmasın).
     in_room: AtomicBool,
     gains: Mutex<HashMap<UserId, f32>>,
@@ -122,6 +124,7 @@ impl AudioControl {
             ptt_mode: AtomicBool::new(ptt),
             ptt_pressed: AtomicBool::new(false),
             in_room: AtomicBool::new(false),
+            stream_error: AtomicBool::new(false),
             gains: Mutex::new(HashMap::new()),
             sent: AtomicU32::new(0),
             received: AtomicU32::new(0),
@@ -169,6 +172,8 @@ fn audio_thread(
     let (mut in_prod, mut in_cons) = HeapRb::<f32>::new(in_rate as usize / 5).split();
     let (mut out_prod, mut out_cons) = HeapRb::<f32>::new(out_rate as usize / 5).split();
 
+    // Hata geri çağrıları yalnızca bayrağı kurar (ilk hatada günlüğe yazar); kurtarmayı motor yapar.
+    let (err_in, err_out) = (ctl.clone(), ctl.clone());
     let streams = (|| -> Result<_, String> {
         let in_stream = input
             .build_input_stream(
@@ -179,7 +184,11 @@ fn audio_thread(
                         let _ = in_prod.try_push(mono);
                     }
                 },
-                |e| tracing::error!("giriş hatası: {e}"),
+                move |e| {
+                    if !err_in.stream_error.swap(true, Ordering::Relaxed) {
+                        tracing::error!("giriş hatası: {e}");
+                    }
+                },
                 None,
             )
             .map_err(|e| format!("giriş akışı: {e}"))?;
@@ -192,7 +201,11 @@ fn audio_thread(
                         frame.fill(s);
                     }
                 },
-                |e| tracing::error!("çıkış hatası: {e}"),
+                move |e| {
+                    if !err_out.stream_error.swap(true, Ordering::Relaxed) {
+                        tracing::error!("çıkış hatası: {e}");
+                    }
+                },
                 None,
             )
             .map_err(|e| format!("çıkış akışı: {e}"))?;
@@ -413,6 +426,7 @@ fn start_audio(
     ev: mpsc::UnboundedSender<Event>,
 ) -> Result<AudioHandle, String> {
     ctl.stop.store(false, Ordering::Relaxed);
+    ctl.stream_error.store(false, Ordering::Relaxed);
     let (ready_tx, ready_rx) = std::sync::mpsc::channel();
     let (inp, outp, c) = (
         cfg.input_device.clone(),
@@ -561,6 +575,11 @@ async fn run(
         let mut stats = tokio::time::interval(Duration::from_secs(2));
         let mut stats_ticks = 0u32;
         let mut ping = tokio::time::interval(Duration::from_secs(3));
+        // Ses cihazı kaybolursa (çıkarılan kulaklık, Bluetooth düşmesi, varsayılan cihaz değişimi)
+        // hattı kendiliğinden yeniden kur; başarısızsa üstel geri çekilmeyle dene.
+        let mut audio_check = tokio::time::interval(Duration::from_secs(1));
+        let mut recover_attempts = 0u32;
+        let mut next_retry = Instant::now();
 
         // ---------------- Bağlı ----------------
         let reason: String = loop {
@@ -651,6 +670,42 @@ async fn run(
                             emit(Event::Error { message: format!("{code:?}: {message}") });
                         }
                         ServerMsg::Pong(_) | ServerMsg::Welcome { .. } | ServerMsg::Authed => {}
+                    }
+                }
+                _ = audio_check.tick() => {
+                    if cfg.no_audio {
+                        continue;
+                    }
+                    if !(ctl.stream_error.load(Ordering::Relaxed) || audio.is_none()) {
+                        recover_attempts = 0;
+                        continue;
+                    }
+                    if Instant::now() < next_retry {
+                        continue;
+                    }
+                    if recover_attempts == 0 {
+                        emit(Event::Error { message: "Ses cihazı kayboldu; otomatik yeniden bağlanılıyor…".into() });
+                    }
+                    recover_attempts += 1;
+                    let mut res = restart_audio(&cfg, &ctl, &tx_net, &audio_restart_rx, &ev, &mut audio);
+                    let mut fallback = false;
+                    if res.is_err() && (cfg.input_device.is_some() || cfg.output_device.is_some()) {
+                        // Seçili cihaz hâlâ yok: varsayılan cihazlarla dene (seçim ayarda kalır).
+                        let default_cfg = EngineConfig { input_device: None, output_device: None, ..cfg.clone() };
+                        res = restart_audio(&default_cfg, &ctl, &tx_net, &audio_restart_rx, &ev, &mut audio);
+                        fallback = res.is_ok();
+                    }
+                    match res {
+                        Ok(()) => {
+                            tracing::info!(attempts = recover_attempts, fallback, "ses hattı kurtarıldı");
+                            recover_attempts = 0;
+                            emit(Event::AudioRestored { fallback_to_default: fallback });
+                        }
+                        Err(e) => {
+                            let wait = (1u64 << recover_attempts.min(4)).min(15);
+                            next_retry = Instant::now() + Duration::from_secs(wait);
+                            tracing::warn!(attempts = recover_attempts, wait_secs = wait, "ses hattı kurulamadı: {e}");
+                        }
                     }
                 }
                 _ = ping.tick() => {

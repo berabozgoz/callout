@@ -150,6 +150,9 @@ async fn main() -> Result<()> {
                     Event::Stats { rtt_ms, jitter_ms, lost, sent, received } => {
                         tracing::info!(rtt_ms, jitter_ms, lost, sent, received, "istatistik (2 sn)");
                     }
+                    Event::AudioRestored { fallback_to_default } => {
+                        tracing::info!(fallback_to_default, "ses hattı kurtarıldı");
+                    }
                     Event::Error { message } => {
                         tracing::error!(message, "hata");
                         if message.contains("RoomNotFound") || message.contains("RoomFull") || message.starts_with("bağlanılamadı") || message.starts_with("bağlantı koptu") {

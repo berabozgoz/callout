@@ -92,6 +92,11 @@ pub enum Event {
         sent: u32,
         received: u32,
     },
+    /// Ses cihazı kaybolduktan sonra ses hattı otomatik yeniden kuruldu.
+    /// `fallback_to_default`: seçili cihaz yoktu, varsayılan cihazlara geçildi.
+    AudioRestored {
+        fallback_to_default: bool,
+    },
     Error {
         message: String,
     },
