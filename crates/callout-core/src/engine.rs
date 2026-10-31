@@ -243,6 +243,9 @@ fn audio_thread(
     let mut out = Vec::with_capacity(4096);
     let out_low_water = (out_rate as usize) * 40 / 1000;
     let mut last_adapt = Instant::now();
+    let mut adapt_ticks = 0u32;
+    // Sessiz kalıp tablodan silinen gönderenlerin kaybı (toplam sayaç geri düşmesin).
+    let mut lost_retired = 0u32;
     let mut last_level = Instant::now();
     let mut level_peak = 0f32;
     let mut was_transmitting = false;
@@ -366,8 +369,9 @@ fn audio_thread(
             }
             if last_adapt.elapsed() >= Duration::from_secs(5) {
                 last_adapt = Instant::now();
+                adapt_ticks += 1;
                 let mut max_target = 0;
-                let mut lost = 0;
+                let mut lost = lost_retired;
                 for r in receivers.values_mut() {
                     r.jitter.adapt();
                     let st = r.jitter.stats();
@@ -378,7 +382,28 @@ fn audio_thread(
                     ctl.jitter_target.store(max_target, Ordering::Relaxed);
                 }
                 ctl.lost.store(lost, Ordering::Relaxed);
-                receivers.retain(|_, r| r.last_packet.elapsed() < Duration::from_secs(60));
+                // Gönderen başına teşhis (30 sn'de bir, birikimli): hangi gönderenin paketleri
+                // düzensiz geliyor (tampon hedefi, geç/eksik/boşalma sayıları).
+                if adapt_ticks % 6 == 0 {
+                    for (id, r) in &receivers {
+                        let st = r.jitter.stats();
+                        tracing::info!(
+                            sender = id,
+                            target_ms = st.target * 20,
+                            late = st.late,
+                            lost = st.lost,
+                            underflow = st.underflow,
+                            "gönderen jitter"
+                        );
+                    }
+                }
+                receivers.retain(|_, r| {
+                    let keep = r.last_packet.elapsed() < Duration::from_secs(60);
+                    if !keep {
+                        lost_retired += r.jitter.stats().lost;
+                    }
+                    keep
+                });
             }
         } else {
             std::thread::sleep(Duration::from_millis(2));
@@ -580,6 +605,8 @@ async fn run(
         let mut audio_check = tokio::time::interval(Duration::from_secs(1));
         let mut recover_attempts = 0u32;
         let mut next_retry = Instant::now();
+        let mut recovering = false;
+        let mut last_restore = Instant::now();
 
         // ---------------- Bağlı ----------------
         let reason: String = loop {
@@ -639,7 +666,11 @@ async fn run(
                 msg = client.control().recv() => {
                     let msg = match msg {
                         Ok(m) => m,
-                        Err(e) => break format!("bağlantı koptu: {e}"),
+                        // "connection lost" yerine QUIC'in asıl nedenini yaz (zaman aşımı, sıfırlama…).
+                        Err(e) => match client.connection().close_reason() {
+                            Some(cause) => break format!("bağlantı koptu: {cause}"),
+                            None => break format!("bağlantı koptu: {e}"),
+                        },
                     };
                     match msg {
                         ServerMsg::RoomState { room: r, members: m } => {
@@ -677,16 +708,22 @@ async fn run(
                         continue;
                     }
                     if !(ctl.stream_error.load(Ordering::Relaxed) || audio.is_none()) {
-                        recover_attempts = 0;
+                        // 30 sn sorunsuz çalışınca geri çekilme sıfırlanır (cihaz gidip gelirse
+                        // her seferinde hemen yeniden kurup günlüğü doldurmasın).
+                        if last_restore.elapsed() > Duration::from_secs(30) {
+                            recover_attempts = 0;
+                        }
                         continue;
+                    }
+                    if !recovering {
+                        recovering = true;
+                        emit(Event::Error { message: "Ses cihazı kayboldu; otomatik yeniden bağlanılıyor…".into() });
                     }
                     if Instant::now() < next_retry {
                         continue;
                     }
-                    if recover_attempts == 0 {
-                        emit(Event::Error { message: "Ses cihazı kayboldu; otomatik yeniden bağlanılıyor…".into() });
-                    }
                     recover_attempts += 1;
+                    let wait = Duration::from_secs((1u64 << recover_attempts.min(4)).min(15));
                     let mut res = restart_audio(&cfg, &ctl, &tx_net, &audio_restart_rx, &ev, &mut audio);
                     let mut fallback = false;
                     if res.is_err() && (cfg.input_device.is_some() || cfg.output_device.is_some()) {
@@ -698,13 +735,14 @@ async fn run(
                     match res {
                         Ok(()) => {
                             tracing::info!(attempts = recover_attempts, fallback, "ses hattı kurtarıldı");
-                            recover_attempts = 0;
+                            recovering = false;
+                            last_restore = Instant::now();
+                            next_retry = last_restore + wait;
                             emit(Event::AudioRestored { fallback_to_default: fallback });
                         }
                         Err(e) => {
-                            let wait = (1u64 << recover_attempts.min(4)).min(15);
-                            next_retry = Instant::now() + Duration::from_secs(wait);
-                            tracing::warn!(attempts = recover_attempts, wait_secs = wait, "ses hattı kurulamadı: {e}");
+                            next_retry = Instant::now() + wait;
+                            tracing::warn!(attempts = recover_attempts, wait_secs = wait.as_secs(), "ses hattı kurulamadı: {e}");
                         }
                     }
                 }

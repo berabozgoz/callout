@@ -95,3 +95,45 @@ verisi belirler. Sunucu adresi ve davet linki `CLAUDE.local.md`'dedir; katılım
   açıkken alınmış, kapanış satırı yok); pencere X'i tepsiye gizler, yalnızca tepsi "Çık" kapatma
   çerçevesi gönderir.
 
+### 30–31 Ekim 2026 — bir saatlik ikili test (v0.1.5: Bera + at)
+
+- **23:06–00:12 UTC (66 dk) kesintisiz**, ikisi de aynı bağlantıda kaldı; kapanış temiz (`bye`), hiç
+  `ERROR` yok. Sunucu RTT: at ort. 39 ms (max 52), Bera ort. 45 ms (max 52). QUIC kaybı: at 47, Bera 0.
+  İstemci `lost`: at 27 (13 kısa patlama, en büyüğü 5 paket), Bera 1.
+- **Sürüm düzeltmesi sahada doğrulandı:** loglarda `version="0.1.5"`.
+- **Jitter tamponu asimetrik:** at'ın tamponu (Bera'yı dinlerken) %89 oranında 40 ms. Bera'nınki (at'ı
+  dinlerken) 40–240 ms arasında dalgalandı, ort. 136 ms; 23:15–23:57 arası çoğunlukla 180–240 ms. Yani
+  at → Bera yönünde paketler düzensiz geliyor (at'ın yükleme hattı ya da ses cihazının paketleri
+  topluca vermesi olası; at'ın mikrofon tabanı −86…−100 dB, alışılmadık). Bera yönünde uçtan uca
+  gecikme tepe noktalarda ~300 ms'ye çıkabilir. Hangi gönderende ne kadar geç/eksik paket olduğu
+  günlükte yok → gönderen başına jitter istatistiği eklenmeli (Faz 2 uyarlanabilir jitter girdisi).
+- **Bir istem dışı kopma (v0.1.4, 22:57 UTC):** at odadan ayrıldıktan ~1 dk sonra, lobideyken istemci
+  `bağlantı koptu: akış okuma: connection lost`, sunucu 11 sn sonra `TimedOut`. Sunucu RTT'si kopmadan
+  önceki dakikada 36 → 49 ms tırmandı. Nedeni belirsiz; istemci günlüğü QUIC'in iç hata nedenini
+  yazmıyor ("connection lost" ardındaki `ConnectionError`) → eklenmeli.
+- **Geçti ölçütlerine göre:** 1 saat ✓, kopma ≤1 ✓ (lobide, odada değil), sunucu CPU ✓; **4 kişi ✗**
+  (en çok 3 kişi, ~17 dk); **RTT + tampon < 150 ms: at tarafında ✓ (~80 ms), Bera tarafında ✗**
+  (ort. ~180 ms).
+- **Katılımcı cevapları:** (1) yüksek tampon aralığında birlikte Counter-Strike oynanıyordu, Bera gecikmeyi
+  pek fark etmedi; (2) at Bluetooth kulaklık (AirPods) kullanıyor — mikrofon açıkken Windows "eller
+  serbest" profiline geçer, ses paketleri topluca/düzensiz gelir: Bera'daki 180–240 ms tamponun ve
+  at'taki "çıkış cihazı kayboldu" hatasının (22:18) en olası nedeni; (3) 22:57 kopması uygulama değil:
+  at'ın bilgisayarı siyah ekran verdi, iki kez yeniden başlatıldı.
+
+### 31 Ekim 2026 — bir saatlik ikili test, kablolu mikrofon (v0.1.5: Bera + "kuzen", farklı ağ)
+
+- **13:58–15:10 UTC (72 dk) kesintisiz**; iki kapanış da temiz (`bye`), `ERROR` yok. Sunucu RTT: Bera ort.
+  36 ms (max 47), kuzen ort. 38 ms (max 61). QUIC kaybı: kuzen 9, Bera 0. İstemci `lost`: Bera 2, kuzen 1.
+- **Jitter tamponu bu kez simetrik ve düşük:** Bera (kuzeni dinlerken) ort. 53 ms, max 100, zamanın %53'ü
+  40 ms; kuzen (Bera'yı dinlerken) ort. 44 ms, max 100, %82'si 40 ms. 10 dk'lık dilimlerde Bera'nın
+  ortalaması 40–61 ms arasında kaldı, yükselme eğilimi yok.
+- **AirPods karşılaştırması:** aynı Bera tarafında, AirPods'lu "at"ı dinlerken ort. 136 ms / max 240 ms,
+  kablolu mikrofonlu "kuzen"i dinlerken ort. 53 ms / max 100 ms. Kişi ve ağ farklı olduğu için kesin
+  değil, ama Bluetooth mikrofonun gönderen tarafta düzensizlik yarattığı teorisini güçlü biçimde
+  destekliyor.
+- **Geçti ölçütlerine göre:** 1 saat ✓, kopma 0 ✓, RTT + tampon < 150 ms ✓ her iki yönde (~89 ms ve
+  ~80 ms). Eksik kalan tek ölçüt: 4 kişi.
+- Küçük notlar: kuzen başta çıkış cihazını iki kez değiştirdi (44,1 kHz ↔ 48 kHz), ses hattı sorunsuz
+  yeniden kuruldu. İstemci `lost` sayacı bir kez 1 → 0'a düştü: 60 sn sessiz kalan gönderen
+  tablodan silinince onun kaybı toplamdan çıkıyor (istatistik eksikliği, ses sorunu değil).
+

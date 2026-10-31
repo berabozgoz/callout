@@ -16,9 +16,9 @@
 
 ## Sırada
 
-1. **Faz 1 kapı testi:** hazırlık kodu yazıldı (günlükler, `docs/KAPI_TESTI.md`). Kalan:
-   v0.1.3 etiketle → sunucuyu güncelle → 4 kişiyle 1 saatlik test → sonuçları `KAPI_TESTI.md`
-   "Sonuçlar"a yaz, Faz 2 sırasını veriye göre ayarla.
+1. **Faz 1 kapı testi:** 1 saat, kopma, gecikme ölçütleri geçti (31 Ekim, `KAPI_TESTI.md`). Kalan tek
+   ölçüt: **4 kişi** — v0.1.6 ile yapılacak. Sonra Faz 1 kapanır, Faz 2 sırası veriye göre ayarlanır
+   (Bluetooth mikrofon jitter'ı → uyarlanabilir jitter öne alınabilir).
 2. **Faz 2 — ses kalitesi** (sırayla):
    1. Gürültü bastırma: `nnnoiseless` (RNNoise, 48 kHz, 10 ms = 480 örnek) VAD'dan önce;
       ayarlarda aç/kapa.
@@ -43,11 +43,10 @@
    app tarafında `Snapshot` + `engine_snapshot` komutu, arayüz açılışta kendini doldurur; motor bağlıyken
    `Connect` alırsa durumu yeniden yayınlar; yayın sürümünde F5/Ctrl+R/sağ tık engelli. Gerçek
    uygulamada denenmedi (commit edilmedi).
-6. **Çıkış/giriş cihazı kaybolunca ses kurtarma** (30 Ekim üç kişilik testte iki kez yaşandı, ~2,5 ve ~8 dk
-   sessizlik): cpal hata geri çağrısı artık `stream_error` bayrağını kurar; bağlıyken motor 1 sn'de bir
-   bakar, ses hattını yeniden kurar (başarısızsa 2/4/8/15 sn geri çekilme), seçili cihaz yoksa
-   varsayılan cihazlara geçer; arayüze `AudioRestored` olayı. Gerçek cihaz çıkarma ile denenmedi
-   (commit edilmedi) — denerken: bağlıyken kulaklığı çıkar/tak, günlükte `ses hattı kurtarıldı` görünmeli.
+6. **v0.1.6 (31 Ekim):** ses cihazı kaybında otomatik kurtarma (geri çekilmeli; cihaz gidip gelirse
+   30 sn kararlı olana kadar bekleme sıfırlanmaz), gönderen başına jitter günlüğü (30 sn'de bir
+   `gönderen jitter sender=… target_ms late lost underflow`), kopma nedeninde QUIC'in asıl hatası,
+   istemci `lost` sayacı artık geri düşmüyor. Cihaz çıkarma ile sahada henüz denenmedi.
 7. Bilinen eksikler: PTT oyun içi (tam ekran) doğrulanmadı; fare tuşu PTT yok;
    `LICENSE-APACHE` tam metin eksik; CI "Kütüphaneler (Linux)" işi bir kez exit 1 verdi
    (yerelde tüm adımlar geçiyor, log bekleniyor).
