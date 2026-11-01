@@ -137,3 +137,40 @@ verisi belirler. Sunucu adresi ve davet linki `CLAUDE.local.md`'dedir; katılım
   yeniden kuruldu. İstemci `lost` sayacı bir kez 1 → 0'a düştü: 60 sn sessiz kalan gönderen
   tablodan silinince onun kaybı toplamdan çıkıyor (istatistik eksikliği, ses sorunu değil).
 
+
+### 1 Kasım 2026 — dört kişilik test (v0.1.6: bera, cocart, batayta, at; dört farklı ağ)
+
+Katılımcılar: bera (kablo, kablolu mikrofon), cocart (Wi-Fi + AirPods, mikrofon dahil), batayta (Wi-Fi,
+Bluetooth kulaklık — istemci 16 kHz mono açtı, yani "eller serbest" profili), at (kablo, AirPods Pro 3
+çıkış + dinamik mikrofon). Günlükler: sunucu, bera, batayta, at (cocart'ınki yok).
+
+- **Oda 18:20–20:21 UTC (2 sa) açık kaldı.** bera, cocart, batayta hiç kopmadı; kapanışlar temiz (`bye`).
+  Sunucu: yük ortalaması 0.00, ~5 MB bellek, `ERROR` yok.
+- **4 kişi süresi: 18:34:55–19:10:09 (35 dk) + 19:29:43–19:47:00 (17 dk) = ~52 dk.** İki aralık da at'ın
+  çıkışıyla bitti:
+  - 19:10:09 at "Ayrıl" ile odadan çıktı (sunucu `odadan ayrıldı`); istemci günlüğü 19:09:59'da kesiliyor,
+    `bağlantı kapanıyor` satırı yok, sunucu 22 sn sonra `TimedOut`. Uygulama düzgün kapanmadan süreç
+    bitti (görev yöneticisi, kapanma ya da çökme; panik günlüğe düşmediği için ayırt edilemiyor).
+  - 19:47:00 at uygulamayı temiz kapattı (`bye`).
+- **Sunucu RTT / QUIC kaybı (sunucudan istemciye):** bera 41 ms / 1; batayta 14 ms / 9; cocart 63 ms
+  (tepe 100–344 ms, oyun sırasında) / 179; at 40 ms / **3668** (+ ikinci oturumda 18).
+- **at'ın ağı 18:48–19:04 arasında bozuldu:** kablolu olmasına rağmen bu 16 dakikada sunucudan at'a
+  giden paketlerin ~%8'i kayboldu (3600 paket); at'ın istemcisi 2700 ses çerçevesi kayıp saydı (yalnızca
+  Bera'dan 1120). RTT sabit 38–44 ms kaldı → tıkanma değil, at'ın hattında kayıp. at bu sürede herkesi
+  kesik duymuş olmalı. Diğer üç kişide aynı anda kayıp yok → sunucu kaynaklı değil.
+- **cocart:** testin başında (18:20–18:45) Wi-Fi'da yoğun kayıp; Bera'nın sesi ona kesik gitti. 18:45'ten
+  sonra 5 dakikalık dilimlerde 0–14 pakete indi. Bera tarafında cocart'tan gelen geç paket ~4/dk.
+- **Jitter tamponu (dinleyen tarafta ortalama / en yüksek):** bera 73 / 140 ms, at 73 / 120 ms,
+  batayta 70 / 180 ms. Gönderen başına en çok geç paket batayta'dan (Bera'da ~290, Wi-Fi + Bluetooth).
+- **Geçti ölçütlerine göre:** RTT + tampon < 150 ms ✓ (bera ~114, at ~111, batayta ~84 ms); sunucu CPU ✓;
+  istem dışı kopma ≤ 1 ✓ (en fazla 1: at 19:10, nedeni katılımcı hattı/bilgisayarı); çıtırtı nadir:
+  **at için ✗** (18:48–19:04 hat kaybı), cocart için başta ✗; "duyulmuyorum" bildirimi yok.
+  **4 kişi × 1 saat: kesintisiz ✗ (35 dk), toplam ~52 dk.** Ölçütü kaçıran şey katılımcı tarafı
+  (hat kaybı ve uygulamadan çıkış); sistemde kopma ya da hata görülmedi.
+- **Faz 2 için çıkarımlar:** (1) %1–8 kayıp gerçek ağlarda yaşanıyor → Opus FEC (in-band) + PLC birinci
+  sıraya; (2) Bluetooth mikrofon/kulaklık (cocart, batayta) yine en düzensiz gönderenler → uyarlanabilir
+  jitter ve arayüzde "Bluetooth mikrofon" uyarısı; (3) mikrofon erişimi reddedilince (Windows gizlilik,
+  `0x80070005`) bağlantı hiç kurulamıyor ("Hallobadi", 20:04, 4 deneme) → anlaşılır hata + mikrofonsuz
+  (yalnız dinleme) giriş; (4) çökme/zorla kapanmayı ayırt etmek için panik kancası günlüğe yazmalı.
+- **Karar (1 Kasım 2026): Faz 1 kapandı.** Ölçüt harfiyen (4 kişi kesintisiz 60 dk) dolmadı, ama eksik kalan
+  süre katılımcı tarafından; sunucu ve istemci 4 kişide kopmasız ve hatasız çalıştı.

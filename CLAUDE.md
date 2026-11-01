@@ -57,7 +57,7 @@ Linux'ta `libasound2-dev` gerekir; `callout-app` yalnızca Windows'ta derlenir/C
 ## Faz durumu
 
 - [x] Faz 0 — iskelet
-- [x] Faz 1 — ses MVP: loopback, Opus, QUIC, jitter/karıştırıcı, oda kodları, Tauri arayüzü (27 Ekim 2026: iki PC uygulama ile konuştu; sunucu Oracle Always Free üzerinde internette, v0.1.2 Releases'te). Kapı testi (4 kişi 1 saat) bekliyor.
+- [x] Faz 1 — ses MVP: loopback, Opus, QUIC, jitter/karıştırıcı, oda kodları, Tauri arayüzü (27 Ekim 2026: iki PC uygulama ile konuştu; sunucu Oracle Always Free üzerinde internette, v0.1.2 Releases'te). Kapı testi kapandı (1 Kasım 2026: 4 kişi ~52 dk, sistemde kopma yok; ayrıntı `docs/KAPI_TESTI.md`).
 - [ ] Faz 2 — ses kalitesi (nnnoiseless, AGC, FEC, uyarlanabilir jitter)
 - [ ] Faz 3 — sosyal katman (hesap, arkadaş, varlık, metin)
 - [ ] Faz 4 — yayın (imzalı NSIS, güncelleme, çökme raporu)

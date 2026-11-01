@@ -3,22 +3,24 @@
 > Her oturum başında bu dosyayı oku; oturum sonunda "Son oturum" ve "Sırada" bölümlerini güncelle.
 > Sunucu adresi, davet linki gibi gizli bilgiler buraya değil, git'e girmeyen `CLAUDE.local.md`'ye yazılır.
 
-## Nerede kaldık (28 Ekim 2026)
+## Nerede kaldık (1 Kasım 2026)
 
-- **Faz 0 ve Faz 1 tamam.** İki Windows PC masaüstü uygulamasıyla aynı ağda konuştu; oda kodları,
+- **Faz 0 ve Faz 1 tamam** (kapı testi 1 Kasım'da kapandı; sırada Faz 2). İki Windows PC masaüstü uygulamasıyla aynı ağda konuştu; oda kodları,
   konuşma göstergesi, jitter 40–60 ms, LAN'da 0 kayıp.
 - **Sunucu internette:** Oracle Always Free (Frankfurt, VM.Standard.E2.1.Micro, Ubuntu 24.04),
   `deploy/install.sh` ile systemd servisi olarak kuruldu. Bera uygulamadan bağlandı: RTT 36 ms.
   Bağlantı bilgileri `CLAUDE.local.md`'de.
-- **Sürüm v0.1.2** GitHub Releases'te: NSIS kurulum dosyası (currentUser), taşınabilir
+- **Sürüm v0.1.6** GitHub Releases'te (sunucu da v0.1.6): NSIS kurulum dosyası (currentUser), taşınabilir
   `callout-app.exe`, `callout-server.exe`, `callout-server-linux-x64`.
 - Ev ağı CGNAT olduğundan evden sunucu açmak mümkün değil; Tailscale istenmedi.
 
 ## Sırada
 
-1. **Faz 1 kapı testi:** 1 saat, kopma, gecikme ölçütleri geçti (31 Ekim, `KAPI_TESTI.md`). Kalan tek
-   ölçüt: **4 kişi** — v0.1.6 ile yapılacak. Sonra Faz 1 kapanır, Faz 2 sırası veriye göre ayarlanır
-   (Bluetooth mikrofon jitter'ı → uyarlanabilir jitter öne alınabilir).
+1. **Faz 1 kapandı (1 Kasım 2026).** Dört kişilik test (`KAPI_TESTI.md`): 4 kişi toplam ~52 dk
+   (kesintisiz 35 dk), sistemde kopma/hata yok, gecikme ve CPU ölçütleri geçti; kesintisiz 60 dk'yı
+   katılımcı tarafı kaçırdı. Faz 2 sırasına testten eklenenler: Opus FEC + PLC öne (gerçek ağlarda
+   %1–8 kayıp), Bluetooth uyarısı, mikrofon izni reddinde (`0x80070005`) anlaşılır hata + yalnız dinleme
+   girişi, panik kancası günlüğe.
 2. **Faz 2 — ses kalitesi** (sırayla):
    1. Gürültü bastırma: `nnnoiseless` (RNNoise, 48 kHz, 10 ms = 480 örnek) VAD'dan önce;
       ayarlarda aç/kapa.
@@ -65,11 +67,10 @@
 
 ## Son oturum
 
-- 28 Ekim (kapı testi hazırlığı): sunucuda 10 sn'de bir bağlantı istatistiği (RTT, QUIC kayıp,
-  datagram) + kapanışta süre/neden; motorda 10 sn'de bir `istatistik` günlüğü; uygulama günlüğü artık
-  `%APPDATA%\io.github.berabozgoz.callout\logs\callout.log` (2 MB'da döner); `docs/KAPI_TESTI.md`
-  yazıldı. fmt/clippy/test temiz (3 tekrar, flaky yok). CI Linux exit 1: `gh` kurulu olmadığından log
-  okunamadı; yerelde sorun yok, GitHub'da Actions günlüğüne bakılmalı. Commit/etiket henüz atılmadı.
+- 31 Ekim–1 Kasım: v0.1.5 ve v0.1.6 yayınlandı (tuş yakalama, F5 durumu, sürüm etiketten, ses cihazı
+  kurtarma, gönderen başına jitter günlüğü, QUIC kopma nedeni); sunucu v0.1.6'ya güncellendi.
+  Kablolu ikili 1 saatlik test geçti (31 Ekim); dört kişilik test yapıldı ve analiz edildi; Faz 1 kapatıldı (1 Kasım).
+  Cihaz kurtarma sahada hâlâ denenmedi.
 
 ## Önceki oturum
 
