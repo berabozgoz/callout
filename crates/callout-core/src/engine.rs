@@ -383,7 +383,8 @@ fn audio_thread(
                 }
                 ctl.lost.store(lost, Ordering::Relaxed);
                 // Gönderen başına teşhis (30 sn'de bir, birikimli): hangi gönderenin paketleri
-                // düzensiz geliyor (tampon hedefi, geç/eksik/boşalma sayıları).
+                // düzensiz geliyor (tampon hedefi, geç/eksik/boşalma sayıları). `lost - fec`
+                // yalnız PLC ile doldurulan (ardışık kayıp) çerçevelerdir.
                 if adapt_ticks % 6 == 0 {
                     for (id, r) in &receivers {
                         let st = r.jitter.stats();
@@ -392,6 +393,7 @@ fn audio_thread(
                             target_ms = st.target * 20,
                             late = st.late,
                             lost = st.lost,
+                            fec = st.fec_recovered,
                             underflow = st.underflow,
                             "gönderen jitter"
                         );

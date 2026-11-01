@@ -20,6 +20,9 @@ pub enum CodecError {
 pub struct EncoderConfig {
     pub bitrate_bps: i32,
     pub fec: bool,
+    /// libopus FEC (LBRR) verisini yalnız bu değer yeterince yüksekse üretir: 32 kbps'de
+    /// %5'te FEC hiç devreye girmiyor, %10'da kayıp çerçeve SNR'ı ~5 → ~16 dB
+    /// (`tests/loss_sim.rs`). %10'un altına indirmeyin.
     pub expected_loss_pct: i32,
     pub dtx: bool,
     /// 0–10; 10 en iyi kalite / en çok CPU.

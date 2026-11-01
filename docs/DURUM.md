@@ -22,12 +22,21 @@
    %1–8 kayıp), Bluetooth uyarısı, mikrofon izni reddinde (`0x80070005`) anlaşılır hata + yalnız dinleme
    girişi, panik kancası günlüğe.
 2. **Faz 2 — ses kalitesi** (sırayla):
+   0. **Kayıp dayanıklılığı (başladı, 1 Kasım):** Opus in-band FEC + PLC Faz 1'den beri açıkmış
+      (kodlayıcı %10 kayıp varsayımı, jitter tamponu kayıp çerçeve için sonraki paketi FEC kaynağı
+      verir). `tests/loss_sim.rs` ile ölçüldü: tekil kayıpta kayıp çerçeve SNR'ı yalnız PLC ~5 dB →
+      FEC ile ~16 dB; ardışık (patlama) kayıpta yalnız 2.4 → 5.8 dB (FEC bir çerçeve geriye taşır).
+      Kayıp varsayımı %5'e inerse libopus FEC'i hiç üretmiyor; %20–30 yalnız +1 dB. Gönderen başına
+      günlüğe `fec` (FEC ile kurtarılan) eklendi: `lost - fec` = yalnız PLC'li (ardışık) kayıp.
+      Sıradaki karar sahadan: patlama kayıp oranı yüksekse RED (önceki paketi datagrama ekleme,
+      protokol değişikliği, ~2× bant) ya da alıcıdan kayıp geri bildirimi.
    1. Gürültü bastırma: `nnnoiseless` (RNNoise, 48 kHz, 10 ms = 480 örnek) VAD'dan önce;
       ayarlarda aç/kapa.
    2. AGC: hedef −20 dBFS, yumuşak kazanç.
    3. Otomatik yeniden bağlanma (üstel geri çekilme, aynı odaya geri gir).
    4. UDP engelli ağ için yedek: ses paketlerini güvenilir QUIC akışından taşıyan mod.
-   5. Kayıplı ağ simülasyonu testi (%5 kayıp, 100 ms jitter) — headless.
+   5. Kayıplı ağ simülasyonu testi (%5 kayıp, 100 ms jitter) — headless. Kayıp kısmı
+      `callout-audio/tests/loss_sim.rs`'te; jitter (gecikme dalgalanması) kısmı kaldı.
    6. UI cilası: VAD eşik payı ayarı, mikrofon test düğmesi, bağlantı kopunca uyarı.
 3. **Bas-konuş kısayolu tuşu yutuyordu** (28 Ekim, ikili testte bulundu): kısayol uygulama
    açıldığından beri sistem genelinde kayıtlıydı, düz "T" başka uygulamalarda yazılamıyordu.
@@ -71,6 +80,8 @@
   kurtarma, gönderen başına jitter günlüğü, QUIC kopma nedeni); sunucu v0.1.6'ya güncellendi.
   Kablolu ikili 1 saatlik test geçti (31 Ekim); dört kişilik test yapıldı ve analiz edildi; Faz 1 kapatıldı (1 Kasım).
   Cihaz kurtarma sahada hâlâ denenmedi.
+- 1 Kasım (Faz 2 başlangıcı): FEC/PLC yolu incelendi ve kayıplı ağ simülasyonuyla ölçüldü
+  (`tests/loss_sim.rs`), gönderen jitter günlüğüne `fec` eklendi; v0.1.7 olarak yayınlandı (sunucu değişmedi, v0.1.6 kalabilir).
 
 ## Önceki oturum
 
