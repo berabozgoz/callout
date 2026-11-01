@@ -12,6 +12,7 @@
 #![forbid(unsafe_code)]
 
 pub mod codec;
+pub mod denoise;
 pub mod framer;
 pub mod jitter;
 pub mod mixer;

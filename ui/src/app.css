@@ -61,8 +61,14 @@ li.speaking .ring { background: var(--ok); box-shadow: 0 0 0 3px rgba(61, 220, 1
 input.vol { width: 90px; accent-color: var(--accent); }
 
 .bar { display: flex; align-items: center; gap: 8px; background: var(--panel); border-radius: 10px; padding: 10px 12px; }
-.meter { flex: 1; height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; }
+.meter { position: relative; flex: 1; height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; }
 .meter .fill { height: 100%; background: var(--muted); transition: width .08s linear; }
 .meter.tx .fill { background: var(--ok); }
+.meter .thr { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--text); opacity: .7; }
+.soundtest { border-top: 1px solid #343941; margin: 14px 0 12px; padding-top: 12px; }
+.soundtest h3 { font-size: 12px; color: var(--muted); font-weight: 600; margin: 0 0 8px; }
+.soundtest .meter { height: 10px; margin-bottom: 10px; }
+button.recording { border-color: var(--danger); color: var(--danger); }
+.hint.warn { color: var(--danger); }
 .stats { color: var(--muted); font-size: 12px; white-space: nowrap; }
 footer { margin-top: auto; color: var(--muted); font-size: 11px; text-align: right; }

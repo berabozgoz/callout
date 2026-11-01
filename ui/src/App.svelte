@@ -4,11 +4,11 @@
   import {
     send, getSettings, saveSettings, listDevices, appVersion, onEngine, onPtt, prettyCode,
     engineSnapshot, pttCapture, prettyShortcut,
-    type Settings, type Device, type Member, type RoomInfo, type ConnectionState,
+    type Settings, type Device, type Member, type RoomInfo, type ConnectionState, type MicTestState,
   } from "./engine";
 
   // ---- durum ----
-  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9" });
+  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9", noise_suppression: true });
   let devices = $state<Device[]>([]);
   let version = $state("");
   let conn = $state<ConnectionState>("disconnected");
@@ -19,6 +19,7 @@
   let volumes = $state<Record<number, number>>({});
   let level = $state(0);
   let transmitting = $state(false);
+  let threshold = $state(0);
   let muted = $state(false);
   let deafened = $state(false);
   let stats = $state({ rtt_ms: 0, jitter_ms: 0, lost: 0 });
@@ -28,10 +29,24 @@
   let showSettings = $state(false);
   let copied = $state(false);
   let capturing = $state(false);
+  // Ayarlar açılırken kayıtlı hali: "Vazgeç" seçilen (denenen) cihazları geri alır.
+  let savedSettings: Settings | null = null;
+  let micTest = $state<MicTestState>("idle");
+  let micResult = $state<number | null>(null);
+  let recStart = $state(0);
+  let now = $state(0);
 
   const inputs = $derived(devices.filter((d) => d.direction === "input"));
   const outputs = $derived(devices.filter((d) => d.direction === "output"));
   const me = $derived(members.find((m) => m.user_id === myId));
+  const remaining = $derived(Math.max(1, 5 - Math.floor((now - recStart) / 1000)));
+
+  // Kayıt sürerken geri sayım.
+  $effect(() => {
+    if (micTest !== "recording") return;
+    const t = setInterval(() => (now = Date.now()), 200);
+    return () => clearInterval(t);
+  });
 
   onMount(async () => {
     version = await appVersion();
@@ -55,12 +70,17 @@
           speaking = s;
           break;
         }
-        case "input_level": level = e.level; transmitting = e.transmitting; break;
+        case "input_level": level = e.level; transmitting = e.transmitting; threshold = e.threshold; break;
         case "stats": stats = { rtt_ms: e.rtt_ms, jitter_ms: e.jitter_ms, lost: e.lost }; break;
         case "audio_restored":
           error = e.fallback_to_default
             ? "Seçili ses cihazı bulunamadı; varsayılan cihaza geçildi."
             : error.startsWith("Ses cihazı") ? "" : error;
+          break;
+        case "mic_test":
+          micTest = e.state;
+          if (e.state === "recording") { recStart = now = Date.now(); micResult = null; }
+          if (e.state === "idle" && e.transmitted_pct !== null) micResult = e.transmitted_pct;
           break;
         case "error": error = e.message; break;
       }
@@ -136,20 +156,64 @@
     copied = true;
     setTimeout(() => (copied = false), 1500);
   }
+  // ---- ayarlar ve ses testi ----
+  function openSettings() {
+    savedSettings = { ...settings };
+    micResult = null;
+    showSettings = true;
+    // Bağlı değilken ses hattını aç: seviye çubuğu ve test çalışsın.
+    send({ type: "set_audio_preview", enabled: true });
+  }
+  function closeSettings() {
+    showSettings = false;
+    if (micTest !== "idle") send({ type: "stop_mic_test" });
+    send({ type: "set_audio_preview", enabled: false });
+  }
   async function applySettings() {
     if (capturing) await stopCapture();
     try {
       await saveSettings(settings);
-      showSettings = false;
+      closeSettings();
     } catch (e) { error = String(e); }
   }
   async function cancelSettings() {
     if (capturing) await stopCapture();
-    showSettings = false;
+    if (savedSettings) {
+      // Denenip kaydedilmeyen cihazları geri al.
+      if (savedSettings.input_device !== settings.input_device) send({ type: "set_input_device", name: savedSettings.input_device });
+      if (savedSettings.output_device !== settings.output_device) send({ type: "set_output_device", name: savedSettings.output_device });
+      if (savedSettings.noise_suppression !== settings.noise_suppression) send({ type: "set_noise_suppression", enabled: savedSettings.noise_suppression });
+      settings = savedSettings;
+    }
+    closeSettings();
   }
+  // Seçilen cihaz kaydetmeden uygulanır ki test o cihazla yapılsın. Seçim DOM sırasından okunur
+  // (0 = Varsayılan); bind:value güncellemesinin sırasına bağlı kalmaz.
+  function pickInput(e: Event) {
+    const i = (e.currentTarget as HTMLSelectElement).selectedIndex;
+    send({ type: "set_input_device", name: i > 0 ? inputs[i - 1].name : null });
+  }
+  function pickOutput(e: Event) {
+    const i = (e.currentTarget as HTMLSelectElement).selectedIndex;
+    send({ type: "set_output_device", name: i > 0 ? outputs[i - 1].name : null });
+  }
+  function toggleMicTest() {
+    if (micTest === "idle") { micResult = null; send({ type: "start_mic_test" }); }
+    else send({ type: "stop_mic_test" });
+  }
+  const playTestSound = () => send({ type: "play_test_sound" });
 </script>
 
 <svelte:window onkeydowncapture={onWindowKey} oncontextmenu={onContextMenu} />
+
+{#snippet meter()}
+  <div class="meter" class:tx={transmitting}>
+    <div class="fill" style="width: {Math.round(level * 100)}%"></div>
+    {#if !settings.push_to_talk}
+      <div class="thr" style="left: {Math.round(threshold * 100)}%" title="Konuşma algılama eşiği"></div>
+    {/if}
+  </div>
+{/snippet}
 
 <main>
   <header>
@@ -160,7 +224,7 @@
       {:else if conn === "connecting"}
         <span class="pill">bağlanıyor…</span>
       {/if}
-      <button class="icon" title="Ayarlar" onclick={() => (showSettings = !showSettings)}>⚙</button>
+      <button class="icon" title="Ayarlar" onclick={() => (showSettings ? cancelSettings() : openSettings())}>⚙</button>
     </div>
   </header>
 
@@ -172,16 +236,21 @@
     <section class="card">
       <h2>Ayarlar</h2>
       <label>Mikrofon
-        <select bind:value={settings.input_device}>
+        <select bind:value={settings.input_device} onchange={pickInput}>
           <option value={null}>Varsayılan</option>
           {#each inputs as d (d.name)}<option value={d.name}>{d.name}</option>{/each}
         </select>
       </label>
       <label>Hoparlör
-        <select bind:value={settings.output_device}>
+        <select bind:value={settings.output_device} onchange={pickOutput}>
           <option value={null}>Varsayılan</option>
           {#each outputs as d (d.name)}<option value={d.name}>{d.name}</option>{/each}
         </select>
+      </label>
+      <label class="row">
+        <input type="checkbox" bind:checked={settings.noise_suppression}
+          onchange={(e) => send({ type: "set_noise_suppression", enabled: (e.currentTarget as HTMLInputElement).checked })} />
+        Gürültü bastırma (fan, uğultu, oda sesi)
       </label>
       <label class="row">
         <input type="checkbox" bind:checked={settings.push_to_talk} />
@@ -195,6 +264,30 @@
         </label>
         <p class="hint">Kısayol yalnızca bir odadayken etkindir. Düz bir harf (ör. T) seçersen odadayken diğer uygulamalarda o tuşla yazamazsın; F9 ya da Ctrl+Alt gibi birleşimler daha güvenlidir.</p>
       {/if}
+
+      <div class="soundtest">
+        <h3>Ses testi</h3>
+        {@render meter()}
+        <div class="actions">
+          <button class:recording={micTest === "recording"} onclick={toggleMicTest}>
+            {#if micTest === "calibrating"}Hazırlanıyor… sessiz kal
+            {:else if micTest === "recording"}⏺ Konuş… {remaining} sn
+            {:else if micTest === "playing"}▶ Kayıt çalınıyor… (durdur)
+            {:else}🎙 Mikrofonu test et{/if}
+          </button>
+          <button onclick={playTestSound}>🔊 Test sesi çal</button>
+        </div>
+        {#if micResult === 0}
+          <p class="hint warn">Kayıtta hiç ses gönderilmedi: mikrofon sesi eşiğin altında kaldı ya da yanlış mikrofon seçili.</p>
+        {:else if micResult !== null}
+          <p class="hint">Kaydın %{micResult}'i ses olarak gönderilecekti; gerisi sessizlik sayıldı. Sözlerinin başı ya da sonu kesik geldiyse sesin eşiğe çok yakın.</p>
+        {:else if settings.push_to_talk}
+          <p class="hint">5 sn konuş; kayıt odadakilerin duyacağı haliyle geri çalınır. Bas-konuş açıkken test tuşsuz kaydedilir.</p>
+        {:else}
+          <p class="hint">5 sn konuş; kayıt odadakilerin duyacağı haliyle geri çalınır. Çizgi konuşma algılama eşiği: çubuk çizgiyi geçince ses gönderilir (yeşil).</p>
+        {/if}
+      </div>
+
       <div class="actions">
         <button class="primary" onclick={applySettings}>Kaydet</button>
         <button onclick={cancelSettings}>Vazgeç</button>
@@ -267,9 +360,7 @@
     </section>
 
     <section class="bar">
-      <div class="meter" class:tx={transmitting}>
-        <div class="fill" style="width: {Math.round(level * 100)}%"></div>
-      </div>
+      {@render meter()}
       <button class:active={muted} onclick={toggleMute} title="Mikrofonu sustur">{muted ? "🔇" : "🎙"}</button>
       <button class:active={deafened} onclick={toggleDeafen} title="Sesi kapat">{deafened ? "🙉" : "🎧"}</button>
       <span class="stats">{stats.rtt_ms} ms · tampon {stats.jitter_ms} ms{stats.lost ? ` · kayıp ${stats.lost}` : ""}</span>

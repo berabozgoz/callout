@@ -80,6 +80,7 @@ async fn main() -> Result<()> {
         input_device: args.input.clone(),
         output_device: args.output.clone(),
         push_to_talk: args.ptt,
+        noise_suppression: true,
         no_audio: false,
     });
     engine.send(Command::Connect {
@@ -141,7 +142,7 @@ async fn main() -> Result<()> {
                         }
                     }
                     Event::SpeakingChanged { user_id, speaking } => tracing::info!(user_id, speaking, "konuşuyor"),
-                    Event::InputLevel { level, transmitting } => {
+                    Event::InputLevel { level, transmitting, .. } => {
                         if last_level_log.elapsed() >= Duration::from_secs(5) {
                             last_level_log = std::time::Instant::now();
                             tracing::info!(level = format!("{level:.2}"), transmitting, "mikrofon");
@@ -153,6 +154,7 @@ async fn main() -> Result<()> {
                     Event::AudioRestored { fallback_to_default } => {
                         tracing::info!(fallback_to_default, "ses hattı kurtarıldı");
                     }
+                    Event::MicTest { .. } => {}
                     Event::Error { message } => {
                         tracing::error!(message, "hata");
                         if message.contains("RoomNotFound") || message.contains("RoomFull") || message.starts_with("bağlanılamadı") || message.starts_with("bağlantı koptu") {

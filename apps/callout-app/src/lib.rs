@@ -26,6 +26,8 @@ pub struct Settings {
     pub push_to_talk: bool,
     /// Tauri kısayol sözdizimi, ör. `F9`, `Ctrl+Space`, `Alt+Z`.
     pub ptt_shortcut: String,
+    /// Gürültü bastırma (RNNoise); eski ayar dosyalarında yoksa açık.
+    pub noise_suppression: bool,
 }
 
 impl Default for Settings {
@@ -37,6 +39,7 @@ impl Default for Settings {
             output_device: None,
             push_to_talk: false,
             ptt_shortcut: "F9".into(),
+            noise_suppression: true,
         }
     }
 }
@@ -85,6 +88,13 @@ impl Snapshot {
     }
 }
 
+#[derive(Debug, Clone)]
+struct AppliedAudio {
+    input_device: Option<String>,
+    output_device: Option<String>,
+    noise_suppression: bool,
+}
+
 struct AppState {
     engine: Engine,
     snapshot: Mutex<Snapshot>,
@@ -94,6 +104,9 @@ struct AppState {
     data_dir: PathBuf,
     /// Odada mıyız? Bas-konuş kısayolu yalnızca odadayken sistem genelinde tutulur.
     in_room: AtomicBool,
+    /// Motora en son bildirilen ses ayarları. Ayarlar ekranı seçimi kaydetmeden uygular
+    /// (ses testi seçili ayarla yapılsın); kaydederken aynısı yeniden gönderilmez.
+    applied: Mutex<AppliedAudio>,
 }
 
 impl AppState {
@@ -155,15 +168,30 @@ fn save_settings(app: AppHandle, state: State<AppState>, settings: Settings) -> 
     let old = state.settings.lock().unwrap().clone();
     *state.settings.lock().unwrap() = settings.clone();
     state.save_settings()?;
-    if old.input_device != settings.input_device {
-        state.engine.send(Command::SetInputDevice {
-            name: settings.input_device.clone(),
-        });
+    let applied = state.applied.lock().unwrap().clone();
+    if applied.input_device != settings.input_device {
+        send_command(
+            &state,
+            Command::SetInputDevice {
+                name: settings.input_device.clone(),
+            },
+        );
     }
-    if old.output_device != settings.output_device {
-        state.engine.send(Command::SetOutputDevice {
-            name: settings.output_device.clone(),
-        });
+    if applied.output_device != settings.output_device {
+        send_command(
+            &state,
+            Command::SetOutputDevice {
+                name: settings.output_device.clone(),
+            },
+        );
+    }
+    if applied.noise_suppression != settings.noise_suppression {
+        send_command(
+            &state,
+            Command::SetNoiseSuppression {
+                enabled: settings.noise_suppression,
+            },
+        );
     }
     state.engine.send(Command::SetPushToTalkMode {
         enabled: settings.push_to_talk,
@@ -177,11 +205,25 @@ fn save_settings(app: AppHandle, state: State<AppState>, settings: Settings) -> 
 /// Motora komut: arayüz `Command`'ı JSON olarak (`{"type": "...", ...}`) gönderir.
 #[tauri::command]
 fn engine_command(state: State<AppState>, command: Command) {
+    send_command(&state, command);
+}
+
+/// Komutu motora iletir; uygulamanın tuttuğu durumu (anlık görüntü, uygulanan cihazlar) günceller.
+fn send_command(state: &AppState, command: Command) {
     {
         let mut snap = state.snapshot.lock().unwrap();
         match &command {
             Command::SetMuted { muted } => snap.muted = *muted,
             Command::SetDeafened { deafened } => snap.deafened = *deafened,
+            Command::SetInputDevice { name } => {
+                state.applied.lock().unwrap().input_device = name.clone()
+            }
+            Command::SetOutputDevice { name } => {
+                state.applied.lock().unwrap().output_device = name.clone()
+            }
+            Command::SetNoiseSuppression { enabled } => {
+                state.applied.lock().unwrap().noise_suppression = *enabled
+            }
             _ => {}
         }
     }
@@ -310,6 +352,7 @@ pub fn run() {
                 input_device: settings.input_device.clone(),
                 output_device: settings.output_device.clone(),
                 push_to_talk: settings.push_to_talk,
+                noise_suppression: settings.noise_suppression,
                 no_audio: false,
             });
 
@@ -338,6 +381,11 @@ pub fn run() {
 
             app.manage(AppState {
                 engine,
+                applied: Mutex::new(AppliedAudio {
+                    input_device: settings.input_device.clone(),
+                    output_device: settings.output_device.clone(),
+                    noise_suppression: settings.noise_suppression,
+                }),
                 settings: Mutex::new(settings),
                 data_dir,
                 in_room: AtomicBool::new(false),

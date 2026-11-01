@@ -57,6 +57,22 @@ pub enum Command {
         user_id: UserId,
         gain: f32,
     },
+    /// Bağlı değilken ses hattını yerel olarak aç/kapat (ayarlardaki seviye çubuğu ve ses
+    /// testi için). Bağlıyken etkisiz: hat zaten açık.
+    SetAudioPreview {
+        enabled: bool,
+    },
+    /// Mikrofon testi: 5 sn kayıt, ardından kayıt odadakilerin duyacağı haliyle (konuşma
+    /// algılama kapısı + Opus) geri çalınır. Kayıt sırasında odaya ses gitmez.
+    StartMicTest,
+    StopMicTest,
+    /// Çıkış cihazında kısa bir test sesi çalar.
+    PlayTestSound,
+    /// Gürültü bastırma (RNNoise). Değişince konuşma algılama gürültü tabanını yeniden ölçer
+    /// (~1.5 sn gönderim yok).
+    SetNoiseSuppression {
+        enabled: bool,
+    },
 }
 
 /// Çekirdek → arayüz.
@@ -79,10 +95,12 @@ pub enum Event {
         user_id: UserId,
         speaking: bool,
     },
-    /// Mikrofon seviyesi, 0.0–1.0; ~100 ms'de bir.
+    /// Mikrofon seviyesi, 0.0–1.0; ~100 ms'de bir. `threshold`: konuşma algılama eşiği,
+    /// aynı ölçekte (seviye bunu geçince ses gönderilir; bas-konuşta anlamsız).
     InputLevel {
         level: f32,
         transmitting: bool,
+        threshold: f32,
     },
     /// Her 2 s: arayüzdeki durum çubuğu için.
     Stats {
@@ -97,6 +115,12 @@ pub enum Event {
     AudioRestored {
         fallback_to_default: bool,
     },
+    /// Mikrofon testi durumu. `transmitted_pct`: kaydın yüzde kaçı gönderilecek ses olarak
+    /// geçti (gerisi konuşma algılamada sessizlik sayıldı); kayıt bitince dolu.
+    MicTest {
+        state: MicTestState,
+        transmitted_pct: Option<u8>,
+    },
     Error {
         message: String,
     },
@@ -108,4 +132,14 @@ pub enum ConnectionState {
     Disconnected,
     Connecting,
     Connected,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MicTestState {
+    /// Ses hattı yeni açıldı, gürültü tabanı ölçülüyor; kayıt ardından başlar.
+    Calibrating,
+    Recording,
+    Playing,
+    Idle,
 }

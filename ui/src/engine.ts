@@ -5,15 +5,17 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 export type RoomInfo = { code: string; name: string; owner: number };
 export type Member = { user_id: number; nickname: string; muted: boolean; deafened: boolean };
 export type ConnectionState = "disconnected" | "connecting" | "connected";
+export type MicTestState = "calibrating" | "recording" | "playing" | "idle";
 
 export type EngineEvent =
   | { type: "connection_state"; state: ConnectionState }
   | { type: "connected"; user_id: number }
   | { type: "room_updated"; room: RoomInfo | null; members: Member[] }
   | { type: "speaking_changed"; user_id: number; speaking: boolean }
-  | { type: "input_level"; level: number; transmitting: boolean }
+  | { type: "input_level"; level: number; transmitting: boolean; threshold: number }
   | { type: "stats"; rtt_ms: number; jitter_ms: number; lost: number; sent: number; received: number }
   | { type: "audio_restored"; fallback_to_default: boolean }
+  | { type: "mic_test"; state: MicTestState; transmitted_pct: number | null }
   | { type: "error"; message: string };
 
 export type Command =
@@ -28,7 +30,12 @@ export type Command =
   | { type: "push_to_talk"; pressed: boolean }
   | { type: "set_input_device"; name: string | null }
   | { type: "set_output_device"; name: string | null }
-  | { type: "set_user_volume"; user_id: number; gain: number };
+  | { type: "set_user_volume"; user_id: number; gain: number }
+  | { type: "set_audio_preview"; enabled: boolean }
+  | { type: "start_mic_test" }
+  | { type: "stop_mic_test" }
+  | { type: "play_test_sound" }
+  | { type: "set_noise_suppression"; enabled: boolean };
 
 export type Settings = {
   nickname: string;
@@ -37,6 +44,7 @@ export type Settings = {
   output_device: string | null;
   push_to_talk: boolean;
   ptt_shortcut: string;
+  noise_suppression: boolean;
 };
 
 /** Motorun gerçek durumu: webview yenilense bile motor bağlı kalır. */

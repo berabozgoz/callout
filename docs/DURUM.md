@@ -30,14 +30,26 @@
       günlüğe `fec` (FEC ile kurtarılan) eklendi: `lost - fec` = yalnız PLC'li (ardışık) kayıp.
       Sıradaki karar sahadan: patlama kayıp oranı yüksekse RED (önceki paketi datagrama ekleme,
       protokol değişikliği, ~2× bant) ya da alıcıdan kayıp geri bildirimi.
-   1. Gürültü bastırma: `nnnoiseless` (RNNoise, 48 kHz, 10 ms = 480 örnek) VAD'dan önce;
-      ayarlarda aç/kapa.
+   1. **Gürültü bastırma yapıldı (2 Kasım, v0.1.8; Bera'nın kamera mikrofonunda denendi):** `nnnoiseless`
+      0.5 (BSD-3, `default-features = false`), `callout-audio/src/denoise.rs`; 20 ms çerçeve iki 10 ms
+      yarıda. Ses iş parçacığında VAD'dan önce; seviye çubuğu, VAD, kodlayıcı ve ses testi temiz sesi
+      görür. RNNoise konuşma olasılığı VAD'a eklendi (≥0.85 açar, açıkken ≥0.5 tutar). Ayarlarda
+      aç/kapa (varsayılan açık, `Settings.noise_suppression`); değişince VAD tabanı yeniden ölçülür.
+      Ölçüm: gerçekçi (pembe/fan) gürültüde 45–52 dB bastırma; yüksek seviyeli beyaz gürültüde
+      yalnız ~2 dB (yapay durum). Neden: Bera'nın Logitech C310 kamera mikrofonunda taban −42,
+      konuşma tepeleri ~−32 dBFS (SNR ~10 dB), ses testinde kaydın %15'i gidiyordu. Sahada: taban
+      −42 → −79 dBFS, ses testinde gönderilen %16 → %57, ses "çok temiz ve anlaşılır".
    2. AGC: hedef −20 dBFS, yumuşak kazanç.
    3. Otomatik yeniden bağlanma (üstel geri çekilme, aynı odaya geri gir).
    4. UDP engelli ağ için yedek: ses paketlerini güvenilir QUIC akışından taşıyan mod.
    5. Kayıplı ağ simülasyonu testi (%5 kayıp, 100 ms jitter) — headless. Kayıp kısmı
       `callout-audio/tests/loss_sim.rs`'te; jitter (gecikme dalgalanması) kısmı kaldı.
-   6. UI cilası: VAD eşik payı ayarı, mikrofon test düğmesi, bağlantı kopunca uyarı.
+   6. UI cilası: VAD eşik payı ayarı, bağlantı kopunca uyarı. **Ses testi yapıldı (2 Kasım,
+      v0.1.8, uygulamada denendi):** ayarlarda "Ses testi" bölümü — 5 sn kayıt, odadakilerin
+      duyacağı haliyle (VAD/bas-konuş kapısı + Opus) geri çalma ve gönderilen oran; "Test sesi çal"
+      (zil); seviye çubuğunda konuşma algılama eşiği çizgisi (odadaki çubukta da). Bağlı değilken
+      ayarlar açıkken motor yerel ses hattı açar (`SetAudioPreview`); seçilen cihaz kaydetmeden
+      uygulanır, "Vazgeç" geri alır. Kayıt sırasında odaya ses gitmez.
 3. **Bas-konuş kısayolu tuşu yutuyordu** (28 Ekim, ikili testte bulundu): kısayol uygulama
    açıldığından beri sistem genelinde kayıtlıydı, düz "T" başka uygulamalarda yazılamıyordu.
    Düzeltildi: yalnızca bas-konuş açıkken **ve** odadayken kayıtlı (`sync_ptt`). Oda dışında
@@ -82,6 +94,16 @@
   Cihaz kurtarma sahada hâlâ denenmedi.
 - 1 Kasım (Faz 2 başlangıcı): FEC/PLC yolu incelendi ve kayıplı ağ simülasyonuyla ölçüldü
   (`tests/loss_sim.rs`), gönderen jitter günlüğüne `fec` eklendi; v0.1.7 olarak yayınlandı (sunucu değişmedi, v0.1.6 kalabilir).
+- 2 Kasım: ayarlara ses testi eklendi (mikrofon kaydet-dinle, test sesi, eşik çizgisi). fmt/clippy
+  (app dahil)/test/svelte-check temiz; uygulamada denendi, v0.1.8.
+- 2 Kasım (VAD kesilmesi): ses testinde ve cocart'tan gelen bildirimde kelime başı/sonu ve kısık
+  kelimeler kesiliyordu. Bera'nın gürültü tabanı −42 dBFS, eşik +6 dB. Konuşma simülasyonu
+  (`vad.rs` `sim`): bu tabanda konuşma çerçevelerinin %68'i gidiyordu. Düzeltme: histerezis (açık kapı
+  eşiğin 4 dB altına dek açık; kapatma eşiği tabanın ≥3 dB üstünde), taban konuşma/tutma sırasında
+  güncellenmez, ön tampon 60 ms (kapı açılınca önceki 3 çerçeve de gönderilir; ses testinde de),
+  tutma 300 → 400 ms; TALK_START artık ilk gerçekten gönderilen pakette. Sonuç %91. Kalan kayıp:
+  eşiğin altında söylenen tüm cümleler → gürültü bastırma (taban düşer) ve hassasiyet ayarı.
+  Gürültü bastırma ile birlikte sahada denendi ve v0.1.8 olarak yayınlandı.
 
 ## Önceki oturum
 

@@ -7,11 +7,13 @@
 //!   → Opus → ağ; ağ → jitter → Opus → karıştırıcı → hoparlör;
 //! - cpal geri çağrıları: yalnızca halka tampon.
 //!
-//! Ses iş parçacığı yalnızca bağlıyken yaşar; cihaz değişince yeniden kurulur.
+//! Ses iş parçacığı bağlıyken yaşar; bağlı değilken yalnızca ayarlar açıkken (önizleme: seviye
+//! çubuğu ve ses testi için) açılır. Cihaz değişince yeniden kurulur.
 
-use crate::{Command, ConnectionState, Event};
+use crate::{Command, ConnectionState, Event, MicTestState};
 use bytes::Bytes;
 use callout_audio::codec::{Decoder, Encoder, EncoderConfig, FRAME};
+use callout_audio::denoise::Denoiser;
 use callout_audio::framer::Framer;
 use callout_audio::jitter::{JitterBuffer, Playout};
 use callout_audio::mixer::Mixer;
@@ -28,7 +30,8 @@ use callout_proto::{
 use cpal::traits::{DeviceTrait, StreamTrait};
 use ringbuf::traits::{Consumer, Observer, Producer, Split};
 use ringbuf::HeapRb;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::f32::consts::TAU;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
@@ -36,6 +39,12 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 const JITTER_TARGET: u32 = 3;
+/// Mikrofon testi kaydı: 250 çerçeve = 5 sn.
+const MIC_TEST_FRAMES: usize = 250;
+/// Konuşma algılama: bitişten sonra açık kalma ve başlangıçta geriye dönük gönderme süresi.
+const VAD_HANGOVER_MS: u32 = 400;
+const VAD_PREROLL_MS: u32 = 60;
+const PREROLL_FRAMES: usize = (VAD_PREROLL_MS / 20) as usize;
 
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
@@ -44,6 +53,8 @@ pub struct EngineConfig {
     pub input_device: Option<String>,
     pub output_device: Option<String>,
     pub push_to_talk: bool,
+    /// Gürültü bastırma (RNNoise) mikrofon sesine uygulanır.
+    pub noise_suppression: bool,
     /// Ses hattını hiç kurma (ses cihazı olmayan test ortamları için).
     pub no_audio: bool,
 }
@@ -55,6 +66,7 @@ impl Default for EngineConfig {
             input_device: None,
             output_device: None,
             push_to_talk: false,
+            noise_suppression: true,
             no_audio: false,
         }
     }
@@ -103,10 +115,15 @@ struct AudioControl {
     deafened: AtomicBool,
     ptt_mode: AtomicBool,
     ptt_pressed: AtomicBool,
+    noise_suppression: AtomicBool,
     /// cpal akış hata geri çağrısı (cihaz çıkarıldı/kayboldu) bunu kurar; motor ses hattını yeniden kurar.
     stream_error: AtomicBool,
     /// Yalnızca odadayken ses gönderilir (oda dışında sunucu zaten atıyor; ağa çıkmasın).
     in_room: AtomicBool,
+    /// Ses testi istekleri: motor kurar, ses iş parçacığı okuyup sıfırlar.
+    mic_test_start: AtomicBool,
+    mic_test_stop: AtomicBool,
+    test_sound: AtomicBool,
     gains: Mutex<HashMap<UserId, f32>>,
     // istatistik
     sent: AtomicU32,
@@ -116,8 +133,9 @@ struct AudioControl {
 }
 
 impl AudioControl {
-    fn new(ptt: bool) -> Arc<Self> {
+    fn new(ptt: bool, noise_suppression: bool) -> Arc<Self> {
         Arc::new(Self {
+            noise_suppression: AtomicBool::new(noise_suppression),
             stop: AtomicBool::new(false),
             muted: AtomicBool::new(false),
             deafened: AtomicBool::new(false),
@@ -125,6 +143,9 @@ impl AudioControl {
             ptt_pressed: AtomicBool::new(false),
             in_room: AtomicBool::new(false),
             stream_error: AtomicBool::new(false),
+            mic_test_start: AtomicBool::new(false),
+            mic_test_stop: AtomicBool::new(false),
+            test_sound: AtomicBool::new(false),
             gains: Mutex::new(HashMap::new()),
             sent: AtomicU32::new(0),
             received: AtomicU32::new(0),
@@ -138,6 +159,61 @@ struct Receiver {
     decoder: Decoder,
     jitter: JitterBuffer,
     last_packet: Instant,
+}
+
+/// Mikrofon testi: kayıtta çerçeveler gönderim kapısından ve Opus'tan geçirilir (kapı
+/// kapalıysa `None` = odadakiler için sessizlik), sonra aynen çözülüp çalınır.
+enum MicTest {
+    Off,
+    /// VAD kalibrasyonu bitmeden kayıt başlamaz (eşik henüz yok).
+    Waiting,
+    Recording {
+        enc: Box<Encoder>,
+        frames: Vec<Option<Vec<u8>>>,
+    },
+    Playing {
+        dec: Decoder,
+        frames: Vec<Option<Vec<u8>>>,
+        pos: usize,
+        pct: u8,
+    },
+}
+
+impl MicTest {
+    fn recording() -> Self {
+        MicTest::Recording {
+            enc: Box::new(Encoder::new(EncoderConfig::default()).expect("opus encoder")),
+            frames: Vec::with_capacity(MIC_TEST_FRAMES),
+        }
+    }
+}
+
+/// Çerçeveyi kodlar; DTX sessizliği (gönderilmeyecek paket) ya da hata için `None`.
+fn encode_opus(enc: &mut Encoder, frame: &[f32]) -> Option<Vec<u8>> {
+    enc.encode(frame)
+        .ok()
+        .filter(|p| !Encoder::is_dtx_packet(p))
+        .map(|p| p.to_vec())
+}
+
+/// Kısa iki notalı zil (48 kHz, çerçeve katı uzunlukta).
+fn test_sound() -> Vec<f32> {
+    let sr = SAMPLE_RATE_HZ as f32;
+    let len = ((0.8 * sr) as usize).div_ceil(FRAME) * FRAME;
+    (0..len)
+        .map(|i| {
+            let t = i as f32 / sr;
+            let mut s = 0.0;
+            for (start, hz) in [(0.0f32, 880.0f32), (0.15, 1318.5)] {
+                let dt = t - start;
+                if dt >= 0.0 {
+                    // 5 ms yumuşak giriş, üstel sönüm
+                    s += (TAU * hz * dt).sin() * (-dt * 6.0).exp() * (dt * 200.0).min(1.0);
+                }
+            }
+            0.25 * s
+        })
+        .collect()
 }
 
 /// Ses hattı iş parçacığı; `ctl.stop` true olana kadar döner.
@@ -226,7 +302,13 @@ fn audio_thread(
     let mut up = Resampler::new(in_rate, SAMPLE_RATE_HZ).expect("resampler");
     let mut down = Resampler::new(SAMPLE_RATE_HZ, out_rate).expect("resampler");
     let mut framer = Framer::new();
-    let mut vad = Vad::new(-45.0, 300);
+    let mut vad = Vad::new(-45.0, VAD_HANGOVER_MS, VAD_PREROLL_MS);
+    let mut denoiser = Denoiser::new();
+    let mut ns_active = ctl.noise_suppression.load(Ordering::Relaxed);
+    // Ön tampon: son çerçeveler (işlenen dahil). Konuşma başlayınca öncekiler de gönderilir.
+    let mut history: VecDeque<[f32; FRAME]> = VecDeque::with_capacity(PREROLL_FRAMES + 1);
+    // Konuşma başladı ama henüz paket gitmedi (ilk çerçeveler DTX olabilir): TALK_START bekliyor.
+    let mut pending_start = false;
     let mut calib: Vec<f32> = Vec::with_capacity(75);
     let mut enc = Encoder::new(EncoderConfig::default()).expect("opus encoder");
     let mut receivers: HashMap<UserId, Receiver> = HashMap::new();
@@ -249,8 +331,39 @@ fn audio_thread(
     let mut last_level = Instant::now();
     let mut level_peak = 0f32;
     let mut was_transmitting = false;
+    let mut mic_test = MicTest::Off;
+    // Seviye çubuğu için: test kaydında kapı açık mı (odaya gönderim olmasa da).
+    let mut test_gate = false;
+    let mut tone: Vec<f32> = Vec::new();
+    let mut tone_pos = 0usize;
+    let emit_test = |state: MicTestState, transmitted_pct: Option<u8>| {
+        let _ = ev.send(Event::MicTest {
+            state,
+            transmitted_pct,
+        });
+    };
 
     while !ctl.stop.load(Ordering::Relaxed) {
+        // 0) Ses testi istekleri
+        if ctl.mic_test_stop.swap(false, Ordering::Relaxed) && !matches!(mic_test, MicTest::Off) {
+            mic_test = MicTest::Off;
+            test_gate = false;
+            emit_test(MicTestState::Idle, None);
+        }
+        if ctl.mic_test_start.swap(false, Ordering::Relaxed) {
+            if calib.len() < 75 {
+                mic_test = MicTest::Waiting;
+                emit_test(MicTestState::Calibrating, None);
+            } else {
+                mic_test = MicTest::recording();
+                emit_test(MicTestState::Recording, None);
+            }
+        }
+        if ctl.test_sound.swap(false, Ordering::Relaxed) {
+            tone = test_sound();
+            tone_pos = 0;
+        }
+
         // 1) Gönderim
         chunk.clear();
         while let Some(s) = in_cons.try_pop() {
@@ -266,6 +379,15 @@ fn audio_thread(
             }
             framer.push(&at48);
             while framer.next_frame(&mut frame) {
+                let ns = ctl.noise_suppression.load(Ordering::Relaxed);
+                if ns != ns_active {
+                    // Temizlenmiş ve ham sesin gürültü tabanı çok farklı: eşik yeniden ölçülür.
+                    ns_active = ns;
+                    calib.clear();
+                    denoiser = Denoiser::new();
+                    tracing::info!(enabled = ns, "gürültü bastırma");
+                }
+                let speech_prob = ns_active.then(|| denoiser.process(&mut frame));
                 let rms = Vad::rms(&frame);
                 level_peak = level_peak.max(rms);
                 timestamp = timestamp.wrapping_add(FRAME_SAMPLES);
@@ -277,12 +399,65 @@ fn audio_thread(
                         let floor = calib[calib.len() / 2];
                         vad.set_adaptive(floor, 6.0);
                         tracing::info!(floor, threshold = vad.threshold_db(), "VAD kalibre edildi");
+                        if matches!(mic_test, MicTest::Waiting) {
+                            mic_test = MicTest::recording();
+                            emit_test(MicTestState::Recording, None);
+                        }
                     }
                     continue;
                 }
 
-                let d = vad.process(&frame);
+                let d = vad.process_with_prob(&frame, speech_prob);
                 let ptt = ctl.ptt_mode.load(Ordering::Relaxed);
+                if history.len() > PREROLL_FRAMES {
+                    history.pop_front();
+                }
+                history.push_back(frame);
+                // Konuşma algılamada kapı açıldıysa geriye dönük gönderilecek çerçeve sayısı.
+                let preroll = if ptt {
+                    0
+                } else {
+                    (d.preroll as usize).min(history.len() - 1)
+                };
+                let hist_end = history.len() - 1; // son eleman bu çerçeve
+
+                if let MicTest::Recording { enc, frames } = &mut mic_test {
+                    // Bas-konuşta kayıt tuşsuz yapılır (kısayol oda dışında kayıtlı değil).
+                    test_gate = ptt || d.send;
+                    // Konuşma başladı: kapı kapalıyken boş geçen son çerçeveleri ön tampondan doldur.
+                    let n = preroll.min(frames.len());
+                    if n > 0 {
+                        let start = frames.len() - n;
+                        for (slot, f) in frames[start..]
+                            .iter_mut()
+                            .zip(history.range(hist_end - n..hist_end))
+                        {
+                            *slot = encode_opus(enc, f);
+                        }
+                    }
+                    let opus = if test_gate {
+                        encode_opus(enc, &frame)
+                    } else {
+                        None
+                    };
+                    frames.push(opus);
+                    if frames.len() >= MIC_TEST_FRAMES {
+                        let sent = frames.iter().filter(|f| f.is_some()).count();
+                        let pct = (sent * 100 / frames.len()) as u8;
+                        mic_test = MicTest::Playing {
+                            dec: Decoder::new().expect("decoder"),
+                            frames: std::mem::take(frames),
+                            pos: 0,
+                            pct,
+                        };
+                        test_gate = false;
+                        emit_test(MicTestState::Playing, Some(pct));
+                    }
+                    // Kayıt sırasında odaya gönderme; bitince yeni konuşma TALK_START ile başlar.
+                    was_transmitting = false;
+                    continue;
+                }
+
                 let gate = if ptt {
                     ctl.ptt_pressed.load(Ordering::Relaxed)
                 } else {
@@ -296,23 +471,34 @@ fn audio_thread(
                 if !send {
                     continue;
                 }
-                let Ok(opus) = enc.encode(&frame) else {
-                    continue;
+                // Gönderim yeni başladıysa ve sebebi konuşma algılamaysa önceki çerçeveler de gider
+                // (sessiz mikrofon açılınca konuşmanın ortasından başlamak gerekmez).
+                let preroll = if talk_start && d.talk_start {
+                    preroll
+                } else {
+                    0
                 };
-                if Encoder::is_dtx_packet(opus) {
-                    continue;
-                }
-                seq = seq.wrapping_add(1);
-                let p = AudioPacket {
-                    sender_id: 0,
-                    seq,
-                    timestamp,
-                    flags: if talk_start { flags::TALK_START } else { 0 },
-                    opus,
-                };
-                if p.write_to(&mut pkt_buf).is_ok() {
-                    ctl.sent.fetch_add(1, Ordering::Relaxed);
-                    let _ = tx_net.send(Bytes::copy_from_slice(&pkt_buf));
+                pending_start |= talk_start;
+                for (i, f) in history.range(hist_end - preroll..=hist_end).enumerate() {
+                    let Ok(opus) = enc.encode(f) else {
+                        continue;
+                    };
+                    if Encoder::is_dtx_packet(opus) {
+                        continue;
+                    }
+                    seq = seq.wrapping_add(1);
+                    let p = AudioPacket {
+                        sender_id: 0,
+                        seq,
+                        timestamp: timestamp.wrapping_sub((preroll - i) as u32 * FRAME_SAMPLES),
+                        flags: if pending_start { flags::TALK_START } else { 0 },
+                        opus,
+                    };
+                    if p.write_to(&mut pkt_buf).is_ok() {
+                        pending_start = false;
+                        ctl.sent.fetch_add(1, Ordering::Relaxed);
+                        let _ = tx_net.send(Bytes::copy_from_slice(&pkt_buf));
+                    }
                 }
             }
         }
@@ -361,6 +547,39 @@ fn audio_thread(
                 }
             }
             mixer.finish(&mut mix);
+            // Ses testi karışımın üstüne eklenir (kulaklık kapalı olsa da duyulsun: bu bir test).
+            let mut test_done = None;
+            if let MicTest::Playing {
+                dec,
+                frames,
+                pos,
+                pct,
+            } = &mut mic_test
+            {
+                let ok = match &frames[*pos] {
+                    Some(p) => dec.decode(Some(p), &mut decoded).is_ok(),
+                    None => false,
+                };
+                if ok {
+                    for (m, s) in mix.iter_mut().zip(&decoded) {
+                        *m = (*m + s).clamp(-1.0, 1.0);
+                    }
+                }
+                *pos += 1;
+                if *pos >= frames.len() {
+                    test_done = Some(*pct);
+                }
+            }
+            if let Some(pct) = test_done {
+                mic_test = MicTest::Off;
+                emit_test(MicTestState::Idle, Some(pct));
+            }
+            if tone_pos < tone.len() {
+                for (m, s) in mix.iter_mut().zip(&tone[tone_pos..tone_pos + FRAME]) {
+                    *m = (*m + s).clamp(-1.0, 1.0);
+                }
+                tone_pos += FRAME;
+            }
             out.clear();
             if down.process(&mix, &mut out).is_ok() {
                 for &s in &out {
@@ -418,11 +637,17 @@ fn audio_thread(
             let db = Vad::to_db(level_peak);
             let level = ((db + 60.0) / 60.0).clamp(0.0, 1.0);
             level_peak = 0.0;
+            let threshold = ((vad.threshold_db() + 60.0) / 60.0).clamp(0.0, 1.0);
             let _ = ev.send(Event::InputLevel {
                 level,
-                transmitting: was_transmitting,
+                transmitting: was_transmitting || test_gate,
+                threshold,
             });
         }
+    }
+    if !matches!(mic_test, MicTest::Off) {
+        // Hat test sürerken kapandı (önizleme kapandı, cihaz değişti): arayüz beklemede kalmasın.
+        emit_test(MicTestState::Idle, None);
     }
     tracing::info!("ses hattı durdu");
 }
@@ -473,6 +698,29 @@ fn start_audio(
     })
 }
 
+/// Bağlı değilken yerel ses hattı (önizleme): ağ kanalları boş; `in_room` kapalı olduğundan
+/// zaten gönderim yok. Kurulamazsa hata olayı yayınlar.
+fn open_preview(
+    cfg: &EngineConfig,
+    ctl: &Arc<AudioControl>,
+    ev: &mpsc::UnboundedSender<Event>,
+) -> Option<AudioHandle> {
+    if cfg.no_audio {
+        return None;
+    }
+    let (tx_net, _) = mpsc::unbounded_channel::<Bytes>();
+    let (_, rx_net) = std::sync::mpsc::channel::<Bytes>();
+    match start_audio(cfg, ctl.clone(), tx_net, rx_net, ev.clone()) {
+        Ok(a) => Some(a),
+        Err(e) => {
+            let _ = ev.send(Event::Error {
+                message: format!("ses hattı: {e}"),
+            });
+            None
+        }
+    }
+}
+
 async fn run(
     mut cfg: EngineConfig,
     mut cmd_rx: mpsc::UnboundedReceiver<Command>,
@@ -481,19 +729,61 @@ async fn run(
     let emit = |e: Event| {
         let _ = ev.send(e);
     };
-    let ctl = AudioControl::new(cfg.push_to_talk);
+    let ctl = AudioControl::new(cfg.push_to_talk, cfg.noise_suppression);
+    // Arayüz ayarlar ekranındayken önizleme ister; bağlantı kopunca da sürer.
+    let mut preview_wanted = false;
 
     loop {
         // ---------------- Bağlı değil ----------------
         emit(Event::ConnectionState {
             state: ConnectionState::Disconnected,
         });
+        let mut preview = if preview_wanted {
+            open_preview(&cfg, &ctl, &ev)
+        } else {
+            None
+        };
         let (invite, nickname) = loop {
             match cmd_rx.recv().await {
                 None => return,
                 Some(Command::Connect { invite, nickname }) => break (invite, nickname),
-                Some(Command::SetInputDevice { name }) => cfg.input_device = name,
-                Some(Command::SetOutputDevice { name }) => cfg.output_device = name,
+                Some(Command::SetInputDevice { name }) => {
+                    cfg.input_device = name;
+                    if preview.take().is_some() {
+                        preview = open_preview(&cfg, &ctl, &ev);
+                    }
+                }
+                Some(Command::SetOutputDevice { name }) => {
+                    cfg.output_device = name;
+                    if preview.take().is_some() {
+                        preview = open_preview(&cfg, &ctl, &ev);
+                    }
+                }
+                Some(Command::SetAudioPreview { enabled }) => {
+                    preview_wanted = enabled;
+                    if !enabled {
+                        preview = None;
+                    } else if preview.is_none() {
+                        preview = open_preview(&cfg, &ctl, &ev);
+                    }
+                }
+                Some(Command::StartMicTest) => {
+                    if preview.is_none() {
+                        preview = open_preview(&cfg, &ctl, &ev);
+                    }
+                    if preview.is_some() {
+                        ctl.mic_test_start.store(true, Ordering::Relaxed);
+                    }
+                }
+                Some(Command::StopMicTest) => ctl.mic_test_stop.store(true, Ordering::Relaxed),
+                Some(Command::PlayTestSound) => {
+                    if preview.is_none() {
+                        preview = open_preview(&cfg, &ctl, &ev);
+                    }
+                    if preview.is_some() {
+                        ctl.test_sound.store(true, Ordering::Relaxed);
+                    }
+                }
                 Some(Command::SetPushToTalkMode { enabled }) => {
                     ctl.ptt_mode.store(enabled, Ordering::Relaxed)
                 }
@@ -501,6 +791,9 @@ async fn run(
                     ctl.ptt_pressed.store(pressed, Ordering::Relaxed)
                 }
                 Some(Command::SetMuted { muted }) => ctl.muted.store(muted, Ordering::Relaxed),
+                Some(Command::SetNoiseSuppression { enabled }) => {
+                    ctl.noise_suppression.store(enabled, Ordering::Relaxed)
+                }
                 Some(Command::SetDeafened { deafened }) => {
                     ctl.deafened.store(deafened, Ordering::Relaxed)
                 }
@@ -510,6 +803,9 @@ async fn run(
                 }),
             }
         };
+
+        // Gerçek ses hattı kurulmadan önizleme kapanır (aynı cihazlar, aynı kontrol).
+        drop(preview);
 
         // ---------------- Bağlanıyor ----------------
         emit(Event::ConnectionState {
@@ -660,6 +956,13 @@ async fn run(
                             cfg.output_device = name;
                             restart_audio(&cfg, &ctl, &tx_net, &audio_restart_rx, &ev, &mut audio)
                         }
+                        // Bağlıyken hat zaten açık; yalnızca bağlantı kopunca ne yapılacağını hatırla.
+                        Command::SetAudioPreview { enabled } => { preview_wanted = enabled; Ok(()) }
+                        Command::StartMicTest if audio.is_none() => Err("ses hattı açık değil".into()),
+                        Command::StartMicTest => { ctl.mic_test_start.store(true, Ordering::Relaxed); Ok(()) }
+                        Command::StopMicTest => { ctl.mic_test_stop.store(true, Ordering::Relaxed); Ok(()) }
+                        Command::PlayTestSound => { ctl.test_sound.store(true, Ordering::Relaxed); Ok(()) }
+                        Command::SetNoiseSuppression { enabled } => { ctl.noise_suppression.store(enabled, Ordering::Relaxed); Ok(()) }
                     };
                     if let Err(message) = r {
                         emit(Event::Error { message });
@@ -820,4 +1123,23 @@ fn restart_audio(
         ev.clone(),
     )?);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sound_is_frame_aligned_and_safe() {
+        let s = test_sound();
+        assert!(!s.is_empty());
+        assert_eq!(s.len() % FRAME, 0, "karıştırıcı çerçeve çerçeve okur");
+        let peak = s.iter().fold(0f32, |m, x| m.max(x.abs()));
+        assert!(peak > 0.1 && peak < 0.6, "tepe {peak}");
+        // Sönümlü biter: son çerçeve neredeyse sessiz.
+        let tail = s[s.len() - FRAME..]
+            .iter()
+            .fold(0f32, |m, x| m.max(x.abs()));
+        assert!(tail < 0.05, "son çerçeve tepe {tail}");
+    }
 }
