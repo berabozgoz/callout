@@ -10,7 +10,7 @@
 - **Server is on the internet:** Oracle Always Free (Frankfurt, VM.Standard.E2.1.Micro, Ubuntu 24.04),
   installed as a systemd service via `deploy/install.sh`. Bera connected from the app: RTT 36 ms.
   Connection details are in `CLAUDE.local.md`.
-- **Release v0.1.10** is on GitHub Releases (adaptive jitter, casing fix); the server runs v0.1.9 (compatible; invite link unchanged): NSIS installer (currentUser), portable
+- **Release v0.1.11** is on GitHub Releases (v0.1.10: adaptive jitter, casing fix; v0.1.11: mute/deafen icons); the server runs v0.1.9 (compatible; invite link unchanged): NSIS installer (currentUser), portable
   `callout-app.exe`, `callout-server.exe`, `callout-server-linux-x64`.
 - **English + i18n (2 Nov, v0.1.9):** code, docs, logs, server output and commits are
   English. The UI is localized in 11 languages (`ui/src/i18n/*.ts`: en source, tr, de, es, fr, pt-BR, ru, ar
@@ -132,6 +132,8 @@
   not loss. Adaptive jitter (target a late-packet rate, shrink faster) moves up in the Phase 2 queue.
 - 3 Nov (adaptive jitter): delay-spread estimator + stall resync, measured with a new jitter simulation
   (wired / Wi-Fi / Wi-Fi with stalls). fmt/clippy (incl. app)/test clean; released as v0.1.10, not field-tested yet.
+- 3 Nov: mute/deafen emoji (🔇 looked like "sound off", 🙉 for deafen) replaced with Tabler outline SVG icons
+  (MIT, `ui/src/Icon.svelte`): microphone(-off), headphones(-off) on the buttons and member flags. Released as v0.1.11.
 
 ## Previous session
 
