@@ -1,14 +1,14 @@
-//! Mikrofon → (48 kHz) → Opus kodla → Opus çöz → hoparlör yerel döngüsü.
-//! Faz 1 adım 2'nin ölçüm aracı: kodeğin sese ve CPU'ya etkisi.
+//! Local loop: microphone → (48 kHz) → Opus encode → Opus decode → speaker.
+//! Measurement tool for Phase 1 step 2: the codec's effect on sound and CPU.
 //!
-//! Çalıştır: `cargo run -p callout-audio --example loopback`
-//! Ham (kodeksiz) karşılaştırma için: `cargo run -p callout-audio --example loopback -- --raw`
-//! Kulaklıkla dinleyin; hoparlörle çalıştırırsanız geri besleme olur.
+//! Run: `cargo run -p callout-audio --example loopback`
+//! For a raw (no codec) comparison: `cargo run -p callout-audio --example loopback -- --raw`
+//! Listen with headphones; running it on speakers causes feedback.
 //!
-//! İş parçacıkları:
-//! - cpal giriş geri çağrısı: yalnızca halka tampona yazar;
-//! - ses iş parçacığı: resample → frame → encode → decode → resample → halka tampon;
-//! - cpal çıkış geri çağrısı: yalnızca halka tampondan okur.
+//! Threads:
+//! - cpal input callback: only writes to the ring buffer;
+//! - audio thread: resample → frame → encode → decode → resample → ring buffer;
+//! - cpal output callback: only reads from the ring buffer.
 
 use anyhow::{Context, Result};
 use callout_audio::codec::{Decoder, Encoder, EncoderConfig, FRAME};
@@ -31,17 +31,17 @@ fn main() -> Result<()> {
         tracing::info!(?d.direction, default = d.is_default, rate = d.sample_rate_hz, ch = d.channels, "{}", d.name);
     }
 
-    let input = find_device(Direction::Input, None).context("giriş cihazı")?;
-    let output = find_device(Direction::Output, None).context("çıkış cihazı")?;
+    let input = find_device(Direction::Input, None).context("input device")?;
+    let output = find_device(Direction::Output, None).context("output device")?;
     let in_cfg = input.default_input_config()?;
     let out_cfg = output.default_output_config()?;
     let in_rate = in_cfg.sample_rate().0;
     let out_rate = out_cfg.sample_rate().0;
     let in_ch = in_cfg.channels() as usize;
     let out_ch = out_cfg.channels() as usize;
-    tracing::info!(in_rate, out_rate, in_ch, out_ch, raw, "yapılandırma");
+    tracing::info!(in_rate, out_rate, in_ch, out_ch, raw, "config");
 
-    // Giriş ve çıkış halka tamponları (mono, cihaz hızında), 200 ms.
+    // Input and output ring buffers (mono, at device rate), 200 ms.
     let (mut in_prod, mut in_cons) = HeapRb::<f32>::new(in_rate as usize / 5).split();
     let (mut out_prod, mut out_cons) = HeapRb::<f32>::new(out_rate as usize / 5).split();
 
@@ -59,7 +59,7 @@ fn main() -> Result<()> {
                 }
             }
         },
-        |e| tracing::error!("giriş hatası: {e}"),
+        |e| tracing::error!("input error: {e}"),
         None,
     )?;
 
@@ -74,11 +74,11 @@ fn main() -> Result<()> {
                 frame.fill(s);
             }
         },
-        |e| tracing::error!("çıkış hatası: {e}"),
+        |e| tracing::error!("output error: {e}"),
         None,
     )?;
 
-    // Ses iş parçacığı: kodek hattı.
+    // Audio thread: codec pipeline.
     let bytes_sent = Arc::new(AtomicU64::new(0));
     let frames_sent = Arc::new(AtomicU64::new(0));
     let dtx_frames = Arc::new(AtomicU64::new(0));
@@ -101,7 +101,7 @@ fn main() -> Result<()> {
             tracing::info!(
                 up_delay = up.delay(),
                 down_delay = down.delay(),
-                "yeniden örnekleme gecikmesi (örnek)"
+                "resampling delay (samples)"
             );
 
             let mut chunk = Vec::with_capacity(1024);
@@ -136,7 +136,7 @@ fn main() -> Result<()> {
                         let pkt = enc.encode(&frame)?.to_vec();
                         en.fetch_add(t0.elapsed().as_nanos() as u64, Ordering::Relaxed);
                         fs.fetch_add(1, Ordering::Relaxed);
-                        // DTX paketi ağa gitmez; alıcı tarafta "kayıp" gibi PLC/sessizlik üretir.
+                        // DTX packets are not sent; the receiver treats them like a "loss" and produces PLC/silence.
                         let packet = if Encoder::is_dtx_packet(&pkt) {
                             dx.fetch_add(1, Ordering::Relaxed);
                             None
@@ -148,7 +148,7 @@ fn main() -> Result<()> {
                         down.process(&decoded, &mut out)?;
                     }
                     for &s in &out {
-                        let _ = out_prod.try_push(s); // taşarsa düşür; underrun sayacı diğer tarafta
+                        let _ = out_prod.try_push(s); // drop on overflow; the underrun counter is on the other side
                     }
                 }
             }
@@ -157,8 +157,8 @@ fn main() -> Result<()> {
     in_stream.play()?;
     out_stream.play()?;
     tracing::info!(
-        "yerel döngü çalışıyor ({}); Ctrl+C ile çıkın",
-        if raw { "ham" } else { "Opus" }
+        "local loop running ({}); press Ctrl+C to quit",
+        if raw { "raw" } else { "Opus" }
     );
 
     let mut last = Instant::now();
@@ -183,7 +183,7 @@ fn main() -> Result<()> {
                 }
             ),
             encode_us = nanos.checked_div(frames).unwrap_or(0) / 1000,
-            "istatistik"
+            "stats"
         );
     }
 }

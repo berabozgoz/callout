@@ -1,27 +1,27 @@
-//! Gönderen başına jitter tamponu.
+//! Per-sender jitter buffer.
 //!
-//! Paketler `seq` ile sıralanır; her 20 ms'lik çalma tikinde [`JitterBuffer::pop`]
-//! çağrılır ve üç sonuçtan biri döner: paket, kayıp (PLC/FEC ile doldur) ya da
-//! boşta (gönderen susmuş, sessizlik). Hedef derinlik (`target`) prefill
-//! süresidir: ilk paketten sonra tampon `target` çerçeveye ulaşana kadar
-//! çalma başlamaz. Geç gelen (zaten atlanmış) paketler ve tampon boşalmaları
-//! sayılır; 5 saniyelik pencerede bunlar artarsa hedef büyür, uzun süre sıfır
-//! kalırsa küçülür.
+//! Packets are ordered by `seq`; [`JitterBuffer::pop`] is called on every 20 ms
+//! playout tick and returns one of three outcomes: a packet, a loss (fill with
+//! PLC/FEC) or idle (the sender went quiet, silence). The target depth (`target`)
+//! is the prefill duration: after the first packet, playout does not start until
+//! the buffer reaches `target` frames. Late (already skipped) packets and buffer
+//! underflows are counted; if they rise within a 5-second window the target
+//! grows, and if they stay at zero for a long time it shrinks.
 //!
-//! Sabit kapasiteli ve tahsisi az: paketler `Vec<u8>` olarak saklanır, bu
-//! modül ses iş parçacığında (gerçek zamanlı geri çağrıda değil) çalışır.
+//! Fixed capacity with few allocations: packets are stored as `Vec<u8>`; this
+//! module runs on the audio thread (not in the real-time callback).
 
 use std::collections::BTreeMap;
 
-/// Çalma tikinde tamponun kararı.
+/// The buffer's decision on a playout tick.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Playout {
-    /// Sıradaki paket; Opus yükü.
+    /// The next packet; Opus payload.
     Packet(Vec<u8>),
-    /// Sıradaki paket kayıp. `next` varsa bir sonraki paket elde; `decode_fec`
-    /// ile kayıp çerçeve kurtarılabilir, yoksa PLC (`decode(None)`).
+    /// The next packet is lost. If `next` is set, the following packet is at hand and
+    /// the lost frame can be recovered with `decode_fec`; otherwise PLC (`decode(None)`).
     Lost { next: Option<Vec<u8>> },
-    /// Gönderen susmuş ya da henüz prefill dolmadı; sessizlik üret.
+    /// The sender went quiet or prefill is not yet complete; produce silence.
     Idle,
 }
 
@@ -36,13 +36,13 @@ pub struct JitterStats {
 
 pub struct JitterBuffer {
     packets: BTreeMap<u64, Vec<u8>>,
-    /// Sarmalanmamış sıra sayacı; `None` = boşta.
+    /// Unwrapped sequence counter; `None` = idle.
     next: Option<u64>,
     last_unwrapped: Option<u64>,
     prefilling: bool,
     misses: u32,
-    /// Boş tamponla geçen tikler; akışın gerçekten geciktiği anlaşılınca
-    /// (aynı sırayla, TALK_START olmadan devam ederse) underflow'a yazılır.
+    /// Ticks spent with an empty buffer; counted as underflow once it is clear the
+    /// stream was really delayed (it continues in sequence, without TALK_START).
     pending_misses: u32,
     target: u32,
     min_target: u32,
@@ -53,13 +53,13 @@ pub struct JitterBuffer {
     stats: JitterStats,
 }
 
-/// Peş peşe bu kadar tikte paket yoksa gönderen susmuş sayılır (PLC durur).
+/// With no packet for this many consecutive ticks the sender is considered quiet (PLC stops).
 const IDLE_AFTER_MISSES: u32 = 3;
-/// Tampon bu kadar çerçeveyi aşarsa (hedef + pay) en eskiler atılır.
+/// If the buffer exceeds this many frames (target + margin), the oldest are dropped.
 const OVERFLOW_MARGIN: u32 = 8;
 
 impl JitterBuffer {
-    /// `target_frames`: başlangıç prefill (20 ms birimleri; 3 = 60 ms).
+    /// `target_frames`: initial prefill (in 20 ms units; 3 = 60 ms).
     pub fn new(target_frames: u32) -> Self {
         let target = target_frames.clamp(1, 20);
         Self {
@@ -84,7 +84,7 @@ impl JitterBuffer {
 
     fn unwrap_seq(&mut self, seq: u16) -> u64 {
         let Some(last) = self.last_unwrapped else {
-            self.last_unwrapped = Some(seq as u64 + 65536); // negatif farklar için pay
+            self.last_unwrapped = Some(seq as u64 + 65536); // headroom for negative differences
             return self.last_unwrapped.unwrap();
         };
         let last_lo = (last & 0xFFFF) as u16;
@@ -94,11 +94,11 @@ impl JitterBuffer {
         unwrapped
     }
 
-    /// Ağdan gelen paket. `talk_start` (TALK_START bayrağı) yeni konuşma
-    /// başlangıcını işaretler; tampon sıfırlanıp yeniden prefill yapılır.
+    /// A packet from the network. `talk_start` (the TALK_START flag) marks the start
+    /// of a new talk spurt; the buffer is reset and prefilled again.
     pub fn push(&mut self, seq: u16, talk_start: bool, opus: &[u8]) {
         if talk_start || self.next.is_none() {
-            // Yeni konuşma: önceki boşluk gönderenin susmasıydı, ceza yok.
+            // New talk spurt: the previous gap was the sender going quiet, no penalty.
             self.packets.clear();
             self.last_unwrapped = None;
             let u = self.unwrap_seq(seq);
@@ -113,20 +113,20 @@ impl JitterBuffer {
         let next = self.next.unwrap();
         if self.pending_misses > 0 {
             if u <= next {
-                // Akış kesintisiz devam ediyormuş, biz beklemişiz: gerçek gecikme.
+                // The stream was continuous and we were waiting: real delay.
                 self.stats.underflow += self.pending_misses;
                 self.window_underflow += self.pending_misses;
             }
             self.pending_misses = 0;
         }
         if u < next {
-            // Çalma sırası geçmiş: geç paket.
+            // Its playout slot has passed: late packet.
             self.stats.late += 1;
             self.window_late += 1;
             return;
         }
         self.packets.insert(u, opus.to_vec());
-        // Taşma: hedefin çok üstünde biriktiyse eskileri atla (gecikmeyi sınırla).
+        // Overflow: if far above the target, drop the oldest (bounds latency).
         let limit = (self.target + OVERFLOW_MARGIN) as usize;
         while self.packets.len() > limit {
             if let Some((&oldest, _)) = self.packets.iter().next() {
@@ -136,7 +136,7 @@ impl JitterBuffer {
         }
     }
 
-    /// Her 20 ms çalma tikinde çağrılır.
+    /// Called on every 20 ms playout tick.
     pub fn pop(&mut self) -> Playout {
         let Some(next) = self.next else {
             return Playout::Idle;
@@ -155,23 +155,23 @@ impl JitterBuffer {
             return Playout::Packet(p);
         }
 
-        // Sıradaki yok.
+        // The next one is missing.
         if self.packets.is_empty() {
             self.misses += 1;
             if self.misses >= IDLE_AFTER_MISSES {
-                // Konuşma bitti: boşta. Bir sonraki paket yeniden prefill başlatır.
+                // Talk spurt over: idle. The next packet starts a new prefill.
                 self.next = None;
                 self.misses = 0;
                 self.pending_misses = 0;
                 return Playout::Idle;
             }
-            // Henüz ağ mı, susma mı bilinmiyor; bir sonraki push karar verir.
+            // Not yet known whether it is the network or silence; the next push decides.
             self.pending_misses += 1;
             self.next = Some(next + 1);
             return Playout::Lost { next: None };
         }
 
-        // Daha ileri bir paket var: bu çerçeve gerçekten kayıp.
+        // A later packet exists: this frame is really lost.
         self.stats.lost += 1;
         self.next = Some(next + 1);
         let fec_src = self.packets.get(&(next + 1)).cloned();
@@ -181,7 +181,7 @@ impl JitterBuffer {
         Playout::Lost { next: fec_src }
     }
 
-    /// 5 saniyede bir çağrılır: hedef derinliği pencere istatistiğine göre ayarlar.
+    /// Called every 5 seconds: adjusts the target depth based on window statistics.
     pub fn adapt(&mut self) {
         if self.window_late + self.window_underflow >= 3 {
             self.target = (self.target + 1).min(self.max_target);
@@ -244,7 +244,7 @@ mod tests {
     fn loss_offers_fec_source_then_continues() {
         let mut jb = JitterBuffer::new(2);
         jb.push(1, true, &pkt(1));
-        jb.push(3, false, &pkt(3)); // 2 kayıp
+        jb.push(3, false, &pkt(3)); // 2 lost
         assert_eq!(jb.pop(), Playout::Packet(pkt(1)));
         assert_eq!(jb.pop(), Playout::Lost { next: Some(pkt(3)) });
         assert_eq!(jb.pop(), Playout::Packet(pkt(3)));
@@ -257,11 +257,11 @@ mod tests {
         let mut jb = JitterBuffer::new(1);
         jb.push(5, true, &pkt(5));
         assert_eq!(jb.pop(), Playout::Packet(pkt(5)));
-        assert_eq!(jb.pop(), Playout::Lost { next: None }); // 1. kaçırma (PLC)
+        assert_eq!(jb.pop(), Playout::Lost { next: None }); // 1st miss (PLC)
         assert_eq!(jb.pop(), Playout::Lost { next: None }); // 2.
-        assert_eq!(jb.pop(), Playout::Idle); // 3. → boşta
+        assert_eq!(jb.pop(), Playout::Idle); // 3rd → idle
         assert!(jb.is_idle());
-        jb.push(40, false, &pkt(40)); // talk_start olmadan da yeniden başlar
+        jb.push(40, false, &pkt(40)); // restarts even without talk_start
         assert_eq!(jb.pop(), Playout::Packet(pkt(40)));
     }
 
@@ -272,7 +272,7 @@ mod tests {
         jb.push(2, false, &pkt(2));
         assert_eq!(jb.pop(), Playout::Packet(pkt(1)));
         assert_eq!(jb.pop(), Playout::Packet(pkt(2)));
-        jb.push(1, false, &pkt(1)); // geç
+        jb.push(1, false, &pkt(1)); // late
         assert_eq!(jb.stats().late, 1);
         assert_eq!(jb.pop(), Playout::Lost { next: None });
     }
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn vad_pause_is_not_underflow_but_stall_is() {
-        // Susma: 2 kaçırma, sonra TALK_START ile yeni konuşma → underflow 0.
+        // Silence: 2 misses, then a new talk spurt with TALK_START → underflow 0.
         let mut jb = JitterBuffer::new(1);
         jb.push(1, true, &pkt(1));
         jb.pop();
@@ -299,11 +299,11 @@ mod tests {
         jb.pop();
         jb.push(2, true, &pkt(2));
         assert_eq!(jb.stats().underflow, 0);
-        // Ağ duraklaması: 2 kaçırma, sonra aynı sırayla devam → underflow 2.
+        // Network stall: 2 misses, then continues in sequence → underflow 2.
         jb.pop(); // 2
         assert_eq!(jb.pop(), Playout::Lost { next: None });
         assert_eq!(jb.pop(), Playout::Lost { next: None });
-        jb.push(3, false, &pkt(3)); // geç (3 atlanmıştı) → gecikme kanıtı
+        jb.push(3, false, &pkt(3)); // late (3 was skipped) → evidence of delay
         assert_eq!(jb.stats().underflow, 2);
         assert_eq!(jb.stats().late, 1);
     }
@@ -316,7 +316,7 @@ mod tests {
         jb.pop();
         jb.pop();
         for _ in 0..3 {
-            jb.push(1, false, &pkt(1)); // geç ×3
+            jb.push(1, false, &pkt(1)); // late ×3
         }
         jb.adapt();
         assert_eq!(jb.target(), 3);

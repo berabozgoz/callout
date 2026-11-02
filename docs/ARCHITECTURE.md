@@ -1,81 +1,81 @@
-# CallOut — Mimari ve yol haritası (özet)
+# CallOut — Architecture and roadmap (summary)
 
-Yaşayan tam belge (diyagramlar, gerekçeler, yorumlar):
-https://claude.ai/artifact/Fm7ZdEpMeUJSY3tpw36Faq — son karar tarihi 26 Ekim 2026.
-Bu dosya depoda taşınan özettir; protokol ayrıntısında **kod (`crates/callout-proto`) gerçeğin kaynağıdır.**
+Full living document (diagrams, rationale, comments):
+https://claude.ai/artifact/Fm7ZdEpMeUJSY3tpw36Faq — last decision date 26 Oct 2026.
+This file is the summary kept in the repo; for protocol details **the code (`crates/callout-proto`) is the source of truth.**
 
-## Ürün
+## Product
 
-Oyuncular bir oda koduyla buluşur ve 150 ms altı uçtan uca gecikmeyle konuşur.
-MVP yalnızca Windows. Hedef oda 5–10 kişi (üst sınır 16).
+Players meet with a room code and talk with under 150 ms end-to-end latency.
+MVP is Windows only. Target room size 5–10 people (hard limit 16).
 
-## Temel kararlar
+## Key decisions
 
-| Karar | Seçim | Gerekçe |
+| Decision | Choice | Rationale |
 | --- | --- | --- |
-| Topoloji | Sunucu tabanlı SFU | İstemci 1 akış yükler, N-1 indirir; NAT sorunu sunucuda çözülür |
-| Taşıma | QUIC (quinn + rustls) | Tek bağlantı: güvenilir kontrol akışı + güvenilmez ses datagramları; TLS 1.3 gömülü |
-| Kodek | Opus 48 kHz, 20 ms, 24–32 kbps, FEC + DTX | Konuşma için şeffaf, kayba dayanıklı |
-| Ses G/Ç | cpal (WASAPI) | Saf Rust; gerekirse `windows` crate ile exclusive mod |
-| Arayüz | Tauri 2 + Svelte 5 | Ses ve ağ Rust'ta kalır; arayüz hızlı iterasyon alır |
-| Kimlik | Ed25519 cihaz anahtarı + takma ad | Parola yok; e-posta hesabı Faz 3 |
-| Barındırma | Self-host destekli | Aynı binary; kendinden imzalı sertifika + parmak izi; `callout://IP:port#parmak-izi` daveti |
-| Lisans | MIT OR Apache-2.0 | GPL crate yok |
+| Topology | Server-based SFU | Client uploads 1 stream, downloads N-1; NAT problems are solved at the server |
+| Transport | QUIC (quinn + rustls) | One connection: reliable control stream + unreliable audio datagrams; TLS 1.3 built in |
+| Codec | Opus 48 kHz, 20 ms, 24–32 kbps, FEC + DTX | Transparent for speech, loss-resilient |
+| Audio I/O | cpal (WASAPI) | Pure Rust; exclusive mode via the `windows` crate if needed |
+| UI | Tauri 2 + Svelte 5 | Audio and networking stay in Rust; the UI gets fast iteration |
+| Identity | Ed25519 device key + nickname | No passwords; email accounts in Phase 3 |
+| Hosting | Self-host friendly | Same binary; self-signed certificate + fingerprint; `callout://IP:port#fingerprint` invite |
+| License | MIT OR Apache-2.0 | No GPL crates |
 
-## Sistem
+## System
 
 ```
-İstemci A (Tauri)            callout-server (VPS / ev PC)         İstemci B…N
+Client A (Tauri)             callout-server (VPS / home PC)       Client B…N
 ┌──────────────────┐         ┌────────────────────────┐          ┌──────────────┐
-│ Svelte arayüz    │         │ SFU: Opus'u çözmeden   │          │ Svelte       │
-│ callout-core     │ ──ses──▶│ odadakilere kopyalar   │ ──ses──▶ │ callout-core │
-│ callout-audio    │ ◀─ses── │ rooms · auth · (chat)  │ ◀─ses──  │ callout-audio│
-│ callout-net/QUIC │ ◀kontrol▶ SQLite                │ ◀kontrol▶│ callout-net  │
+│ Svelte UI        │         │ SFU: copies Opus to    │          │ Svelte       │
+│ callout-core     │ ─audio─▶│ room members undecoded │ ─audio─▶ │ callout-core │
+│ callout-audio    │ ◀audio─ │ rooms · auth · (chat)  │ ◀audio─  │ callout-audio│
+│ callout-net/QUIC │ ◀control▶ SQLite                │ ◀control▶│ callout-net  │
 └──────────────────┘         └────────────────────────┘          └──────────────┘
-   ses = QUIC datagram (güvenilmez, 20 ms)   kontrol = QUIC akışı (güvenilir)
+   audio = QUIC datagram (unreliable, 20 ms)   control = QUIC stream (reliable)
 ```
 
-## İstemci
+## Client
 
-- `callout-proto` tipler · `callout-audio` cpal + Opus + jitter + karıştırıcı ·
-  `callout-net` QUIC · `callout-core` durum makinesi · `callout-app` Tauri kabuğu · `ui/` Svelte.
-- Gönderim: mikrofon → cpal geri çağrısı (yalnızca halka tampona kopya) → ses iş parçacığı:
-  48 kHz'e yeniden örnekleme, 20 ms çerçeve, VAD, [Faz 2] gürültü bastırma, Opus → datagram.
-- Alım: datagram → gönderene göre jitter tamponu (60 ms başlangıç, uyarlanabilir) → Opus çözme + PLC →
-  kullanıcı başına kazanç → karıştırıcı (f32 toplama + yumuşak sınırlayıcı) → cpal oynatma.
-- Tauri sınırı: arayüz `Command` gönderir, `Event` alır; ses verisi webview'a geçmez.
+- `callout-proto` types · `callout-audio` cpal + Opus + jitter + mixer ·
+  `callout-net` QUIC · `callout-core` state machine · `callout-app` Tauri shell · `ui/` Svelte.
+- Send: mic → cpal callback (only a copy into the ring buffer) → audio thread:
+  resample to 48 kHz, 20 ms frames, VAD, [Phase 2] noise suppression, Opus → datagram.
+- Receive: datagram → per-sender jitter buffer (60 ms initial, adaptive) → Opus decode + PLC →
+  per-user gain → mixer (f32 sum + soft limiter) → cpal playback.
+- Tauri boundary: the UI sends `Command`, receives `Event`; audio data never crosses into the webview.
 
-## Sunucu
+## Server
 
-Tek tokio süreci, tek UDP portu. Modüller: `sfu` (oda başına görev, `stamp_sender` ile damgalayıp iletir;
-susturulmuş üyeden gelen paket iletilmez), `rooms`, `auth` (challenge → Ed25519 imza), `store` (sqlx/SQLite),
-`admin` (sağlık + metrik). Faz 3: `presence`, `chat`. Odalar sunucuya sabittir; sunucular arası yönlendirme yok.
+Single tokio process, single UDP port. Modules: `sfu` (one task per room, stamps with `stamp_sender` and forwards;
+packets from muted members are not forwarded), `rooms`, `auth` (challenge → Ed25519 signature), `store` (sqlx/SQLite),
+`admin` (health + metrics). Phase 3: `presence`, `chat`. Rooms are pinned to a server; no cross-server routing.
 
-## Protokol
+## Protocol
 
-Kontrol: `[u32 LE uzunluk][postcard(ClientMsg|ServerMsg)]`, `PROTOCOL_VERSION` uyumsuzsa ret.
-El sıkışma: `Hello` → `Welcome{challenge}` → `Auth{signature}` → `Authed`.
-Ses paketi: `sender_id(4) seq(2) timestamp(4) flags(1) opus(≤400)`; ~52 kbps/konuşmacı, DTX ile sessizlikte 0.
-Şifreleme: MVP'de QUIC/TLS taşıma şifrelemesi; uçtan uca için `flags::E2E` biti ayrılmıştır.
+Control: `[u32 LE length][postcard(ClientMsg|ServerMsg)]`, rejected on `PROTOCOL_VERSION` mismatch.
+Handshake: `Hello` → `Welcome{challenge}` → `Auth{signature}` → `Authed`.
+Audio packet: `sender_id(4) seq(2) timestamp(4) flags(1) opus(≤400)`; ~52 kbps/speaker, 0 during silence with DTX.
+Encryption: in the MVP, QUIC/TLS transport encryption; the `flags::E2E` bit is reserved for end-to-end.
 
-## Yol haritası
+## Roadmap
 
-| Faz | Kapsam | Geçiş kapısı |
+| Phase | Scope | Gate |
 | --- | --- | --- |
-| 0 İskelet (1 hafta) | workspace, proto, CI, Tauri boş kabuk, cihaz listesi | CI yeşil; uygulama cihazları listeliyor |
-| 1 Ses MVP (4–6 hafta) | loopback → Opus → QUIC iki istemci → jitter/karıştırıcı → oda + self-host adresi → arayüz | 4 kişi 1 saat; gecikme ≤ 150 ms |
-| 2 Ses kalitesi (3 hafta) | nnnoiseless, AGC, FEC, uyarlanabilir jitter, kişi sesi, yeniden bağlanma | %5 kayıp + 100 ms jitter'da anlaşılır; klavye duyulmaz |
-| 3 Sosyal katman (4 hafta) | hesap, arkadaşlar, varlık, metin, kalıcı odalar | arkadaş ekle → çevrimiçi gör → odaya çağır |
-| 4 Yayın (3 hafta) | imzalı NSIS, otomatik güncelleme, çökme raporu, kapalı beta | 20 kullanıcı 2 hafta; çökme < %1 |
+| 0 Skeleton (1 week) | workspace, proto, CI, empty Tauri shell, device list | CI green; app lists devices |
+| 1 Audio MVP (4–6 weeks) | loopback → Opus → QUIC two clients → jitter/mixer → rooms + self-host address → UI | 4 people for 1 hour; latency ≤ 150 ms |
+| 2 Audio quality (3 weeks) | nnnoiseless, AGC, FEC, adaptive jitter, per-user volume, reconnect | intelligible at 5% loss + 100 ms jitter; keyboard inaudible |
+| 3 Social layer (4 weeks) | accounts, friends, presence, text, persistent rooms | add friend → see online → invite to room |
+| 4 Release (3 weeks) | signed NSIS, auto-update, crash reporting, closed beta | 20 users for 2 weeks; crashes < 1% |
 
-Sonrası: Linux/macOS, oyun içi overlay, uçtan uca şifreleme, tarayıcı köprüsü, bölgesel sunucular,
-tek tıkla self-host kurulum aracı.
+Later: Linux/macOS, in-game overlay, end-to-end encryption, browser bridge, regional servers,
+one-click self-host setup tool.
 
-## Riskler
+## Risks
 
-cpal/WASAPI çıtırtısı (loopback ile erken ölç) · UDP engelli ağlar (güvenilir akış üzerinden yedek mod) ·
-tek bölge gecikmesi (self-host + ileride çoklu sunucu) · SmartScreen (Faz 4 imza) · kapsam şişmesi (kapı kriterleri).
+cpal/WASAPI crackling (measure early with loopback) · UDP-blocked networks (fallback mode over a reliable stream) ·
+single-region latency (self-host + multiple servers later) · SmartScreen (Phase 4 signing) · scope creep (gate criteria).
 
-## Karar kayıtları (ADR)
+## Architecture decision records (ADR)
 
-Yeni bir mimari karar `docs/adr/NNNN-baslik.md` olarak eklenir: bağlam, karar, sonuçlar.
+A new architecture decision is added as `docs/adr/NNNN-title.md`: context, decision, consequences.

@@ -1,6 +1,6 @@
 [package]
 name = "callout-server"
-description = "CallOut SFU ve oda sunucusu"
+description = "CallOut SFU and room server"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

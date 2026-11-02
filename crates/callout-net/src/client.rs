@@ -1,8 +1,8 @@
-//! İstemci tarafı QUIC bağlantısı ve el sıkışma.
+//! Client-side QUIC connection and handshake.
 //!
-//! Akış: `Hello` → `Welcome{challenge}` → `Auth{signature}` → `Authed`.
-//! Sonrasında [`Client::control`] üzerinden oda mesajları, [`Client::send_audio`] /
-//! [`Client::recv_audio`] üzerinden ses datagramları.
+//! Flow: `Hello` → `Welcome{challenge}` → `Auth{signature}` → `Authed`.
+//! After that, room messages go through [`Client::control`] and audio datagrams through
+//! [`Client::send_audio`] / [`Client::recv_audio`].
 
 use crate::cert::{Invite, PinnedVerifier};
 use crate::control::{ControlError, ControlStream};
@@ -15,23 +15,23 @@ use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
-    #[error("yerel UDP soketi: {0}")]
+    #[error("local UDP socket: {0}")]
     Socket(#[from] std::io::Error),
-    #[error("TLS yapılandırması: {0}")]
+    #[error("TLS configuration: {0}")]
     Tls(#[from] rustls::Error),
-    #[error("QUIC yapılandırması: {0}")]
+    #[error("QUIC configuration: {0}")]
     QuicConfig(#[from] quinn::crypto::rustls::NoInitialCipherSuite),
-    #[error("bağlanılamadı: {0}")]
+    #[error("could not connect: {0}")]
     Connect(#[from] quinn::ConnectError),
-    #[error("bağlantı koptu: {0}")]
+    #[error("connection lost: {0}")]
     Connection(#[from] quinn::ConnectionError),
     #[error(transparent)]
     Control(#[from] ControlError),
-    #[error("sunucu reddetti: {code:?}: {message}")]
+    #[error("server rejected: {code:?}: {message}")]
     Rejected { code: ErrorCode, message: String },
-    #[error("el sıkışmada beklenmeyen mesaj: {0:?}")]
+    #[error("unexpected message during handshake: {0:?}")]
     Unexpected(ServerMsg),
-    #[error("datagram gönderilemedi: {0}")]
+    #[error("failed to send datagram: {0}")]
     Datagram(#[from] quinn::SendDatagramError),
 }
 
@@ -39,12 +39,12 @@ pub struct Client {
     conn: quinn::Connection,
     control: ControlStream<ClientMsg, ServerMsg>,
     user_id: UserId,
-    /// Kapatma çerçevesinin ağa çıkmasını beklemek için (`close_graceful`).
+    /// Used to wait for the close frame to go out on the wire (`close_graceful`).
     endpoint: quinn::Endpoint,
 }
 
 impl Client {
-    /// Davet linkindeki sunucuya bağlanır ve kimlik doğrulamasını tamamlar.
+    /// Connects to the server in the invite link and completes authentication.
     pub async fn connect(
         invite: &Invite,
         key: &DeviceKey,
@@ -104,7 +104,7 @@ impl Client {
             other => return Err(ClientError::Unexpected(other)),
         }
 
-        tracing::info!(user_id, rtt_ms = conn.rtt().as_millis(), "bağlandı");
+        tracing::info!(user_id, rtt_ms = conn.rtt().as_millis(), "connected");
         Ok(Self {
             conn,
             control,
@@ -121,7 +121,7 @@ impl Client {
         &mut self.control
     }
 
-    /// Oda açar; yanıt kontrol akışından `RoomState` ya da `Error` olarak gelir.
+    /// Creates a room; the reply arrives on the control stream as `RoomState` or `Error`.
     pub async fn create_room(&mut self, name: &str) -> Result<(), ClientError> {
         Ok(self
             .control
@@ -131,7 +131,7 @@ impl Client {
             .await?)
     }
 
-    /// Koda göre odaya girer; yanıt `RoomState` ya da `Error`.
+    /// Joins a room by code; the reply is `RoomState` or `Error`.
     pub async fn join_room(&mut self, code: &str) -> Result<(), ClientError> {
         Ok(self
             .control
@@ -149,17 +149,17 @@ impl Client {
         self.conn.rtt()
     }
 
-    /// Hazır bir ses paketini (başlık + Opus) güvenilmez datagram olarak gönderir.
+    /// Sends a ready audio packet (header + Opus) as an unreliable datagram.
     pub fn send_audio(&self, packet: Bytes) -> Result<(), ClientError> {
         Ok(self.conn.send_datagram(packet)?)
     }
 
-    /// Bir sonraki ses datagramını bekler.
+    /// Waits for the next audio datagram.
     pub async fn recv_audio(&self) -> Result<Bytes, ClientError> {
         Ok(self.conn.read_datagram().await?)
     }
 
-    /// Datagram alımı için bağımsız bir tutamaç (ayrı görevde kullanmak için).
+    /// An independent handle for receiving datagrams (for use in a separate task).
     pub fn connection(&self) -> quinn::Connection {
         self.conn.clone()
     }
@@ -168,8 +168,8 @@ impl Client {
         self.conn.close(0u32.into(), b"bye");
     }
 
-    /// Bağlantıyı kapatır ve kapatma çerçevesinin gönderilmesini (en çok `wait` kadar) bekler.
-    /// Süreç hemen sonra çıkarsa çerçeve gitmez, sunucu bağlantıyı ~10 sn sonra zaman aşımıyla siler.
+    /// Closes the connection and waits (at most `wait`) for the close frame to be sent.
+    /// If the process exits right after, the frame is not sent and the server drops the connection on timeout after ~10 s.
     pub async fn close_graceful(&self, wait: std::time::Duration) {
         self.conn.close(0u32.into(), b"bye");
         let _ = tokio::time::timeout(wait, self.endpoint.wait_idle()).await;

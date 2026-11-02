@@ -1,42 +1,42 @@
-//! Basit enerji tabanlı konuşma algılama (VAD).
+//! Simple energy-based voice activity detection (VAD).
 //!
-//! Opus DTX arka plan uğultusunu "ses" sayar; bu VAD kodekten önce durur ve
-//! eşiğin altındaki çerçeveleri hiç göndermez. Kelimeler kesilmesin diye:
-//! - **ön tampon** (`preroll`): kapı açılınca önceki birkaç çerçeve de gönderilir
-//!   (kelime başındaki sessiz ünsüzler: s, ş, h, f);
-//! - **histerezis**: açmak için eşik, açık kalmak için eşiğin `HYSTERESIS_DB` altı yeter
-//!   (kısık söylenen kelimeler konuşmanın ortasında kesilmez);
-//! - **tutma** (`hangover`): konuşma bitince bir süre daha gönderilir (kelime sonları).
+//! Opus DTX treats background hum as "sound"; this VAD sits before the codec and
+//! never sends frames below the threshold. To avoid clipping words:
+//! - **preroll**: when the gate opens, the few preceding frames are sent too
+//!   (quiet consonants at word starts: s, sh, h, f);
+//! - **hysteresis**: opening needs the threshold, staying open only `HYSTERESIS_DB` below it
+//!   (softly spoken words are not cut mid-speech);
+//! - **hangover**: sending continues for a while after speech ends (word endings).
 //!
-//! Gürültü bastırma açıksa VAD temizlenmiş çerçeveye bakar ve RNNoise'in konuşma olasılığını
-//! da kullanır (`process_with_prob`): enerji eşiği aşılmasa da olasılık yüksekse kapı açılır.
-//! Bas-konuş bunu tamamen atlar.
+//! With noise suppression on, the VAD looks at the cleaned frame and also uses RNNoise's
+//! speech probability (`process_with_prob`): a high probability opens the gate even below
+//! the energy threshold. Push-to-talk bypasses all of this.
 
 use crate::codec::FRAME;
 
-/// Açık kapı, açma eşiğinin bu kadar altına inene dek açık kalır.
+/// An open gate stays open until the level drops this far below the open threshold.
 pub const HYSTERESIS_DB: f32 = 4.0;
-/// Uyarlanabilir modda kapatma eşiği gürültü tabanının en az bu kadar üstünde kalır.
+/// In adaptive mode the close threshold stays at least this far above the noise floor.
 const MIN_CLOSE_ABOVE_FLOOR_DB: f32 = 3.0;
-/// RNNoise konuşma olasılığı: bunun üstü kapıyı açar, açık kapı `PROB_HOLD` üstünde açık kalır.
+/// RNNoise speech probability: above this opens the gate; an open gate stays open above `PROB_HOLD`.
 const PROB_OPEN: f32 = 0.85;
 const PROB_HOLD: f32 = 0.5;
 
 pub struct Vad {
-    /// Açma eşiği (doğrusal RMS); kapatma eşiği bunun `HYSTERESIS_DB` altı.
+    /// Open threshold (linear RMS); the close threshold is `HYSTERESIS_DB` below it.
     threshold: f32,
     hangover_frames: u32,
     preroll_frames: u32,
     remaining: u32,
     speaking: bool,
-    /// Uyarlanabilir mod: (gürültü tabanı dB, pay dB). Konuşma dışı çerçevelerde
-    /// taban yavaşça güncellenir, eşik = taban + pay.
+    /// Adaptive mode: (noise floor dB, margin dB). The floor is slowly updated on
+    /// non-speech frames; threshold = floor + margin.
     adaptive: Option<(f32, f32)>,
 }
 
 impl Vad {
-    /// `threshold_db`: dBFS cinsinden RMS eşiği (ör. -45.0). `hangover_ms`: konuşma
-    /// sonrası açık kalma süresi. `preroll_ms`: kapı açılınca geriye dönük gönderilecek süre.
+    /// `threshold_db`: RMS threshold in dBFS (e.g. -45.0). `hangover_ms`: how long to stay
+    /// open after speech. `preroll_ms`: how much past audio to send when the gate opens.
     pub fn new(threshold_db: f32, hangover_ms: u32, preroll_ms: u32) -> Self {
         Self {
             threshold: 10f32.powf(threshold_db / 20.0),
@@ -48,7 +48,7 @@ impl Vad {
         }
     }
 
-    /// Uyarlanabilir eşik: `floor_db` başlangıç gürültü tabanı, `margin_db` üstüne pay.
+    /// Adaptive threshold: `floor_db` is the initial noise floor, `margin_db` the margin above it.
     pub fn set_adaptive(&mut self, floor_db: f32, margin_db: f32) {
         self.adaptive = Some((floor_db, margin_db));
         self.set_threshold_db((floor_db + margin_db).clamp(-60.0, -20.0));
@@ -58,21 +58,21 @@ impl Vad {
         self.adaptive.map(|(f, _)| f)
     }
 
-    /// Çerçeve RMS'i (0.0–1.0).
+    /// Frame RMS (0.0–1.0).
     pub fn rms(frame: &[f32]) -> f32 {
         (frame.iter().map(|s| s * s).sum::<f32>() / FRAME as f32).sqrt()
     }
 
-    /// Bu çerçeve gönderilmeli mi? Ayrıca konuşma başlangıcını döner
-    /// (`AudioPacket` `TALK_START` bayrağı için).
+    /// Should this frame be sent? Also reports the start of speech
+    /// (for the `AudioPacket` `TALK_START` flag).
     pub fn process(&mut self, frame: &[f32]) -> VadDecision {
         self.process_with_prob(frame, None)
     }
 
-    /// [`Vad::process`] + gürültü bastırıcının konuşma olasılığı (0.0–1.0).
+    /// [`Vad::process`] + the noise suppressor's speech probability (0.0–1.0).
     pub fn process_with_prob(&mut self, frame: &[f32], speech_prob: Option<f32>) -> VadDecision {
         let rms = Self::rms(frame);
-        // Kapatma eşiği gürültü tabanına fazla yaklaşmasın (dalgalanan gürültü kapıyı açık tutmasın).
+        // Keep the close threshold away from the noise floor (fluctuating noise must not hold the gate open).
         let mut close = self.threshold * 10f32.powf(-HYSTERESIS_DB / 20.0);
         if let Some((floor, _)) = self.adaptive {
             close = close.max(10f32.powf((floor + MIN_CLOSE_ABOVE_FLOOR_DB) / 20.0));
@@ -82,9 +82,9 @@ impl Vad {
         let active = energy || prob >= if self.speaking { PROB_HOLD } else { PROB_OPEN };
         if let Some((floor, margin)) = self.adaptive.as_mut() {
             if !active && !self.speaking {
-                // Taban: asimetrik EMA, yalnızca konuşma dışında (tutma süresi dahil değil:
-                // eşiğin altında kalan kısık heceler tabanı konuşmaya doğru tırmandırmasın).
-                // Aşağı hızlı (ortam sakinleşince hemen takip et), yukarı yavaş.
+                // Floor: asymmetric EMA, only outside speech (not during hangover:
+                // soft syllables below the threshold must not push the floor up toward speech).
+                // Fast downward (follow immediately when the room gets quieter), slow upward.
                 let db = Self::to_db(rms);
                 let alpha = if db < *floor { 0.05 } else { 0.005 };
                 *floor += (db - *floor) * alpha;
@@ -120,7 +120,7 @@ impl Vad {
         20.0 * self.threshold.log10()
     }
 
-    /// Doğrusal RMS → dBFS (sessizlik için -100 tabanı).
+    /// Linear RMS → dBFS (floor of -100 for silence).
     pub fn to_db(rms: f32) -> f32 {
         20.0 * rms.max(1e-5).log10()
     }
@@ -130,7 +130,7 @@ impl Vad {
 pub struct VadDecision {
     pub send: bool,
     pub talk_start: bool,
-    /// Konuşma başladıysa: bu çerçeveden önceki kaç çerçeve de gönderilmeli (ön tampon).
+    /// If speech started: how many frames before this one should also be sent (preroll).
     pub preroll: u32,
 }
 
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn gates_silence_and_keeps_hangover() {
-        let mut vad = Vad::new(-40.0, 60, 0); // 3 çerçeve hangover
+        let mut vad = Vad::new(-40.0, 60, 0); // 3 frames of hangover
         let silence = vec![0.0005f32; FRAME]; // ≈ -66 dBFS
         let voice = vec![0.1f32; FRAME]; // -20 dBFS
         assert!(!vad.process(&silence).send);
@@ -158,7 +158,7 @@ mod tests {
         let mut vad = Vad::new(-40.0, 0, 60);
         let quiet = vec![0.0005f32; FRAME]; // ≈ -66 dBFS
         let loud = vec![0.02f32; FRAME]; // ≈ -34 dBFS
-        let soft = vec![0.008f32; FRAME]; // ≈ -42 dBFS: açmaz, ama açık kapıyı tutar
+        let soft = vec![0.008f32; FRAME]; // ≈ -42 dBFS: does not open, but holds an open gate
         assert_eq!(vad.process(&soft).preroll, 0);
         assert!(!vad.process(&soft).send);
         let d = vad.process(&loud);
@@ -167,7 +167,7 @@ mod tests {
         assert_eq!(vad.process(&loud).preroll, 0);
         assert!(
             vad.process(&soft).send,
-            "histerezis: eşiğin 4 dB altına kadar açık"
+            "hysteresis: open down to 4 dB below the threshold"
         );
         assert!(!vad.process(&quiet).send);
     }
@@ -175,15 +175,15 @@ mod tests {
     #[test]
     fn speech_probability_opens_and_holds_gate() {
         let mut vad = Vad::new(-40.0, 0, 0);
-        let quiet = vec![0.0005f32; FRAME]; // eşiğin çok altında
+        let quiet = vec![0.0005f32; FRAME]; // far below the threshold
         assert!(
             !vad.process_with_prob(&quiet, Some(0.6)).send,
-            "0.6 açmaya yetmez"
+            "0.6 is not enough to open"
         );
         assert!(vad.process_with_prob(&quiet, Some(0.9)).talk_start);
         assert!(
             vad.process_with_prob(&quiet, Some(0.6)).send,
-            "açık kapıyı tutar"
+            "holds an open gate"
         );
         assert!(!vad.process_with_prob(&quiet, Some(0.2)).send);
     }
@@ -194,7 +194,7 @@ mod sim {
     use super::*;
     use std::f32::consts::TAU;
 
-    /// Konuşma benzeri çerçeve dizisi: (çerçeve, konuşma mı). Gürültü tabanı `noise_db`.
+    /// Speech-like frame sequence: (frame, is speech). Noise floor is `noise_db`.
     pub fn speech(noise_db: f32, seconds: usize) -> Vec<(Vec<f32>, bool)> {
         let mut x: u64 = 12345;
         let mut rnd = move || {
@@ -203,7 +203,7 @@ mod sim {
                 .wrapping_add(1442695040888963407);
             ((x >> 40) as f32 / (1u64 << 24) as f32) * 2.0 - 1.0
         };
-        let noise_amp = 10f32.powf(noise_db / 20.0) * 3f32.sqrt(); // düzgün dağılım RMS düzeltmesi
+        let noise_amp = 10f32.powf(noise_db / 20.0) * 3f32.sqrt(); // RMS correction for uniform distribution
         let syllable = [
             -45.0, -38.0, -32.0, -27.0, -26.0, -26.0, -28.0, -31.0, -36.0, -42.0,
         ];
@@ -211,7 +211,7 @@ mod sim {
         let mut word = 0;
         while env.len() < seconds * 50 {
             for _ in 0..4 {
-                // Her üçüncü kelime kısık; kelimeler sessiz bir ünsüzle (s, ş, h) başlar.
+                // Every third word is soft; words start with a quiet consonant (s, sh, h).
                 let soft = if word % 3 == 2 { -12.0 } else { 0.0 };
                 env.extend([Some(-46.0 + soft / 2.0), Some(-43.0 + soft / 2.0)]);
                 for _ in 0..2 {
@@ -238,12 +238,12 @@ mod sim {
             .collect()
     }
 
-    /// Motorun yaptığı gibi: 75 çerçeve kalibrasyon (medyan), sonra uyarlanabilir VAD.
-    /// Dönüş: (konuşma çerçevelerinin gönderilen oranı, konuşma dışı çerçevelerin gönderilen oranı).
+    /// As the engine does: 75 frames of calibration (median), then adaptive VAD.
+    /// Returns: (fraction of speech frames sent, fraction of non-speech frames sent).
     pub fn capture(noise_db: f32, hangover_ms: u32, preroll_ms: u32) -> (f32, f32) {
         let frames = speech(noise_db, 60);
         let mut vad = Vad::new(-45.0, hangover_ms, preroll_ms);
-        // Kalibrasyon sessizlikte yapılır (uygulama açılırken).
+        // Calibration happens during silence (while the app starts).
         let mut calib: Vec<f32> = frames
             .iter()
             .filter(|f| !f.1)
@@ -273,33 +273,33 @@ mod sim {
         (ratio(true), ratio(false))
     }
 
-    /// Gürültülü mikrofonda (−42 dB taban; ilk sürümde konuşmanın %68'i gidiyordu)
-    /// kısık kelimeler ve kelime başları gitmeli, gürültü kapıyı açık tutmamalı.
+    /// On a noisy mic (−42 dB floor; the first version sent only 68% of speech)
+    /// soft words and word starts must get through, and noise must not hold the gate open.
     #[test]
     fn keeps_soft_speech_without_locking_open() {
         for (noise, min_speech) in [(-60.0, 0.99), (-50.0, 0.99), (-42.0, 0.9)] {
             let (speech, other) = capture(noise, 400, 60);
             assert!(
                 speech >= min_speech,
-                "taban {noise}: konuşma %{:.1}",
+                "floor {noise}: speech {:.1}%",
                 speech * 100.0
             );
             assert!(
                 other < 0.75,
-                "taban {noise}: konuşma dışı %{:.1}",
+                "floor {noise}: non-speech {:.1}%",
                 other * 100.0
             );
         }
     }
 
     #[test]
-    #[ignore = "deney: VAD ayar taraması"]
+    #[ignore = "experiment: VAD tuning sweep"]
     fn report() {
         for n in [-60.0, -50.0, -42.0] {
             for (h, p) in [(300, 0), (300, 60), (400, 60), (500, 60)] {
                 let (a, b) = capture(n, h, p);
                 println!(
-                    "taban {n} dB, tutma {h} ms, ön tampon {p} ms: konuşma %{:.1}, konuşma dışı %{:.1}",
+                    "floor {n} dB, hangover {h} ms, preroll {p} ms: speech {:.1}%, non-speech {:.1}%",
                     a * 100.0,
                     b * 100.0
                 );

@@ -1,14 +1,14 @@
-//! Motor: komutları alır, ağ ve ses hattını yönetir, olay yayınlar.
+//! Engine: receives commands, manages the network and the audio pipeline, emits events.
 //!
-//! İş parçacıkları:
-//! - **motor** (bu modülün tokio çalışma zamanı): komut döngüsü, QUIC kontrol
-//!   akışı, datagram gönder/al görevleri;
-//! - **ses** (`callout-audio-pipeline`): cpal akışlarını kurar; mikrofon → VAD/PTT
-//!   → Opus → ağ; ağ → jitter → Opus → karıştırıcı → hoparlör;
-//! - cpal geri çağrıları: yalnızca halka tampon.
+//! Threads:
+//! - **engine** (this module's tokio runtime): command loop, QUIC control
+//!   stream, datagram send/receive tasks;
+//! - **audio** (`callout-audio-pipeline`): sets up the cpal streams; microphone → VAD/PTT
+//!   → Opus → network; network → jitter → Opus → mixer → speaker;
+//! - cpal callbacks: ring buffer only.
 //!
-//! Ses iş parçacığı bağlıyken yaşar; bağlı değilken yalnızca ayarlar açıkken (önizleme: seviye
-//! çubuğu ve ses testi için) açılır. Cihaz değişince yeniden kurulur.
+//! The audio thread lives while connected; while disconnected it only runs when settings are
+//! open (preview: for the level meter and the sound test). It is rebuilt when the device changes.
 
 use crate::{Command, ConnectionState, Event, MicTestState};
 use bytes::Bytes;
@@ -39,23 +39,24 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 const JITTER_TARGET: u32 = 3;
-/// Mikrofon testi kaydı: 250 çerçeve = 5 sn.
+/// Microphone test recording: 250 frames = 5 s.
 const MIC_TEST_FRAMES: usize = 250;
-/// Konuşma algılama: bitişten sonra açık kalma ve başlangıçta geriye dönük gönderme süresi.
+/// Voice activity detection: how long the gate stays open after speech ends, and how much
+/// audio from before the start is sent retroactively.
 const VAD_HANGOVER_MS: u32 = 400;
 const VAD_PREROLL_MS: u32 = 60;
 const PREROLL_FRAMES: usize = (VAD_PREROLL_MS / 20) as usize;
 
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
-    /// Cihaz anahtarı ve ayarların yaşadığı klasör.
+    /// Folder holding the device key and settings.
     pub data_dir: PathBuf,
     pub input_device: Option<String>,
     pub output_device: Option<String>,
     pub push_to_talk: bool,
-    /// Gürültü bastırma (RNNoise) mikrofon sesine uygulanır.
+    /// Apply noise suppression (RNNoise) to the microphone signal.
     pub noise_suppression: bool,
-    /// Ses hattını hiç kurma (ses cihazı olmayan test ortamları için).
+    /// Never set up the audio pipeline (for test environments without audio devices).
     pub no_audio: bool,
 }
 
@@ -72,13 +73,13 @@ impl Default for EngineConfig {
     }
 }
 
-/// Motor tutamacı. Düşürülünce motor durur.
+/// Engine handle. The engine stops when it is dropped.
 pub struct Engine {
     cmd_tx: mpsc::UnboundedSender<Command>,
 }
 
 impl Engine {
-    /// Motoru kendi iş parçacığında başlatır; olaylar `rx`'ten okunur.
+    /// Starts the engine on its own thread; events are read from `rx`.
     pub fn start(cfg: EngineConfig) -> (Engine, mpsc::UnboundedReceiver<Event>) {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (ev_tx, ev_rx) = mpsc::unbounded_channel();
@@ -91,7 +92,7 @@ impl Engine {
                     .expect("tokio");
                 rt.block_on(run(cfg, cmd_rx, ev_tx));
             })
-            .expect("motor iş parçacığı");
+            .expect("engine thread");
         (Engine { cmd_tx }, ev_rx)
     }
 
@@ -99,14 +100,14 @@ impl Engine {
         let _ = self.cmd_tx.send(cmd);
     }
 
-    /// Başka iş parçacıklarından komut göndermek için klonlanabilir gönderici.
+    /// Cloneable sender for sending commands from other threads.
     pub fn sender(&self) -> mpsc::UnboundedSender<Command> {
         self.cmd_tx.clone()
     }
 }
 
 // ---------------------------------------------------------------------------
-// Ses hattı ile paylaşılan kontrol
+// Control shared with the audio pipeline
 // ---------------------------------------------------------------------------
 
 struct AudioControl {
@@ -116,16 +117,16 @@ struct AudioControl {
     ptt_mode: AtomicBool,
     ptt_pressed: AtomicBool,
     noise_suppression: AtomicBool,
-    /// cpal akış hata geri çağrısı (cihaz çıkarıldı/kayboldu) bunu kurar; motor ses hattını yeniden kurar.
+    /// Set by the cpal stream error callback (device unplugged/lost); the engine rebuilds the audio pipeline.
     stream_error: AtomicBool,
-    /// Yalnızca odadayken ses gönderilir (oda dışında sunucu zaten atıyor; ağa çıkmasın).
+    /// Audio is sent only while in a room (outside a room the server drops it anyway; keep it off the network).
     in_room: AtomicBool,
-    /// Ses testi istekleri: motor kurar, ses iş parçacığı okuyup sıfırlar.
+    /// Sound test requests: the engine sets them, the audio thread reads and clears them.
     mic_test_start: AtomicBool,
     mic_test_stop: AtomicBool,
     test_sound: AtomicBool,
     gains: Mutex<HashMap<UserId, f32>>,
-    // istatistik
+    // statistics
     sent: AtomicU32,
     received: AtomicU32,
     lost: AtomicU32,
@@ -161,11 +162,11 @@ struct Receiver {
     last_packet: Instant,
 }
 
-/// Mikrofon testi: kayıtta çerçeveler gönderim kapısından ve Opus'tan geçirilir (kapı
-/// kapalıysa `None` = odadakiler için sessizlik), sonra aynen çözülüp çalınır.
+/// Microphone test: while recording, frames pass through the transmit gate and Opus (`None`
+/// when the gate is closed = silence for the room), then are decoded and played back as is.
 enum MicTest {
     Off,
-    /// VAD kalibrasyonu bitmeden kayıt başlamaz (eşik henüz yok).
+    /// Recording does not start until VAD calibration is done (no threshold yet).
     Waiting,
     Recording {
         enc: Box<Encoder>,
@@ -188,7 +189,7 @@ impl MicTest {
     }
 }
 
-/// Çerçeveyi kodlar; DTX sessizliği (gönderilmeyecek paket) ya da hata için `None`.
+/// Encodes a frame; `None` for DTX silence (a packet that would not be sent) or on error.
 fn encode_opus(enc: &mut Encoder, frame: &[f32]) -> Option<Vec<u8>> {
     enc.encode(frame)
         .ok()
@@ -196,7 +197,7 @@ fn encode_opus(enc: &mut Encoder, frame: &[f32]) -> Option<Vec<u8>> {
         .map(|p| p.to_vec())
 }
 
-/// Kısa iki notalı zil (48 kHz, çerçeve katı uzunlukta).
+/// Short two-note chime (48 kHz, length a multiple of the frame size).
 fn test_sound() -> Vec<f32> {
     let sr = SAMPLE_RATE_HZ as f32;
     let len = ((0.8 * sr) as usize).div_ceil(FRAME) * FRAME;
@@ -207,7 +208,7 @@ fn test_sound() -> Vec<f32> {
             for (start, hz) in [(0.0f32, 880.0f32), (0.15, 1318.5)] {
                 let dt = t - start;
                 if dt >= 0.0 {
-                    // 5 ms yumuşak giriş, üstel sönüm
+                    // 5 ms fade-in, exponential decay
                     s += (TAU * hz * dt).sin() * (-dt * 6.0).exp() * (dt * 200.0).min(1.0);
                 }
             }
@@ -216,7 +217,7 @@ fn test_sound() -> Vec<f32> {
         .collect()
 }
 
-/// Ses hattı iş parçacığı; `ctl.stop` true olana kadar döner.
+/// Audio pipeline thread; runs until `ctl.stop` is true.
 fn audio_thread(
     input_name: Option<String>,
     output_name: Option<String>,
@@ -228,9 +229,9 @@ fn audio_thread(
 ) {
     let setup = (|| -> Result<_, String> {
         let input = find_device(Direction::Input, input_name.as_deref())
-            .map_err(|e| format!("giriş cihazı: {e}"))?;
+            .map_err(|e| format!("input device: {e}"))?;
         let output = find_device(Direction::Output, output_name.as_deref())
-            .map_err(|e| format!("çıkış cihazı: {e}"))?;
+            .map_err(|e| format!("output device: {e}"))?;
         let in_cfg = input.default_input_config().map_err(|e| e.to_string())?;
         let out_cfg = output.default_output_config().map_err(|e| e.to_string())?;
         Ok((input, output, in_cfg, out_cfg))
@@ -248,7 +249,7 @@ fn audio_thread(
     let (mut in_prod, mut in_cons) = HeapRb::<f32>::new(in_rate as usize / 5).split();
     let (mut out_prod, mut out_cons) = HeapRb::<f32>::new(out_rate as usize / 5).split();
 
-    // Hata geri çağrıları yalnızca bayrağı kurar (ilk hatada günlüğe yazar); kurtarmayı motor yapar.
+    // Error callbacks only set the flag (logging the first error); the engine handles recovery.
     let (err_in, err_out) = (ctl.clone(), ctl.clone());
     let streams = (|| -> Result<_, String> {
         let in_stream = input
@@ -262,12 +263,12 @@ fn audio_thread(
                 },
                 move |e| {
                     if !err_in.stream_error.swap(true, Ordering::Relaxed) {
-                        tracing::error!("giriş hatası: {e}");
+                        tracing::error!("input error: {e}");
                     }
                 },
                 None,
             )
-            .map_err(|e| format!("giriş akışı: {e}"))?;
+            .map_err(|e| format!("input stream: {e}"))?;
         let out_stream = output
             .build_output_stream(
                 &out_cfg.clone().into(),
@@ -279,12 +280,12 @@ fn audio_thread(
                 },
                 move |e| {
                     if !err_out.stream_error.swap(true, Ordering::Relaxed) {
-                        tracing::error!("çıkış hatası: {e}");
+                        tracing::error!("output error: {e}");
                     }
                 },
                 None,
             )
-            .map_err(|e| format!("çıkış akışı: {e}"))?;
+            .map_err(|e| format!("output stream: {e}"))?;
         in_stream.play().map_err(|e| e.to_string())?;
         out_stream.play().map_err(|e| e.to_string())?;
         Ok((in_stream, out_stream))
@@ -297,7 +298,7 @@ fn audio_thread(
         }
     };
     let _ = ready.send(Ok(()));
-    tracing::info!(in_rate, out_rate, in_ch, out_ch, "ses hattı başladı");
+    tracing::info!(in_rate, out_rate, in_ch, out_ch, "audio pipeline started");
 
     let mut up = Resampler::new(in_rate, SAMPLE_RATE_HZ).expect("resampler");
     let mut down = Resampler::new(SAMPLE_RATE_HZ, out_rate).expect("resampler");
@@ -305,9 +306,9 @@ fn audio_thread(
     let mut vad = Vad::new(-45.0, VAD_HANGOVER_MS, VAD_PREROLL_MS);
     let mut denoiser = Denoiser::new();
     let mut ns_active = ctl.noise_suppression.load(Ordering::Relaxed);
-    // Ön tampon: son çerçeveler (işlenen dahil). Konuşma başlayınca öncekiler de gönderilir.
+    // Pre-roll buffer: the latest frames (including the current one). When speech starts, the earlier ones are sent too.
     let mut history: VecDeque<[f32; FRAME]> = VecDeque::with_capacity(PREROLL_FRAMES + 1);
-    // Konuşma başladı ama henüz paket gitmedi (ilk çerçeveler DTX olabilir): TALK_START bekliyor.
+    // Speech started but no packet has gone out yet (the first frames may be DTX): TALK_START is pending.
     let mut pending_start = false;
     let mut calib: Vec<f32> = Vec::with_capacity(75);
     let mut enc = Encoder::new(EncoderConfig::default()).expect("opus encoder");
@@ -326,13 +327,13 @@ fn audio_thread(
     let out_low_water = (out_rate as usize) * 40 / 1000;
     let mut last_adapt = Instant::now();
     let mut adapt_ticks = 0u32;
-    // Sessiz kalıp tablodan silinen gönderenlerin kaybı (toplam sayaç geri düşmesin).
+    // Losses of senders removed from the table after going silent (so the total counter never goes down).
     let mut lost_retired = 0u32;
     let mut last_level = Instant::now();
     let mut level_peak = 0f32;
     let mut was_transmitting = false;
     let mut mic_test = MicTest::Off;
-    // Seviye çubuğu için: test kaydında kapı açık mı (odaya gönderim olmasa da).
+    // For the level meter: whether the gate is open during the test recording (even though nothing is sent to the room).
     let mut test_gate = false;
     let mut tone: Vec<f32> = Vec::new();
     let mut tone_pos = 0usize;
@@ -344,7 +345,7 @@ fn audio_thread(
     };
 
     while !ctl.stop.load(Ordering::Relaxed) {
-        // 0) Ses testi istekleri
+        // 0) Sound test requests
         if ctl.mic_test_stop.swap(false, Ordering::Relaxed) && !matches!(mic_test, MicTest::Off) {
             mic_test = MicTest::Off;
             test_gate = false;
@@ -364,7 +365,7 @@ fn audio_thread(
             tone_pos = 0;
         }
 
-        // 1) Gönderim
+        // 1) Transmit
         chunk.clear();
         while let Some(s) = in_cons.try_pop() {
             chunk.push(s);
@@ -381,11 +382,11 @@ fn audio_thread(
             while framer.next_frame(&mut frame) {
                 let ns = ctl.noise_suppression.load(Ordering::Relaxed);
                 if ns != ns_active {
-                    // Temizlenmiş ve ham sesin gürültü tabanı çok farklı: eşik yeniden ölçülür.
+                    // Denoised and raw audio have very different noise floors: re-measure the threshold.
                     ns_active = ns;
                     calib.clear();
                     denoiser = Denoiser::new();
-                    tracing::info!(enabled = ns, "gürültü bastırma");
+                    tracing::info!(enabled = ns, "noise suppression");
                 }
                 let speech_prob = ns_active.then(|| denoiser.process(&mut frame));
                 let rms = Vad::rms(&frame);
@@ -398,7 +399,7 @@ fn audio_thread(
                         calib.sort_by(|a, b| a.partial_cmp(b).unwrap());
                         let floor = calib[calib.len() / 2];
                         vad.set_adaptive(floor, 6.0);
-                        tracing::info!(floor, threshold = vad.threshold_db(), "VAD kalibre edildi");
+                        tracing::info!(floor, threshold = vad.threshold_db(), "VAD calibrated");
                         if matches!(mic_test, MicTest::Waiting) {
                             mic_test = MicTest::recording();
                             emit_test(MicTestState::Recording, None);
@@ -413,18 +414,18 @@ fn audio_thread(
                     history.pop_front();
                 }
                 history.push_back(frame);
-                // Konuşma algılamada kapı açıldıysa geriye dönük gönderilecek çerçeve sayısı.
+                // Number of frames to send retroactively if voice detection opened the gate.
                 let preroll = if ptt {
                     0
                 } else {
                     (d.preroll as usize).min(history.len() - 1)
                 };
-                let hist_end = history.len() - 1; // son eleman bu çerçeve
+                let hist_end = history.len() - 1; // the last element is this frame
 
                 if let MicTest::Recording { enc, frames } = &mut mic_test {
-                    // Bas-konuşta kayıt tuşsuz yapılır (kısayol oda dışında kayıtlı değil).
+                    // In push-to-talk mode the test records without the key (the shortcut is not registered outside a room).
                     test_gate = ptt || d.send;
-                    // Konuşma başladı: kapı kapalıyken boş geçen son çerçeveleri ön tampondan doldur.
+                    // Speech started: fill the last frames that were skipped while the gate was closed from the pre-roll buffer.
                     let n = preroll.min(frames.len());
                     if n > 0 {
                         let start = frames.len() - n;
@@ -453,7 +454,7 @@ fn audio_thread(
                         test_gate = false;
                         emit_test(MicTestState::Playing, Some(pct));
                     }
-                    // Kayıt sırasında odaya gönderme; bitince yeni konuşma TALK_START ile başlar.
+                    // Do not send to the room while recording; afterwards a new talk spurt starts with TALK_START.
                     was_transmitting = false;
                     continue;
                 }
@@ -471,8 +472,8 @@ fn audio_thread(
                 if !send {
                     continue;
                 }
-                // Gönderim yeni başladıysa ve sebebi konuşma algılamaysa önceki çerçeveler de gider
-                // (sessiz mikrofon açılınca konuşmanın ortasından başlamak gerekmez).
+                // If transmission just started because voice detection triggered, the earlier frames go too
+                // (not on unmute: there is no need to reach back into speech already under way).
                 let preroll = if talk_start && d.talk_start {
                     preroll
                 } else {
@@ -503,7 +504,7 @@ fn audio_thread(
             }
         }
 
-        // 2) Alım
+        // 2) Receive
         while let Ok(bytes) = rx_net.try_recv() {
             let Ok(p) = AudioPacket::parse(&bytes) else {
                 continue;
@@ -519,7 +520,7 @@ fn audio_thread(
             r.last_packet = Instant::now();
         }
 
-        // 3) Karıştırma
+        // 3) Mix
         if out_prod.occupied_len() < out_low_water {
             {
                 let gains = ctl.gains.lock().unwrap();
@@ -547,7 +548,7 @@ fn audio_thread(
                 }
             }
             mixer.finish(&mut mix);
-            // Ses testi karışımın üstüne eklenir (kulaklık kapalı olsa da duyulsun: bu bir test).
+            // The sound test is added on top of the mix (audible even when deafened: it is a test).
             let mut test_done = None;
             if let MicTest::Playing {
                 dec,
@@ -601,9 +602,9 @@ fn audio_thread(
                     ctl.jitter_target.store(max_target, Ordering::Relaxed);
                 }
                 ctl.lost.store(lost, Ordering::Relaxed);
-                // Gönderen başına teşhis (30 sn'de bir, birikimli): hangi gönderenin paketleri
-                // düzensiz geliyor (tampon hedefi, geç/eksik/boşalma sayıları). `lost - fec`
-                // yalnız PLC ile doldurulan (ardışık kayıp) çerçevelerdir.
+                // Per-sender diagnostics (every 30 s, cumulative): whose packets arrive
+                // irregularly (buffer target, late/lost/underflow counts). `lost - fec`
+                // is the frames filled by PLC alone (consecutive losses).
                 if adapt_ticks % 6 == 0 {
                     for (id, r) in &receivers {
                         let st = r.jitter.stats();
@@ -614,7 +615,7 @@ fn audio_thread(
                             lost = st.lost,
                             fec = st.fec_recovered,
                             underflow = st.underflow,
-                            "gönderen jitter"
+                            "sender jitter"
                         );
                     }
                 }
@@ -630,7 +631,7 @@ fn audio_thread(
             std::thread::sleep(Duration::from_millis(2));
         }
 
-        // 4) Seviye olayı (~100 ms)
+        // 4) Level event (~100 ms)
         if last_level.elapsed() >= Duration::from_millis(100) {
             last_level = Instant::now();
             // -60 dBFS → 0.0, 0 dBFS → 1.0
@@ -646,14 +647,14 @@ fn audio_thread(
         }
     }
     if !matches!(mic_test, MicTest::Off) {
-        // Hat test sürerken kapandı (önizleme kapandı, cihaz değişti): arayüz beklemede kalmasın.
+        // The pipeline stopped during a test (preview closed, device changed): don't leave the UI waiting.
         emit_test(MicTestState::Idle, None);
     }
-    tracing::info!("ses hattı durdu");
+    tracing::info!("audio pipeline stopped");
 }
 
 // ---------------------------------------------------------------------------
-// Motor döngüsü
+// Engine loop
 // ---------------------------------------------------------------------------
 
 struct AudioHandle {
@@ -691,15 +692,15 @@ fn start_audio(
         .map_err(|e| e.to_string())?;
     ready_rx
         .recv()
-        .map_err(|_| "ses hattı başlamadı".to_string())??;
+        .map_err(|_| "audio pipeline did not start".to_string())??;
     Ok(AudioHandle {
         ctl,
         thread: Some(thread),
     })
 }
 
-/// Bağlı değilken yerel ses hattı (önizleme): ağ kanalları boş; `in_room` kapalı olduğundan
-/// zaten gönderim yok. Kurulamazsa hata olayı yayınlar.
+/// Local audio pipeline while disconnected (preview): the network channels are dangling, and
+/// since `in_room` is off nothing is sent anyway. Emits an error event if it cannot be set up.
 fn open_preview(
     cfg: &EngineConfig,
     ctl: &Arc<AudioControl>,
@@ -714,7 +715,7 @@ fn open_preview(
         Ok(a) => Some(a),
         Err(e) => {
             let _ = ev.send(Event::Error {
-                message: format!("ses hattı: {e}"),
+                message: format!("audio pipeline: {e}"),
             });
             None
         }
@@ -730,11 +731,11 @@ async fn run(
         let _ = ev.send(e);
     };
     let ctl = AudioControl::new(cfg.push_to_talk, cfg.noise_suppression);
-    // Arayüz ayarlar ekranındayken önizleme ister; bağlantı kopunca da sürer.
+    // The UI asks for a preview while on the settings screen; it persists after a disconnect too.
     let mut preview_wanted = false;
 
     loop {
-        // ---------------- Bağlı değil ----------------
+        // ---------------- Disconnected ----------------
         emit(Event::ConnectionState {
             state: ConnectionState::Disconnected,
         });
@@ -799,15 +800,15 @@ async fn run(
                 }
                 Some(Command::Disconnect) => {}
                 Some(other) => emit(Event::Error {
-                    message: format!("bağlı değilken: {other:?}"),
+                    message: format!("while disconnected: {other:?}"),
                 }),
             }
         };
 
-        // Gerçek ses hattı kurulmadan önizleme kapanır (aynı cihazlar, aynı kontrol).
+        // Close the preview before the real audio pipeline starts (same devices, same control).
         drop(preview);
 
-        // ---------------- Bağlanıyor ----------------
+        // ---------------- Connecting ----------------
         emit(Event::ConnectionState {
             state: ConnectionState::Connecting,
         });
@@ -815,7 +816,7 @@ async fn run(
             Ok(i) => i,
             Err(e) => {
                 emit(Event::Error {
-                    message: format!("davet linki: {e}"),
+                    message: format!("invite link: {e}"),
                 });
                 continue;
             }
@@ -824,7 +825,7 @@ async fn run(
             Ok(k) => k,
             Err(e) => {
                 emit(Event::Error {
-                    message: format!("cihaz anahtarı: {e}"),
+                    message: format!("device key: {e}"),
                 });
                 continue;
             }
@@ -833,14 +834,14 @@ async fn run(
             Ok(c) => c,
             Err(e) => {
                 emit(Event::Error {
-                    message: format!("bağlanılamadı: {e}"),
+                    message: format!("could not connect: {e}"),
                 });
                 continue;
             }
         };
         let my_id = client.user_id();
 
-        // Ses hattı
+        // Audio pipeline
         let (tx_net, mut rx_net_out) = mpsc::unbounded_channel::<Bytes>();
         let (tx_net_in, rx_net_in) = std::sync::mpsc::channel::<Bytes>();
         let mut audio = if cfg.no_audio {
@@ -851,7 +852,7 @@ async fn run(
                 Ok(a) => Some(a),
                 Err(e) => {
                     emit(Event::Error {
-                        message: format!("ses hattı: {e}"),
+                        message: format!("audio pipeline: {e}"),
                     });
                     client.close();
                     continue;
@@ -859,7 +860,7 @@ async fn run(
             }
         };
 
-        // Ağ görevleri
+        // Network tasks
         let conn = client.connection();
         let send_task = tokio::spawn(async move {
             while let Some(pkt) = rx_net_out.recv().await {
@@ -868,7 +869,7 @@ async fn run(
         });
         let conn = client.connection();
         let (tx_net_in_arc, audio_restart_rx) = {
-            // Ses hattı yeniden başlatıldığında alıcı kanalı değişir; Mutex ile değiştirilebilir.
+            // The receive channel changes when the audio pipeline restarts; the Mutex lets it be swapped.
             let shared = Arc::new(Mutex::new(tx_net_in));
             let (restart_tx, restart_rx) =
                 mpsc::unbounded_channel::<std::sync::mpsc::Sender<Bytes>>();
@@ -898,23 +899,23 @@ async fn run(
         let mut stats = tokio::time::interval(Duration::from_secs(2));
         let mut stats_ticks = 0u32;
         let mut ping = tokio::time::interval(Duration::from_secs(3));
-        // Ses cihazı kaybolursa (çıkarılan kulaklık, Bluetooth düşmesi, varsayılan cihaz değişimi)
-        // hattı kendiliğinden yeniden kur; başarısızsa üstel geri çekilmeyle dene.
+        // If the audio device disappears (headset unplugged, Bluetooth drop, default device change),
+        // rebuild the pipeline automatically; on failure retry with exponential backoff.
         let mut audio_check = tokio::time::interval(Duration::from_secs(1));
         let mut recover_attempts = 0u32;
         let mut next_retry = Instant::now();
         let mut recovering = false;
         let mut last_restore = Instant::now();
 
-        // ---------------- Bağlı ----------------
+        // ---------------- Connected ----------------
         let reason: String = loop {
             tokio::select! {
                 cmd = cmd_rx.recv() => {
-                    let Some(cmd) = cmd else { break "motor kapatıldı".into() };
+                    let Some(cmd) = cmd else { break "engine shut down".into() };
                     let r: Result<(), String> = match cmd {
-                        Command::Disconnect => break "kullanıcı ayrıldı".into(),
-                        // Arayüz durumunu kaybetmiş olabilir (ör. webview yenilendi): hata verme,
-                        // mevcut durumu yeniden yayınla.
+                        Command::Disconnect => break "user disconnected".into(),
+                        // The UI may have lost its state (e.g. the webview was reloaded): don't error,
+                        // re-emit the current state.
                         Command::Connect { .. } => {
                             emit(Event::ConnectionState { state: ConnectionState::Connected });
                             emit(Event::Connected { user_id: my_id });
@@ -924,7 +925,7 @@ async fn run(
                         Command::CreateRoom { name } => client.create_room(&name).await.map_err(|e| e.to_string()),
                         Command::JoinRoom { code } => client.join_room(&code).await.map_err(|e| e.to_string()),
                         Command::LeaveRoom => {
-                            // Sunucu ayrılana onay yollamaz; yerel durumu hemen temizle.
+                            // The server sends no confirmation to the leaver; clear local state right away.
                             let r = client.leave_room().await.map_err(|e| e.to_string());
                             if room.is_some() {
                                 room = None;
@@ -956,9 +957,9 @@ async fn run(
                             cfg.output_device = name;
                             restart_audio(&cfg, &ctl, &tx_net, &audio_restart_rx, &ev, &mut audio)
                         }
-                        // Bağlıyken hat zaten açık; yalnızca bağlantı kopunca ne yapılacağını hatırla.
+                        // While connected the pipeline is already open; just remember what to do after a disconnect.
                         Command::SetAudioPreview { enabled } => { preview_wanted = enabled; Ok(()) }
-                        Command::StartMicTest if audio.is_none() => Err("ses hattı açık değil".into()),
+                        Command::StartMicTest if audio.is_none() => Err("audio pipeline is not running".into()),
                         Command::StartMicTest => { ctl.mic_test_start.store(true, Ordering::Relaxed); Ok(()) }
                         Command::StopMicTest => { ctl.mic_test_stop.store(true, Ordering::Relaxed); Ok(()) }
                         Command::PlayTestSound => { ctl.test_sound.store(true, Ordering::Relaxed); Ok(()) }
@@ -971,10 +972,10 @@ async fn run(
                 msg = client.control().recv() => {
                     let msg = match msg {
                         Ok(m) => m,
-                        // "connection lost" yerine QUIC'in asıl nedenini yaz (zaman aşımı, sıfırlama…).
+                        // Report QUIC's actual reason instead of "connection lost" (timeout, reset…).
                         Err(e) => match client.connection().close_reason() {
-                            Some(cause) => break format!("bağlantı koptu: {cause}"),
-                            None => break format!("bağlantı koptu: {e}"),
+                            Some(cause) => break format!("connection lost: {cause}"),
+                            None => break format!("connection lost: {e}"),
                         },
                     };
                     match msg {
@@ -1002,7 +1003,7 @@ async fn run(
                         }
                         ServerMsg::Speaking { user_id, speaking } => emit(Event::SpeakingChanged { user_id, speaking }),
                         ServerMsg::Error { code, message } => {
-                            // Odadan çıkma sunucuda onaylanmaz; NotInRoom dışındaki hatalar kullanıcıya gider.
+                            // Leaving a room is not confirmed by the server; errors other than NotInRoom go to the user.
                             emit(Event::Error { message: format!("{code:?}: {message}") });
                         }
                         ServerMsg::Pong(_) | ServerMsg::Welcome { .. } | ServerMsg::Authed => {}
@@ -1013,8 +1014,8 @@ async fn run(
                         continue;
                     }
                     if !(ctl.stream_error.load(Ordering::Relaxed) || audio.is_none()) {
-                        // 30 sn sorunsuz çalışınca geri çekilme sıfırlanır (cihaz gidip gelirse
-                        // her seferinde hemen yeniden kurup günlüğü doldurmasın).
+                        // The backoff resets after 30 s without problems (so a flapping device
+                        // is not rebuilt immediately every time, flooding the log).
                         if last_restore.elapsed() > Duration::from_secs(30) {
                             recover_attempts = 0;
                         }
@@ -1022,7 +1023,7 @@ async fn run(
                     }
                     if !recovering {
                         recovering = true;
-                        emit(Event::Error { message: "Ses cihazı kayboldu; otomatik yeniden bağlanılıyor…".into() });
+                        emit(Event::Error { message: "Audio device lost; reconnecting automatically…".into() });
                     }
                     if Instant::now() < next_retry {
                         continue;
@@ -1032,14 +1033,14 @@ async fn run(
                     let mut res = restart_audio(&cfg, &ctl, &tx_net, &audio_restart_rx, &ev, &mut audio);
                     let mut fallback = false;
                     if res.is_err() && (cfg.input_device.is_some() || cfg.output_device.is_some()) {
-                        // Seçili cihaz hâlâ yok: varsayılan cihazlarla dene (seçim ayarda kalır).
+                        // The selected device is still missing: try the default devices (the selection stays in settings).
                         let default_cfg = EngineConfig { input_device: None, output_device: None, ..cfg.clone() };
                         res = restart_audio(&default_cfg, &ctl, &tx_net, &audio_restart_rx, &ev, &mut audio);
                         fallback = res.is_ok();
                     }
                     match res {
                         Ok(()) => {
-                            tracing::info!(attempts = recover_attempts, fallback, "ses hattı kurtarıldı");
+                            tracing::info!(attempts = recover_attempts, fallback, "audio pipeline recovered");
                             recovering = false;
                             last_restore = Instant::now();
                             next_retry = last_restore + wait;
@@ -1047,13 +1048,13 @@ async fn run(
                         }
                         Err(e) => {
                             next_retry = Instant::now() + wait;
-                            tracing::warn!(attempts = recover_attempts, wait_secs = wait.as_secs(), "ses hattı kurulamadı: {e}");
+                            tracing::warn!(attempts = recover_attempts, wait_secs = wait.as_secs(), "could not set up audio pipeline: {e}");
                         }
                     }
                 }
                 _ = ping.tick() => {
                     if client.control().send(&ClientMsg::Ping(0)).await.is_err() {
-                        break "ping gönderilemedi".into();
+                        break "ping failed".into();
                     }
                 }
                 _ = stats.tick() => {
@@ -1064,11 +1065,11 @@ async fn run(
                         sent: ctl.sent.swap(0, Ordering::Relaxed),
                         received: ctl.received.swap(0, Ordering::Relaxed),
                     };
-                    // Oturum günlüğü: 10 sn'de bir (2 sn'lik tikin her 5'i).
+                    // Session log: every 10 s (every 5th 2 s tick).
                     stats_ticks += 1;
                     if stats_ticks % 5 == 0 {
                         if let Event::Stats { rtt_ms, jitter_ms, lost, sent, received } = &ev {
-                            tracing::info!(rtt_ms, jitter_ms, lost, sent, received, "istatistik (son 2 sn: gönderilen/alınan)");
+                            tracing::info!(rtt_ms, jitter_ms, lost, sent, received, "stats (last 2 s: sent/received)");
                         }
                     }
                     emit(ev);
@@ -1076,7 +1077,7 @@ async fn run(
             }
         };
 
-        tracing::info!(reason, "bağlantı kapanıyor");
+        tracing::info!(reason, "closing connection");
         let _ = client.control().send(&ClientMsg::LeaveRoom).await;
         ctl.in_room.store(false, Ordering::Relaxed);
         client.close_graceful(Duration::from_millis(500)).await;
@@ -1089,12 +1090,12 @@ async fn run(
                 members: Vec::new(),
             });
         }
-        if reason.starts_with("bağlantı koptu") || reason.starts_with("ping") {
+        if reason.starts_with("connection lost") || reason.starts_with("ping") {
             emit(Event::Error {
                 message: reason.clone(),
             });
         }
-        if reason == "motor kapatıldı" {
+        if reason == "engine shut down" {
             return;
         }
     }
@@ -1111,7 +1112,7 @@ fn restart_audio(
     if cfg.no_audio {
         return Ok(());
     }
-    // Eskiyi durdur (Drop), yeni kanalla yeniden kur.
+    // Stop the old one (Drop), rebuild with a new channel.
     audio.take();
     let (tx_in, rx_in) = std::sync::mpsc::channel::<Bytes>();
     let _ = restart_tx.send(tx_in);
@@ -1133,13 +1134,13 @@ mod tests {
     fn test_sound_is_frame_aligned_and_safe() {
         let s = test_sound();
         assert!(!s.is_empty());
-        assert_eq!(s.len() % FRAME, 0, "karıştırıcı çerçeve çerçeve okur");
+        assert_eq!(s.len() % FRAME, 0, "the mixer reads frame by frame");
         let peak = s.iter().fold(0f32, |m, x| m.max(x.abs()));
-        assert!(peak > 0.1 && peak < 0.6, "tepe {peak}");
-        // Sönümlü biter: son çerçeve neredeyse sessiz.
+        assert!(peak > 0.1 && peak < 0.6, "peak {peak}");
+        // Decays to the end: the last frame is nearly silent.
         let tail = s[s.len() - FRAME..]
             .iter()
             .fold(0f32, |m, x| m.max(x.abs()));
-        assert!(tail < 0.05, "son çerçeve tepe {tail}");
+        assert!(tail < 0.05, "last frame peak {tail}");
     }
 }

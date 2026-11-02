@@ -1,8 +1,8 @@
-//! İstemci çekirdeği: arayüzden bağımsız durum makinesi.
+//! Client core: a UI-independent state machine.
 //!
-//! Arayüz (Tauri ya da headless `talk` örneği) yalnızca [`Command`] gönderir ve
-//! [`Event`] alır; ses verisi asla bu sınırı geçmez. Tüm ses ve ağ işi
-//! [`engine::Engine`] içinde, kendi iş parçacıklarında döner.
+//! The UI (Tauri or the headless `talk` example) only sends [`Command`]s and
+//! receives [`Event`]s; audio data never crosses this boundary. All audio and network work
+//! runs inside [`engine::Engine`], on its own threads.
 
 #![forbid(unsafe_code)]
 
@@ -14,11 +14,11 @@ pub use callout_audio::{list_devices, AudioError, DeviceInfo, Direction};
 pub use callout_proto::{Member, RoomInfo, UserId};
 pub use engine::{Engine, EngineConfig};
 
-/// Arayüz → çekirdek.
+/// UI → core.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Command {
-    /// `callout://` davet linkiyle bağlan ve kimlik doğrula.
+    /// Connect with a `callout://` invite link and authenticate.
     Connect {
         invite: String,
         nickname: String,
@@ -37,56 +37,56 @@ pub enum Command {
     SetDeafened {
         deafened: bool,
     },
-    /// Bas-konuş modu: açıkken VAD yerine [`Command::PushToTalk`] belirler.
+    /// Push-to-talk mode: when on, [`Command::PushToTalk`] decides instead of VAD.
     SetPushToTalkMode {
         enabled: bool,
     },
-    /// Bas-konuş tuşu basılı mı (yalnızca bas-konuş modunda anlamlı).
+    /// Whether the push-to-talk key is held (meaningful only in push-to-talk mode).
     PushToTalk {
         pressed: bool,
     },
-    /// `None` = varsayılan cihaz. Bağlıyken ses hattını yeniden başlatır.
+    /// `None` = default device. Restarts the audio pipeline while connected.
     SetInputDevice {
         name: Option<String>,
     },
     SetOutputDevice {
         name: Option<String>,
     },
-    /// Bir kullanıcının sesi: 0.0 sessiz, 1.0 normal, 2.0 iki kat.
+    /// A user's volume: 0.0 silent, 1.0 normal, 2.0 double.
     SetUserVolume {
         user_id: UserId,
         gain: f32,
     },
-    /// Bağlı değilken ses hattını yerel olarak aç/kapat (ayarlardaki seviye çubuğu ve ses
-    /// testi için). Bağlıyken etkisiz: hat zaten açık.
+    /// Open/close the audio pipeline locally while disconnected (for the level meter and the
+    /// sound test in settings). No effect while connected: the pipeline is already open.
     SetAudioPreview {
         enabled: bool,
     },
-    /// Mikrofon testi: 5 sn kayıt, ardından kayıt odadakilerin duyacağı haliyle (konuşma
-    /// algılama kapısı + Opus) geri çalınır. Kayıt sırasında odaya ses gitmez.
+    /// Microphone test: records 5 s, then plays the recording back the way the room would hear
+    /// it (voice detection gate + Opus). No audio goes to the room while recording.
     StartMicTest,
     StopMicTest,
-    /// Çıkış cihazında kısa bir test sesi çalar.
+    /// Plays a short test sound on the output device.
     PlayTestSound,
-    /// Gürültü bastırma (RNNoise). Değişince konuşma algılama gürültü tabanını yeniden ölçer
-    /// (~1.5 sn gönderim yok).
+    /// Noise suppression (RNNoise). When toggled, voice detection re-measures the noise floor
+    /// (nothing is sent for ~1.5 s).
     SetNoiseSuppression {
         enabled: bool,
     },
 }
 
-/// Çekirdek → arayüz.
+/// Core → UI.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
     ConnectionState {
         state: ConnectionState,
     },
-    /// Bağlantı kuruldu; sunucunun verdiği kimlik.
+    /// Connection established; the ID assigned by the server.
     Connected {
         user_id: UserId,
     },
-    /// Oda durumu değişti; `room` yoksa odada değiliz.
+    /// Room state changed; no `room` means we are not in a room.
     RoomUpdated {
         room: Option<RoomInfo>,
         members: Vec<Member>,
@@ -95,14 +95,14 @@ pub enum Event {
         user_id: UserId,
         speaking: bool,
     },
-    /// Mikrofon seviyesi, 0.0–1.0; ~100 ms'de bir. `threshold`: konuşma algılama eşiği,
-    /// aynı ölçekte (seviye bunu geçince ses gönderilir; bas-konuşta anlamsız).
+    /// Microphone level, 0.0–1.0; every ~100 ms. `threshold`: the voice detection threshold on
+    /// the same scale (audio is sent when the level exceeds it; meaningless in push-to-talk).
     InputLevel {
         level: f32,
         transmitting: bool,
         threshold: f32,
     },
-    /// Her 2 s: arayüzdeki durum çubuğu için.
+    /// Every 2 s: for the status bar in the UI.
     Stats {
         rtt_ms: u32,
         jitter_ms: u32,
@@ -110,13 +110,13 @@ pub enum Event {
         sent: u32,
         received: u32,
     },
-    /// Ses cihazı kaybolduktan sonra ses hattı otomatik yeniden kuruldu.
-    /// `fallback_to_default`: seçili cihaz yoktu, varsayılan cihazlara geçildi.
+    /// The audio pipeline was rebuilt automatically after the audio device was lost.
+    /// `fallback_to_default`: the selected device was missing, switched to the default devices.
     AudioRestored {
         fallback_to_default: bool,
     },
-    /// Mikrofon testi durumu. `transmitted_pct`: kaydın yüzde kaçı gönderilecek ses olarak
-    /// geçti (gerisi konuşma algılamada sessizlik sayıldı); kayıt bitince dolu.
+    /// Microphone test state. `transmitted_pct`: what percentage of the recording passed as
+    /// audio to be sent (the rest counted as silence by voice detection); set once recording ends.
     MicTest {
         state: MicTestState,
         transmitted_pct: Option<u8>,
@@ -137,7 +137,7 @@ pub enum ConnectionState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MicTestState {
-    /// Ses hattı yeni açıldı, gürültü tabanı ölçülüyor; kayıt ardından başlar.
+    /// The audio pipeline just opened and the noise floor is being measured; recording starts next.
     Calibrating,
     Recording,
     Playing,

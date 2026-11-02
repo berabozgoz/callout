@@ -1,6 +1,6 @@
 [package]
 name = "callout-net"
-description = "QUIC taşıma: kontrol akışı ve ses datagramları"
+description = "QUIC transport: control stream and audio datagrams"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

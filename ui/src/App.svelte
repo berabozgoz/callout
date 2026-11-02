@@ -7,7 +7,7 @@
     type Settings, type Device, type Member, type RoomInfo, type ConnectionState, type MicTestState,
   } from "./engine";
 
-  // ---- durum ----
+  // ---- state ----
   let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9", noise_suppression: true });
   let devices = $state<Device[]>([]);
   let version = $state("");
@@ -29,7 +29,7 @@
   let showSettings = $state(false);
   let copied = $state(false);
   let capturing = $state(false);
-  // Ayarlar açılırken kayıtlı hali: "Vazgeç" seçilen (denenen) cihazları geri alır.
+  // Saved state when settings open: "Cancel" reverts the devices picked (tried out) meanwhile.
   let savedSettings: Settings | null = null;
   let micTest = $state<MicTestState>("idle");
   let micResult = $state<number | null>(null);
@@ -41,7 +41,7 @@
   const me = $derived(members.find((m) => m.user_id === myId));
   const remaining = $derived(Math.max(1, 5 - Math.floor((now - recStart) / 1000)));
 
-  // Kayıt sürerken geri sayım.
+  // Countdown while recording.
   $effect(() => {
     if (micTest !== "recording") return;
     const t = setInterval(() => (now = Date.now()), 200);
@@ -75,7 +75,7 @@
         case "audio_restored":
           error = e.fallback_to_default
             ? "Seçili ses cihazı bulunamadı; varsayılan cihaza geçildi."
-            : error.startsWith("Ses cihazı") ? "" : error;
+            : error.startsWith("Audio device") ? "" : error;
           break;
         case "mic_test":
           micTest = e.state;
@@ -87,8 +87,8 @@
     });
     await onPtt((pressed) => { transmitting = pressed && !muted; });
 
-    // Webview yenilenmiş olabilir (F5 vb.): motor hâlâ bağlıysa durumu ondan al.
-    // Dinleyiciler kurulduktan sonra okunur ki aradaki olaylar kaçmasın.
+    // The webview may have been reloaded (F5 etc.): if the engine is still connected, take the state from it.
+    // Read after the listeners are set up so no events in between are missed.
     try {
       const s = await engineSnapshot();
       conn = s.connection; myId = s.user_id; room = s.room; members = s.members;
@@ -96,7 +96,7 @@
     } catch (e) { error = String(e); }
   });
 
-  // Yayın sürümünde yenileme tuşları ve sağ tık menüsü kapalı: yenileme arayüz durumunu sıfırlardı.
+  // In release builds the reload keys and the context menu are disabled: a reload would reset the UI state.
   const MODIFIER_CODES = new Set(["ControlLeft", "ControlRight", "ShiftLeft", "ShiftRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight", "AltGraph"]);
   function onWindowKey(e: KeyboardEvent) {
     if (capturing) { captureKey(e); return; }
@@ -106,7 +106,7 @@
   }
   function onContextMenu(e: MouseEvent) { if (import.meta.env.PROD) e.preventDefault(); }
 
-  // ---- bas-konuş tuşu yakalama ----
+  // ---- push-to-talk key capture ----
   async function startCapture() {
     capturing = true;
     try { await pttCapture(true); } catch (e) { error = String(e); }
@@ -118,7 +118,7 @@
   function captureKey(e: KeyboardEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (e.repeat || MODIFIER_CODES.has(e.code)) return; // yalnız değiştirici: asıl tuşu bekle
+    if (e.repeat || MODIFIER_CODES.has(e.code)) return; // modifier only: wait for the actual key
     if (e.code === "Escape") { stopCapture(); return; }
     if (e.code === "Backspace" || e.code === "Delete") { settings.ptt_shortcut = ""; stopCapture(); return; }
     const parts: string[] = [];
@@ -126,12 +126,12 @@
     if (e.altKey) parts.push("Alt");
     if (e.shiftKey) parts.push("Shift");
     if (e.metaKey) parts.push("Super");
-    parts.push(e.code); // KeyT, Digit9, F9, ArrowUp… kısayol kütüphanesinin kendi adları
+    parts.push(e.code); // KeyT, Digit9, F9, ArrowUp… the shortcut library's own names
     settings.ptt_shortcut = parts.join("+");
     stopCapture();
   }
 
-  // ---- eylemler ----
+  // ---- actions ----
   async function connect() {
     error = "";
     settings = { ...settings, nickname: settings.nickname.trim(), last_invite: settings.last_invite.trim() };
@@ -156,12 +156,12 @@
     copied = true;
     setTimeout(() => (copied = false), 1500);
   }
-  // ---- ayarlar ve ses testi ----
+  // ---- settings and sound test ----
   function openSettings() {
     savedSettings = { ...settings };
     micResult = null;
     showSettings = true;
-    // Bağlı değilken ses hattını aç: seviye çubuğu ve test çalışsın.
+    // Open the audio pipeline while disconnected so the level meter and the test work.
     send({ type: "set_audio_preview", enabled: true });
   }
   function closeSettings() {
@@ -179,7 +179,7 @@
   async function cancelSettings() {
     if (capturing) await stopCapture();
     if (savedSettings) {
-      // Denenip kaydedilmeyen cihazları geri al.
+      // Revert devices that were tried but not saved.
       if (savedSettings.input_device !== settings.input_device) send({ type: "set_input_device", name: savedSettings.input_device });
       if (savedSettings.output_device !== settings.output_device) send({ type: "set_output_device", name: savedSettings.output_device });
       if (savedSettings.noise_suppression !== settings.noise_suppression) send({ type: "set_noise_suppression", enabled: savedSettings.noise_suppression });
@@ -187,8 +187,8 @@
     }
     closeSettings();
   }
-  // Seçilen cihaz kaydetmeden uygulanır ki test o cihazla yapılsın. Seçim DOM sırasından okunur
-  // (0 = Varsayılan); bind:value güncellemesinin sırasına bağlı kalmaz.
+  // The picked device is applied without saving so the test uses it. The selection is read from DOM order
+  // (0 = Default); it does not depend on when bind:value updates.
   function pickInput(e: Event) {
     const i = (e.currentTarget as HTMLSelectElement).selectedIndex;
     send({ type: "set_input_device", name: i > 0 ? inputs[i - 1].name : null });
@@ -258,7 +258,7 @@
       </label>
       {#if settings.push_to_talk}
         <label>Bas-konuş tuşu
-          <button type="button" class="capture" class:listening={capturing} onclick={(e) => { if (e.detail === 0) return; /* Space/Enter ile yakalanan tuşun tıklamaya dönüşmesini yok say */ capturing ? stopCapture() : startCapture(); }}>
+          <button type="button" class="capture" class:listening={capturing} onclick={(e) => { if (e.detail === 0) return; /* ignore the click synthesized when Space/Enter is the captured key */ capturing ? stopCapture() : startCapture(); }}>
             {capturing ? "Bir tuşa ya da kombinasyona bas… (Esc iptal)" : settings.ptt_shortcut ? prettyShortcut(settings.ptt_shortcut) : "Atanmamış — tıkla ve bir tuşa bas"}
           </button>
         </label>
@@ -294,7 +294,7 @@
       </div>
     </section>
   {:else if conn !== "connected"}
-    <!-- ---------- Bağlan ---------- -->
+    <!-- ---------- Connect ---------- -->
     <section class="card">
       <h2>Sunucuya bağlan</h2>
       <label>Takma ad
@@ -311,7 +311,7 @@
       <p class="hint">Davet linkini sunucuyu çalıştıran arkadaşından al. Sunucu ilk açılışta linki ekrana basar.</p>
     </section>
   {:else if !room}
-    <!-- ---------- Lobi ---------- -->
+    <!-- ---------- Lobby ---------- -->
     <section class="card">
       <h2>Oda aç</h2>
       <label>Oda adı (isteğe bağlı)
@@ -330,7 +330,7 @@
       </div>
     </section>
   {:else}
-    <!-- ---------- Oda ---------- -->
+    <!-- ---------- Room ---------- -->
     <section class="card room">
       <div class="roomhead">
         <div>

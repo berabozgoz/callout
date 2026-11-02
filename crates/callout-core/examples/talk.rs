@@ -1,10 +1,10 @@
-//! Headless konuşma istemcisi: [`callout_core::Engine`] üzerine ince bir sarmalayıcı.
-//! Tauri uygulamasıyla aynı motoru kullanır; terminalden test ve ölçüm içindir.
+//! Headless voice client: a thin wrapper around [`callout_core::Engine`].
+//! Uses the same engine as the Tauri app; meant for testing and measuring from a terminal.
 //!
-//! Çalıştır:
-//!   cargo run -p callout-core --example talk -- "callout://IP:4433#PARMAK_IZI" TakmaAd --create [--name OdaAdı]
-//!   cargo run -p callout-core --example talk -- "callout://IP:4433#PARMAK_IZI" TakmaAd --room KOD
-//! Ek: [--ptt] (bas-konuş: Enter'a basınca 3 sn gönderir) [--volume ID=KAZANÇ] [--input AD] [--output AD]
+//! Run:
+//!   cargo run -p callout-core --example talk -- "callout://IP:4433#FINGERPRINT" Nickname --create [--name RoomName]
+//!   cargo run -p callout-core --example talk -- "callout://IP:4433#FINGERPRINT" Nickname --room CODE
+//! Extra: [--ptt] (push-to-talk: pressing Enter sends for 3 s) [--volume ID=GAIN] [--input NAME] [--output NAME]
 
 use anyhow::{Context, Result};
 use callout_core::{Command, Engine, EngineConfig, Event};
@@ -28,8 +28,8 @@ struct Args {
 
 fn parse_args() -> Result<Args> {
     let mut it = std::env::args().skip(1);
-    let invite = it.next().context("1. argüman: callout:// davet linki")?;
-    let nickname = it.next().context("2. argüman: takma ad")?;
+    let invite = it.next().context("argument 1: callout:// invite link")?;
+    let nickname = it.next().context("argument 2: nickname")?;
     let mut room = None;
     let mut volumes = Vec::new();
     let mut ptt = false;
@@ -39,24 +39,24 @@ fn parse_args() -> Result<Args> {
             "--create" => room = Some(RoomArg::Create(String::new())),
             "--name" => {
                 if let Some(RoomArg::Create(n)) = room.as_mut() {
-                    *n = it.next().context("--name OdaAdı")?;
+                    *n = it.next().context("--name RoomName")?;
                 } else {
-                    anyhow::bail!("--name yalnızca --create ile kullanılır");
+                    anyhow::bail!("--name can only be used with --create");
                 }
             }
-            "--room" => room = Some(RoomArg::Join(it.next().context("--room KOD")?)),
+            "--room" => room = Some(RoomArg::Join(it.next().context("--room CODE")?)),
             "--volume" => {
-                let v = it.next().context("--volume ID=KAZANÇ")?;
-                let (id, g) = v.split_once('=').context("--volume ID=KAZANÇ")?;
+                let v = it.next().context("--volume ID=GAIN")?;
+                let (id, g) = v.split_once('=').context("--volume ID=GAIN")?;
                 volumes.push((id.parse()?, g.parse()?));
             }
             "--ptt" => ptt = true,
-            "--input" => input = Some(it.next().context("--input AD")?),
-            "--output" => output = Some(it.next().context("--output AD")?),
-            other => anyhow::bail!("bilinmeyen argüman: {other}"),
+            "--input" => input = Some(it.next().context("--input NAME")?),
+            "--output" => output = Some(it.next().context("--output NAME")?),
+            other => anyhow::bail!("unknown argument: {other}"),
         }
     }
-    let room = room.context("--create ya da --room KOD gerekli")?;
+    let room = room.context("--create or --room CODE is required")?;
     Ok(Args {
         invite,
         nickname,
@@ -94,7 +94,7 @@ async fn main() -> Result<()> {
         });
     }
 
-    // Bas-konuş: stdin'de Enter → 3 sn gönder.
+    // Push-to-talk: Enter on stdin → send for 3 s.
     if args.ptt {
         let tx = engine_clone_sender(&engine);
         std::thread::spawn(move || {
@@ -107,7 +107,7 @@ async fn main() -> Result<()> {
                 line.clear();
             }
         });
-        tracing::info!("bas-konuş modu: Enter'a basınca 3 sn gönderilir");
+        tracing::info!("push-to-talk mode: pressing Enter sends for 3 s");
     }
 
     let mut joined = false;
@@ -117,54 +117,54 @@ async fn main() -> Result<()> {
             ev = events.recv() => {
                 let Some(ev) = ev else { break };
                 match ev {
-                    Event::ConnectionState { state } => tracing::info!(?state, "bağlantı"),
+                    Event::ConnectionState { state } => tracing::info!(?state, "connection"),
                     Event::Connected { user_id } => {
-                        tracing::info!(user_id, "bağlandı");
+                        tracing::info!(user_id, "connected");
                         match &args.room {
                             RoomArg::Create(name) => engine.send(Command::CreateRoom { name: name.clone() }),
                             RoomArg::Join(code) => engine.send(Command::JoinRoom { code: code.clone() }),
                         }
                     }
                     Event::RoomUpdated { room, members } => {
-                        let names: Vec<_> = members.iter().map(|m| format!("{}#{}{}", m.nickname, m.user_id, if m.muted { " (sessiz)" } else { "" })).collect();
+                        let names: Vec<_> = members.iter().map(|m| format!("{}#{}{}", m.nickname, m.user_id, if m.muted { " (muted)" } else { "" })).collect();
                         match room {
                             Some(r) => {
                                 if !joined {
                                     joined = true;
-                                    tracing::info!("ODA KODU: {}-{}  (arkadaşlarına ver: --room {})", &r.code[..4], &r.code[4..], r.code);
+                                    tracing::info!("ROOM CODE: {}-{}  (give it to your friends: --room {})", &r.code[..4], &r.code[4..], r.code);
                                 }
-                                tracing::info!(name = r.name, ?names, "oda");
+                                tracing::info!(name = r.name, ?names, "room");
                             }
                             None => {
-                                tracing::info!("odadan çıkıldı");
+                                tracing::info!("left the room");
                                 break;
                             }
                         }
                     }
-                    Event::SpeakingChanged { user_id, speaking } => tracing::info!(user_id, speaking, "konuşuyor"),
+                    Event::SpeakingChanged { user_id, speaking } => tracing::info!(user_id, speaking, "speaking"),
                     Event::InputLevel { level, transmitting, .. } => {
                         if last_level_log.elapsed() >= Duration::from_secs(5) {
                             last_level_log = std::time::Instant::now();
-                            tracing::info!(level = format!("{level:.2}"), transmitting, "mikrofon");
+                            tracing::info!(level = format!("{level:.2}"), transmitting, "microphone");
                         }
                     }
                     Event::Stats { rtt_ms, jitter_ms, lost, sent, received } => {
-                        tracing::info!(rtt_ms, jitter_ms, lost, sent, received, "istatistik (2 sn)");
+                        tracing::info!(rtt_ms, jitter_ms, lost, sent, received, "stats (2 s)");
                     }
                     Event::AudioRestored { fallback_to_default } => {
-                        tracing::info!(fallback_to_default, "ses hattı kurtarıldı");
+                        tracing::info!(fallback_to_default, "audio pipeline recovered");
                     }
                     Event::MicTest { .. } => {}
                     Event::Error { message } => {
-                        tracing::error!(message, "hata");
-                        if message.contains("RoomNotFound") || message.contains("RoomFull") || message.starts_with("bağlanılamadı") || message.starts_with("bağlantı koptu") {
+                        tracing::error!(message, "error");
+                        if message.contains("RoomNotFound") || message.contains("RoomFull") || message.starts_with("could not connect") || message.starts_with("connection lost") {
                             break;
                         }
                     }
                 }
             }
             _ = tokio::signal::ctrl_c() => {
-                tracing::info!("çıkılıyor");
+                tracing::info!("exiting");
                 break;
             }
         }
@@ -174,7 +174,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// `Engine` `Clone` değildir; PTT iş parçacığı için gönderici kapatması.
+/// `Engine` is not `Clone`; a sender closure for the PTT thread.
 fn engine_clone_sender(engine: &Engine) -> impl Fn(Command) + Send + 'static {
     let tx = engine.sender();
     move |c| {

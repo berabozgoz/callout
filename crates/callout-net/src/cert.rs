@@ -1,8 +1,9 @@
-//! Sunucu sertifikası: kendinden imzalı üretim, SHA-256 parmak izi, `callout://`
-//! davet linki ve istemci tarafında "ilk görüşte güven" (TOFU) doğrulayıcısı.
+//! Server certificate: self-signed generation, SHA-256 fingerprint, `callout://`
+//! invite link and the client-side "trust on first use" (TOFU) verifier.
 //!
-//! Self-host modelinin temeli: alan adı ve CA gerekmez. Sunucu parmak izini
-//! davet linkinde taşır, istemci sertifikayı yalnızca bu parmak iziyle kabul eder.
+//! The foundation of the self-host model: no domain name or CA required. The server
+//! carries its fingerprint in the invite link, and the client accepts the certificate
+//! only if it matches that fingerprint.
 
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName, UnixTime};
 use sha2::{Digest, Sha256};
@@ -13,15 +14,15 @@ use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CertError {
-    #[error("sertifika üretilemedi: {0}")]
+    #[error("failed to generate certificate: {0}")]
     Generate(#[from] rcgen::Error),
-    #[error("sertifika dosyası: {0}")]
+    #[error("certificate file: {0}")]
     Io(#[from] std::io::Error),
-    #[error("davet linki geçersiz: {0}")]
+    #[error("invalid invite link: {0}")]
     BadInvite(String),
 }
 
-/// Sertifikanın DER kodlamasının SHA-256 özeti.
+/// SHA-256 digest of the certificate's DER encoding.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Fingerprint(pub [u8; 32]);
 
@@ -30,7 +31,7 @@ impl Fingerprint {
         Self(Sha256::digest(cert.as_ref()).into())
     }
 
-    /// Davet linkindeki kısa biçim: 64 hex karakter.
+    /// Short form used in the invite link: 64 hex characters.
     pub fn to_hex(self) -> String {
         hex::encode(self.0)
     }
@@ -39,7 +40,7 @@ impl Fingerprint {
         let bytes = hex::decode(s.trim()).map_err(|e| CertError::BadInvite(e.to_string()))?;
         let arr: [u8; 32] = bytes
             .try_into()
-            .map_err(|_| CertError::BadInvite("parmak izi 32 bayt olmalı".into()))?;
+            .map_err(|_| CertError::BadInvite("fingerprint must be 32 bytes".into()))?;
         Ok(Self(arr))
     }
 }
@@ -50,14 +51,14 @@ impl fmt::Debug for Fingerprint {
     }
 }
 
-/// Sunucunun sertifikası + özel anahtarı.
+/// The server's certificate + private key.
 pub struct ServerIdentity {
     pub cert: CertificateDer<'static>,
     pub key: PrivateKeyDer<'static>,
 }
 
 impl ServerIdentity {
-    /// Yeni kendinden imzalı sertifika üretir (ECDSA P-256).
+    /// Generates a new self-signed certificate (ECDSA P-256).
     pub fn generate() -> Result<Self, CertError> {
         let ck = rcgen::generate_simple_self_signed(vec!["callout".to_string()])?;
         Ok(Self {
@@ -66,8 +67,8 @@ impl ServerIdentity {
         })
     }
 
-    /// `dir/server.crt` ve `dir/server.key` varsa yükler, yoksa üretip kaydeder.
-    /// Böylece sunucu yeniden başlasa da parmak izi (ve davet linki) sabit kalır.
+    /// Loads `dir/server.crt` and `dir/server.key` if present, otherwise generates and saves them.
+    /// This keeps the fingerprint (and the invite link) stable across server restarts.
     pub fn load_or_generate(dir: &Path) -> Result<Self, CertError> {
         let cert_path = dir.join("server.crt");
         let key_path = dir.join("server.key");
@@ -88,7 +89,7 @@ impl ServerIdentity {
     }
 }
 
-/// `callout://HOST:PORT#PARMAK_IZI` davet linki.
+/// `callout://HOST:PORT#FINGERPRINT` invite link.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Invite {
     pub addr: SocketAddr,
@@ -104,13 +105,13 @@ impl Invite {
         let rest = link
             .trim()
             .strip_prefix("callout://")
-            .ok_or_else(|| CertError::BadInvite("callout:// ile başlamalı".into()))?;
+            .ok_or_else(|| CertError::BadInvite("must start with callout://".into()))?;
         let (addr, fp) = rest
             .split_once('#')
-            .ok_or_else(|| CertError::BadInvite("'#' ve parmak izi eksik".into()))?;
+            .ok_or_else(|| CertError::BadInvite("missing '#' and fingerprint".into()))?;
         let addr: SocketAddr = addr
             .parse()
-            .map_err(|_| CertError::BadInvite(format!("adres: {addr}")))?;
+            .map_err(|_| CertError::BadInvite(format!("address: {addr}")))?;
         Ok(Self {
             addr,
             fingerprint: Fingerprint::from_hex(fp)?,
@@ -124,8 +125,8 @@ impl fmt::Display for Invite {
     }
 }
 
-/// Sertifikayı yalnızca beklenen parmak iziyle kabul eden rustls doğrulayıcısı.
-/// Zincir, CA, alan adı ve tarih kontrolü yapılmaz; güven parmak izinden gelir.
+/// rustls verifier that accepts a certificate only with the expected fingerprint.
+/// No chain, CA, domain name or date checks are done; trust comes from the fingerprint.
 #[derive(Debug)]
 pub struct PinnedVerifier {
     expected: Fingerprint,

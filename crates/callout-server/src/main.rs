@@ -1,9 +1,9 @@
-//! CallOut sunucusu: SFU + oda + kimlik. Tek binary, tek UDP portu.
+//! CallOut server: SFU + rooms + identity. Single binary, single UDP port.
 //!
-//! Çalıştır: `cargo run -p callout-server` → ekrana `callout://IP:port#parmak-izi`
-//! davet linki basar. Ortam değişkenleri: `CALLOUT_PORT` (4433), `CALLOUT_DATA`
-//! (sertifika klasörü, varsayılan `./callout-data`), `CALLOUT_PUBLIC_IP` (davet
-//! linkinde gösterilecek adres; verilmezse yerel adresler listelenir), `RUST_LOG`.
+//! Run: `cargo run -p callout-server` → prints a `callout://IP:port#fingerprint`
+//! invite link. Environment variables: `CALLOUT_PORT` (4433), `CALLOUT_DATA`
+//! (certificate directory, default `./callout-data`), `CALLOUT_PUBLIC_IP` (address to
+//! show in the invite link; if unset, local addresses are listed), `RUST_LOG`.
 
 mod room;
 
@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
         .unwrap_or(DEFAULT_PORT);
     let data_dir =
         PathBuf::from(std::env::var("CALLOUT_DATA").unwrap_or_else(|_| "callout-data".into()));
-    let identity = ServerIdentity::load_or_generate(&data_dir).context("sunucu sertifikası")?;
+    let identity = ServerIdentity::load_or_generate(&data_dir).context("server certificate")?;
     let fingerprint = identity.fingerprint();
 
     let mut tls = rustls::ServerConfig::builder_with_provider(Arc::new(
@@ -48,12 +48,12 @@ async fn main() -> Result<()> {
     cfg.transport_config(Arc::new(transport_config()));
 
     let bind: SocketAddr = ([0, 0, 0, 0], port).into();
-    let endpoint = quinn::Endpoint::server(cfg, bind).context("UDP portu açılamadı")?;
+    let endpoint = quinn::Endpoint::server(cfg, bind).context("failed to open UDP port")?;
 
-    tracing::info!(%bind, protocol = PROTOCOL_VERSION, "callout-server dinliyor");
+    tracing::info!(%bind, protocol = PROTOCOL_VERSION, "callout-server listening");
     for ip in advertised_ips() {
         tracing::info!(
-            "davet linki: {}",
+            "invite link: {}",
             Invite::new(SocketAddr::new(ip, port), fingerprint)
         );
     }
@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
     let registry = Registry::new();
     let next_id = Arc::new(AtomicU32::new(1));
 
-    // Konuşuyor göstergesi: 100 ms'de bir süresi dolanları kapat.
+    // Speaking indicator: every 100 ms, clear the ones that have timed out.
     let speaking_reg = registry.clone();
     tokio::spawn(async move {
         let mut t = tokio::time::interval(std::time::Duration::from_millis(100));
@@ -79,10 +79,10 @@ async fn main() -> Result<()> {
             match incoming.await {
                 Ok(conn) => {
                     if let Err(e) = handle_connection(conn, registry, next_id).await {
-                        tracing::info!(%remote, "bağlantı bitti: {e}");
+                        tracing::info!(%remote, "connection ended: {e}");
                     }
                 }
-                Err(e) => tracing::debug!(%remote, "el sıkışma başarısız: {e}"),
+                Err(e) => tracing::debug!(%remote, "handshake failed: {e}"),
             }
         });
     }
@@ -97,7 +97,7 @@ async fn handle_connection(
     let (send, recv) = conn.accept_bi().await?;
     let mut control: ControlStream<ServerMsg, ClientMsg> = ControlStream::new(send, recv);
 
-    // --- El sıkışma ---
+    // --- Handshake ---
     let (pubkey, nickname) = match control.recv().await? {
         ClientMsg::Hello {
             version,
@@ -108,12 +108,12 @@ async fn handle_connection(
             control
                 .send(&ServerMsg::Error {
                     code: ErrorCode::VersionMismatch,
-                    message: format!("protokol {version}, sunucu {PROTOCOL_VERSION}"),
+                    message: format!("protocol {version}, server {PROTOCOL_VERSION}"),
                 })
                 .await?;
-            anyhow::bail!("protokol sürümü uyumsuz: {version}");
+            anyhow::bail!("protocol version mismatch: {version}");
         }
-        other => anyhow::bail!("Hello bekleniyordu: {other:?}"),
+        other => anyhow::bail!("expected Hello: {other:?}"),
     };
     let user_id: UserId = next_id.fetch_add(1, Ordering::Relaxed);
     let challenge: [u8; 32] = rand::random();
@@ -127,16 +127,16 @@ async fn handle_connection(
             control
                 .send(&ServerMsg::Error {
                     code: ErrorCode::BadSignature,
-                    message: "imza geçersiz".into(),
+                    message: "invalid signature".into(),
                 })
                 .await?;
-            anyhow::bail!("imza geçersiz");
+            anyhow::bail!("invalid signature");
         }
     }
     control.send(&ServerMsg::Authed).await?;
-    tracing::info!(user_id, nickname, remote = %conn.remote_address(), "kimlik doğrulandı");
+    tracing::info!(user_id, nickname, remote = %conn.remote_address(), "authenticated");
 
-    // --- Oda durumu: kullanıcı başta hiçbir odada değil ---
+    // --- Room state: the user starts out in no room ---
     let (tx, mut rx) = mpsc::unbounded_channel::<ServerMsg>();
     let member = Member {
         user_id,
@@ -146,7 +146,7 @@ async fn handle_connection(
     };
     let current: Arc<RwLock<Option<SharedRoom>>> = Arc::new(RwLock::new(None));
 
-    // --- Ses datagramları: ayrı görev; yalnızca odadayken iletilir ---
+    // --- Audio datagrams: separate task; forwarded only while in a room ---
     let audio_conn = conn.clone();
     let audio_current = current.clone();
     let audio_task = tokio::spawn(async move {
@@ -158,7 +158,7 @@ async fn handle_connection(
         }
     });
 
-    // --- İstatistik günlüğü: 10 sn'de bir RTT, kayıp ve datagram sayıları (kapı testi için) ---
+    // --- Stats log: RTT, loss and datagram counts every 10 s (for the gate test) ---
     let stats_conn = conn.clone();
     let stats_current = current.clone();
     let stats_task = tokio::spawn(async move {
@@ -176,13 +176,13 @@ async fn handle_connection(
                 cwnd = st.path.cwnd,
                 dgram_rx = st.udp_rx.datagrams,
                 dgram_tx = st.udp_tx.datagrams,
-                "bağlantı istatistiği"
+                "connection stats"
             );
         }
     });
     let connected_at = std::time::Instant::now();
 
-    // Odadan çıkarır; çıkılan odanın kodunu döner (odada değilse `None`).
+    // Removes the user from the room; returns the left room's code (`None` if not in a room).
     let leave = |current: &Arc<RwLock<Option<SharedRoom>>>, registry: &Registry| {
         let room = current.write().unwrap().take();
         room.map(|room| {
@@ -193,7 +193,7 @@ async fn handle_connection(
         })
     };
 
-    // --- Kontrol döngüsü ---
+    // --- Control loop ---
     let result: Result<()> = async {
         loop {
             tokio::select! {
@@ -201,27 +201,27 @@ async fn handle_connection(
                     ClientMsg::Ping(t) => control.send(&ServerMsg::Pong(t)).await?,
                     ClientMsg::CreateRoom { name } => {
                         if current.read().unwrap().is_some() {
-                            control.send(&ServerMsg::Error { code: ErrorCode::AlreadyInRoom, message: "önce odadan ayrıl".into() }).await?;
+                            control.send(&ServerMsg::Error { code: ErrorCode::AlreadyInRoom, message: "leave the room first".into() }).await?;
                             continue;
                         }
-                        let name = if name.trim().is_empty() { format!("{nickname} odası") } else { name.trim().chars().take(32).collect() };
+                        let name = if name.trim().is_empty() { format!("{nickname}'s room") } else { name.trim().chars().take(32).collect() };
                         let room = registry.create(name, user_id);
                         room.join(member.clone(), tx.clone(), conn.clone());
-                        tracing::info!(user_id, code = room.code(), "oda açıldı");
+                        tracing::info!(user_id, code = room.code(), "room created");
                         *current.write().unwrap() = Some(room);
                     }
                     ClientMsg::JoinRoom { code } => {
                         if current.read().unwrap().is_some() {
-                            control.send(&ServerMsg::Error { code: ErrorCode::AlreadyInRoom, message: "önce odadan ayrıl".into() }).await?;
+                            control.send(&ServerMsg::Error { code: ErrorCode::AlreadyInRoom, message: "leave the room first".into() }).await?;
                             continue;
                         }
                         match registry.get(&code) {
-                            None => control.send(&ServerMsg::Error { code: ErrorCode::RoomNotFound, message: format!("oda bulunamadı: {code}") }).await?,
+                            None => control.send(&ServerMsg::Error { code: ErrorCode::RoomNotFound, message: format!("room not found: {code}") }).await?,
                             Some(room) => {
                                 if room.join(member.clone(), tx.clone(), conn.clone()).is_none() {
-                                    control.send(&ServerMsg::Error { code: ErrorCode::RoomFull, message: "oda dolu".into() }).await?;
+                                    control.send(&ServerMsg::Error { code: ErrorCode::RoomFull, message: "room is full".into() }).await?;
                                 } else {
-                                    tracing::info!(user_id, code = room.code(), members = room.len(), "odaya katıldı");
+                                    tracing::info!(user_id, code = room.code(), members = room.len(), "joined room");
                                     *current.write().unwrap() = Some(room);
                                 }
                             }
@@ -229,17 +229,17 @@ async fn handle_connection(
                     }
                     ClientMsg::LeaveRoom => {
                         if let Some(code) = leave(&current, &registry) {
-                            tracing::info!(user_id, code, "odadan ayrıldı");
+                            tracing::info!(user_id, code, "left room");
                         } else {
-                            control.send(&ServerMsg::Error { code: ErrorCode::NotInRoom, message: "odada değilsin".into() }).await?;
+                            control.send(&ServerMsg::Error { code: ErrorCode::NotInRoom, message: "you are not in a room".into() }).await?;
                         }
                     }
                     ClientMsg::SetMuted(m) => {
-                        tracing::info!(user_id, muted = m, "mikrofon durumu");
+                        tracing::info!(user_id, muted = m, "mic state");
                         if let Some(r) = current.read().unwrap().as_ref() { r.set_flags(user_id, Some(m), None); }
                     }
                     ClientMsg::SetDeafened(d) => {
-                        tracing::info!(user_id, deafened = d, "kulaklık durumu");
+                        tracing::info!(user_id, deafened = d, "headphone state");
                         if let Some(r) = current.read().unwrap().as_ref() { r.set_flags(user_id, None, Some(d)); }
                     }
                     ClientMsg::Hello { .. } | ClientMsg::Auth { .. } => {}
@@ -257,7 +257,7 @@ async fn handle_connection(
     audio_task.abort();
     stats_task.abort();
     if let Some(code) = leave(&current, &registry) {
-        tracing::info!(user_id, code, "bağlantı kapanırken odadan çıkarıldı");
+        tracing::info!(user_id, code, "removed from room on disconnect");
     }
     let st = conn.stats();
     tracing::info!(
@@ -268,20 +268,20 @@ async fn handle_connection(
         rtt_ms = st.path.rtt.as_millis() as u64,
         lost_packets = st.path.lost_packets,
         close_reason = ?conn.close_reason(),
-        "bağlantı kapandı"
+        "connection closed"
     );
     result
 }
 
-/// Davet linkinde gösterilecek adresler: `CALLOUT_PUBLIC_IP` verilmişse o,
-/// yoksa makinenin loopback olmayan IPv4 adresleri (yoksa 127.0.0.1).
+/// Addresses to show in the invite link: `CALLOUT_PUBLIC_IP` if set,
+/// otherwise the machine's non-loopback IPv4 addresses (or 127.0.0.1 if none).
 fn advertised_ips() -> Vec<IpAddr> {
     if let Ok(ip) = std::env::var("CALLOUT_PUBLIC_IP") {
         if let Ok(ip) = ip.parse() {
             return vec![ip];
         }
     }
-    // Bağımlılık eklemeden yerel adresi öğrenmenin taşınabilir yolu: bağlanmayan UDP soketi.
+    // Portable way to learn the local address without adding a dependency: a UDP socket that never sends.
     let mut ips = Vec::new();
     if let Ok(sock) = std::net::UdpSocket::bind("0.0.0.0:0") {
         if sock.connect("8.8.8.8:53").is_ok() {

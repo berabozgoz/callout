@@ -1,6 +1,6 @@
-//! Tauri kabuğu. Kural: burada ses ya da ağ mantığı yoktur; yalnızca
-//! `callout-core` motoruna komut iletir, olaylarını `engine` adıyla webview'a yayar,
-//! ayarları saklar, bas-konuş kısayolunu ve sistem tepsisini yönetir.
+//! Tauri shell. Rule: no audio or network logic lives here; it only
+//! forwards commands to the `callout-core` engine, emits its events to the webview as `engine`,
+//! stores settings, and manages the push-to-talk shortcut and the system tray.
 
 use callout_core::{
     Command, ConnectionState, DeviceInfo, Direction, Engine, EngineConfig, Event, Member, RoomInfo,
@@ -15,7 +15,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
-/// Diskte saklanan kullanıcı ayarları (`<app-data>/settings.json`).
+/// User settings stored on disk (`<app-data>/settings.json`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -24,9 +24,9 @@ pub struct Settings {
     pub input_device: Option<String>,
     pub output_device: Option<String>,
     pub push_to_talk: bool,
-    /// Tauri kısayol sözdizimi, ör. `F9`, `Ctrl+Space`, `Alt+Z`.
+    /// Tauri shortcut syntax, e.g. `F9`, `Ctrl+Space`, `Alt+Z`.
     pub ptt_shortcut: String,
-    /// Gürültü bastırma (RNNoise); eski ayar dosyalarında yoksa açık.
+    /// Noise suppression (RNNoise); on if missing from older settings files.
     pub noise_suppression: bool,
 }
 
@@ -44,8 +44,8 @@ impl Default for Settings {
     }
 }
 
-/// Arayüzün (webview) kaybolabilecek durumunun kopyası: webview yenilense bile motor bağlı kalır,
-/// arayüz açılışta `engine_snapshot` ile kendini buradan doldurur.
+/// A copy of the UI (webview) state that could be lost: the engine stays connected even if the
+/// webview reloads, and on startup the UI fills itself from here via `engine_snapshot`.
 #[derive(Debug, Clone, Serialize)]
 struct Snapshot {
     connection: ConnectionState,
@@ -98,14 +98,14 @@ struct AppliedAudio {
 struct AppState {
     engine: Engine,
     snapshot: Mutex<Snapshot>,
-    /// Ayarlarda tuş yakalama sürerken kısayol bırakılır (yoksa tuş arayüze ulaşmaz).
+    /// The shortcut is released while capturing a key in settings (otherwise the key never reaches the UI).
     ptt_capture: AtomicBool,
     settings: Mutex<Settings>,
     data_dir: PathBuf,
-    /// Odada mıyız? Bas-konuş kısayolu yalnızca odadayken sistem genelinde tutulur.
+    /// Are we in a room? The push-to-talk shortcut is held system-wide only while in a room.
     in_room: AtomicBool,
-    /// Motora en son bildirilen ses ayarları. Ayarlar ekranı seçimi kaydetmeden uygular
-    /// (ses testi seçili ayarla yapılsın); kaydederken aynısı yeniden gönderilmez.
+    /// Audio settings last sent to the engine. The settings screen applies a selection without
+    /// saving it (so the sound test uses it); saving does not resend the same values.
     applied: Mutex<AppliedAudio>,
 }
 
@@ -130,7 +130,7 @@ fn load_settings(data_dir: &Path) -> Settings {
 }
 
 // ---------------------------------------------------------------------------
-// Arayüze açılan komutlar
+// Commands exposed to the UI
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize)]
@@ -202,13 +202,13 @@ fn save_settings(app: AppHandle, state: State<AppState>, settings: Settings) -> 
     Ok(())
 }
 
-/// Motora komut: arayüz `Command`'ı JSON olarak (`{"type": "...", ...}`) gönderir.
+/// Engine command: the UI sends a `Command` as JSON (`{"type": "...", ...}`).
 #[tauri::command]
 fn engine_command(state: State<AppState>, command: Command) {
     send_command(&state, command);
 }
 
-/// Komutu motora iletir; uygulamanın tuttuğu durumu (anlık görüntü, uygulanan cihazlar) günceller.
+/// Forwards a command to the engine; updates the state the app keeps (snapshot, applied devices).
 fn send_command(state: &AppState, command: Command) {
     {
         let mut snap = state.snapshot.lock().unwrap();
@@ -230,13 +230,13 @@ fn send_command(state: &AppState, command: Command) {
     state.engine.send(command);
 }
 
-/// Arayüz açılırken (ya da yenilenince) motorun gerçek durumunu okur.
+/// Reads the engine's actual state when the UI opens (or reloads).
 #[tauri::command]
 fn engine_snapshot(state: State<AppState>) -> Snapshot {
     state.snapshot.lock().unwrap().clone()
 }
 
-/// Ayarlarda tuş yakalama başlarken/biterken: bas-konuş kısayolunu geçici bırakır.
+/// When key capture in settings starts/ends: temporarily releases the push-to-talk shortcut.
 #[tauri::command]
 fn ptt_capture(app: AppHandle, state: State<AppState>, active: bool) -> Result<(), String> {
     state.ptt_capture.store(active, Ordering::Relaxed);
@@ -245,16 +245,16 @@ fn ptt_capture(app: AppHandle, state: State<AppState>, active: bool) -> Result<(
 
 #[tauri::command]
 fn app_version(app: AppHandle) -> String {
-    // Paketlenen sürüm (kurulum dosyasındakiyle aynı kaynak: Cargo.toml → etiketten yazılır).
+    // Packaged version (same source as the installer's: Cargo.toml, written from the tag).
     app.package_info().version.to_string()
 }
 
 // ---------------------------------------------------------------------------
-// Bas-konuş kısayolu
+// Push-to-talk shortcut
 // ---------------------------------------------------------------------------
 
-/// Kısayol sistem genelinde tuşu tüketir (düz "T" gibi bir tuş başka uygulamalarda yazılamaz).
-/// Bu yüzden yalnızca bas-konuş açıkken **ve** odadayken kayıtlı tutulur; aksi halde bırakılır.
+/// The shortcut consumes the key system-wide (a plain key like "T" cannot be typed in other apps).
+/// So it stays registered only while push-to-talk is on **and** we are in a room; otherwise it is released.
 fn sync_ptt(app: &AppHandle) -> Result<(), String> {
     let Some(state) = app.try_state::<AppState>() else {
         return Ok(());
@@ -268,26 +268,26 @@ fn sync_ptt(app: &AppHandle) -> Result<(), String> {
     if shortcut.is_empty() {
         return Ok(());
     }
-    // Geçersiz sözdizimini oda dışında da kullanıcıya bildir.
+    // Report invalid syntax to the user even outside a room.
     shortcut
         .parse::<tauri_plugin_global_shortcut::Shortcut>()
-        .map_err(|e| format!("kısayol '{shortcut}': {e}"))?;
+        .map_err(|e| format!("shortcut '{shortcut}': {e}"))?;
     if enabled
         && state.in_room.load(Ordering::Relaxed)
         && !state.ptt_capture.load(Ordering::Relaxed)
     {
         gs.register(shortcut.as_str())
-            .map_err(|e| format!("kısayol '{shortcut}': {e}"))?;
+            .map_err(|e| format!("shortcut '{shortcut}': {e}"))?;
     }
     Ok(())
 }
 
 // ---------------------------------------------------------------------------
-// Kurulum
+// Setup
 // ---------------------------------------------------------------------------
 
-/// Günlük dosyası: `%APPDATA%/io.github.berabozgoz.callout/logs/callout.log`.
-/// 2 MB'ı aşarsa `callout.old.log`'a taşınır. Açılamazsa stderr'e düşülür.
+/// Log file: `%APPDATA%/io.github.berabozgoz.callout/logs/callout.log`.
+/// Moved to `callout.old.log` when it exceeds 2 MB. Falls back to stderr if it cannot be opened.
 fn open_log_file() -> Option<std::fs::File> {
     let dir = PathBuf::from(std::env::var_os("APPDATA")?)
         .join("io.github.berabozgoz.callout")
@@ -317,7 +317,7 @@ pub fn run() {
             .init(),
         None => tracing_subscriber::fmt().with_env_filter(filter).init(),
     }
-    tracing::info!(version = env!("CARGO_PKG_VERSION"), "CallOut başladı");
+    tracing::info!(version = env!("CARGO_PKG_VERSION"), "CallOut started");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -330,7 +330,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
-                    // Hangi tuş olursa olsun tek kayıtlı kısayol bas-konuştur.
+                    // Whatever the key, the only registered shortcut is push-to-talk.
                     let pressed = event.state() == ShortcutState::Pressed;
                     if let Some(state) = app.try_state::<AppState>() {
                         state.engine.send(Command::PushToTalk { pressed });
@@ -340,7 +340,7 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            // Veri klasörü: %APPDATA%/io.github.berabozgoz.callout
+            // Data folder: %APPDATA%/io.github.berabozgoz.callout
             let data_dir = app
                 .path()
                 .app_data_dir()
@@ -356,7 +356,7 @@ pub fn run() {
                 no_audio: false,
             });
 
-            // Motor olayları → webview ("engine" kanalı).
+            // Engine events → webview ("engine" channel).
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 while let Some(ev) = events.recv().await {
@@ -364,7 +364,7 @@ pub fn run() {
                         st.snapshot.lock().unwrap().apply(&ev);
                     }
                     if let Event::RoomUpdated { room, .. } = &ev {
-                        // Yalnızca odaya giriş/çıkışta (değer değişince) kısayolu eşitle.
+                        // Sync the shortcut only on room join/leave (when the value changes).
                         let in_room = room.is_some();
                         let changed = handle.try_state::<AppState>().is_some_and(|st| {
                             st.in_room.swap(in_room, Ordering::Relaxed) != in_room
@@ -393,9 +393,9 @@ pub fn run() {
                 ptt_capture: AtomicBool::new(false),
             });
 
-            // Sistem tepsisi: göster / çık.
-            let show = MenuItem::with_id(app, "show", "CallOut'u göster", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Çık", true, None::<&str>)?;
+            // System tray: show / quit.
+            let show = MenuItem::with_id(app, "show", "Show CallOut", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
             let mut tray = TrayIconBuilder::new()
                 .menu(&menu)
@@ -411,8 +411,8 @@ pub fn run() {
                     "quit" => {
                         if let Some(state) = app.try_state::<AppState>() {
                             state.engine.send(Command::Disconnect);
-                            // Motorun kapatma çerçevesini göndermesine zaman ver (en çok ~500 ms);
-                            // süreç hemen çıkarsa sunucu bağlantıyı ~10 sn sonra zaman aşımıyla siler.
+                            // Give the engine time to send the close frame (at most ~500 ms);
+                            // if the process exits immediately the server only drops the connection on a ~10 s timeout.
                             std::thread::sleep(std::time::Duration::from_millis(700));
                         }
                         app.exit(0);
@@ -438,7 +438,7 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Kapat düğmesi pencereyi tepsiye gizler; çıkış tepsi menüsünden.
+            // The close button hides the window to the tray; quitting is done from the tray menu.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let _ = window.hide();
                 api.prevent_close();
@@ -454,7 +454,7 @@ pub fn run() {
             app_version
         ])
         .run(tauri::generate_context!())
-        .expect("tauri başlatılamadı");
+        .expect("failed to start tauri");
 }
 
 #[allow(dead_code)]
@@ -466,8 +466,8 @@ fn _assert_event_serializable(e: &Event) -> String {
 mod tests {
     use tauri_plugin_global_shortcut::Shortcut;
 
-    /// Arayüzün tuş yakalama alanı `KeyboardEvent.code` adlarını gönderir; hepsi kısayol
-    /// kütüphanesince çözümlenmeli.
+    /// The UI's key capture field sends `KeyboardEvent.code` names; the shortcut library must
+    /// parse all of them.
     #[test]
     fn captured_key_codes_parse() {
         for s in [
@@ -486,7 +486,7 @@ mod tests {
             "Super+KeyV",
             "Backquote",
         ] {
-            assert!(s.parse::<Shortcut>().is_ok(), "çözümlenemedi: {s}");
+            assert!(s.parse::<Shortcut>().is_ok(), "failed to parse: {s}");
         }
     }
 }

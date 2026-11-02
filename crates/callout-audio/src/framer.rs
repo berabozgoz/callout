@@ -1,4 +1,4 @@
-//! Serbest uzunluklu örnek akışını sabit 960 örneklik (20 ms @ 48 kHz) çerçevelere böler.
+//! Splits a sample stream of arbitrary length into fixed 960-sample (20 ms @ 48 kHz) frames.
 
 use crate::codec::FRAME;
 
@@ -18,7 +18,7 @@ impl Framer {
         self.buf.extend_from_slice(samples);
     }
 
-    /// Hazır bir çerçeve varsa `out`'a yazar ve `true` döner.
+    /// If a full frame is ready, writes it to `out` and returns `true`.
     pub fn next_frame(&mut self, out: &mut [f32; FRAME]) -> bool {
         if self.buf.len() < FRAME {
             return false;
@@ -28,7 +28,7 @@ impl Framer {
         true
     }
 
-    /// Bekleyen (henüz tam çerçeve olmayan) örnek sayısı.
+    /// Number of pending samples (not yet a full frame).
     pub fn pending(&self) -> usize {
         self.buf.len()
     }

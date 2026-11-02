@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
-// Tauri geliştirme sunucusu: sabit port, dış erişime kapalı.
+// Tauri dev server: fixed port, not exposed externally.
 export default defineConfig({
   plugins: [svelte()],
   clearScreen: false,

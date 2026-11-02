@@ -1,57 +1,57 @@
 # CallOut
 
-Oyuncular için düşük gecikmeli sesli sohbet. Rust çekirdek, Tauri 2 + Svelte arayüz,
-kendi barındırabileceğin QUIC tabanlı SFU sunucusu.
+Low-latency voice chat for gamers. Rust core, Tauri 2 + Svelte UI,
+and a QUIC-based SFU server you can host yourself.
 
-Durum: **Faz 1 tamam.** Masaüstü uygulamasıyla bağlanıp oda açılıp konuşulabiliyor; sırada Faz 2 (ses kalitesi).
+Status: **Phase 1 done.** You can connect with the desktop app, open a room and talk; next up is Phase 2 (audio quality).
 
-## Gereksinimler
+## Requirements
 
-- Rust (stable) ve `cargo install tauri-cli --version "^2"`
+- Rust (stable) and `cargo install tauri-cli --version "^2"`
 - Node.js 22+
-- Windows: [Tauri önkoşulları](https://v2.tauri.app/start/prerequisites/) (WebView2 Windows 10/11'de hazırdır)
-- Linux (yalnızca kütüphaneler/sunucu): `libasound2-dev`
+- Windows: [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (WebView2 ships with Windows 10/11)
+- Linux (libraries/server only): `libasound2-dev`
 
-## Çalıştırma
+## Running
 
 ```sh
-cargo test                                      # kütüphane testleri
-cargo run -p callout-audio --example loopback   # mikrofon → kulaklık yerel döngü
-cargo run -p callout-server                     # sunucu; callout:// davet linkini basar
-cargo run -p callout-core --example talk -- "<davet>" Ad --create     # oda aç
-cargo run -p callout-core --example talk -- "<davet>" Ad --room KOD   # odaya gir
+cargo test                                      # library tests
+cargo run -p callout-audio --example loopback   # mic → headphones local loop
+cargo run -p callout-server                     # server; prints the callout:// invite link
+cargo run -p callout-core --example talk -- "<invite>" Name --create     # open a room
+cargo run -p callout-core --example talk -- "<invite>" Name --room CODE  # join a room
 cd ui && npm install && cd ..
-cd apps/callout-app && cargo tauri dev                 # masaüstü uygulaması
+cd apps/callout-app && cargo tauri dev                 # desktop app
 ```
 
-## Arkadaşlarla test (sürüm çıkarma)
+## Testing with friends (cutting a release)
 
 ```sh
-cargo tauri build          # apps/callout-app içinde; target/release/bundle/nsis/CallOut_*_x64-setup.exe
+cargo tauri build          # inside apps/callout-app; target/release/bundle/nsis/CallOut_*_x64-setup.exe
 cargo build --release -p callout-server   # target/release/callout-server.exe
 ```
 
-Ya da bir etiket at, GitHub Actions kurulum dosyasını Releases sayfasına koysun:
+Or push a tag and let GitHub Actions put the installer on the Releases page:
 
 ```sh
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-Sunucuyu internete açmak, en kolayı bir VPS (Ubuntu 24.04, en küçük plan yeter); root olarak:
+The easiest way to put the server on the internet is a VPS (Ubuntu 24.04, the smallest plan is enough); as root:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/berabozgoz/callout/main/deploy/install.sh | sudo bash
 ```
 
-Betik son sürümü indirir, systemd servisi kurar, 4433/udp'yi açar ve `callout://...` davet linkini basar
-(`journalctl -u callout -f` ile günlük). Ev internetinden açmak için modemde **UDP 4433** yönlendirmesi ve
-`CALLOUT_PUBLIC_IP=<dış-ip>` gerekir; sağlayıcı CGNAT kullanıyorsa (modemdeki WAN IP ile dış IP farklıysa)
-bu yol çalışmaz. Kurulum dosyası imzasız olduğu için SmartScreen "bilinmeyen yayımcı" uyarısı verir
-("Daha fazla bilgi → Yine de çalıştır"); kod imzalama Faz 4'te.
+The script downloads the latest release, installs a systemd service, opens 4433/udp and prints the `callout://...`
+invite link (logs via `journalctl -u callout -f`). Hosting from a home connection needs **UDP 4433** port forwarding
+on the router and `CALLOUT_PUBLIC_IP=<external-ip>`; if your ISP uses CGNAT (the router's WAN IP differs from your
+external IP) this will not work. The installer is unsigned, so SmartScreen shows an "unknown publisher" warning
+("More info → Run anyway"); code signing comes in Phase 4.
 
-Mimari ve yol haritası: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-Geliştirme kuralları: [`CLAUDE.md`](CLAUDE.md).
+Architecture and roadmap: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Development rules: [`CLAUDE.md`](CLAUDE.md).
 
-## Lisans
+## License
 
-MIT veya Apache-2.0, tercihinize göre.
+MIT or Apache-2.0, at your option.

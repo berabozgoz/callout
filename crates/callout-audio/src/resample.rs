@@ -1,15 +1,15 @@
-//! Cihaz örnekleme hızı ↔ 48 kHz dönüşümü (rubato, FFT tabanlı, mono).
+//! Device sample rate ↔ 48 kHz conversion (rubato, FFT-based, mono).
 //!
-//! Gerçek zamanlı iş parçacığında **değil**, ses iş parçacığında çalışır;
-//! içeride tampon tutar, bu yüzden girdi uzunluğu serbesttir.
+//! Runs on the audio thread, **not** the real-time thread; it buffers
+//! internally, so the input length is arbitrary.
 
 use rubato::{FftFixedInOut, Resampler as _};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ResampleError {
-    #[error("yeniden örnekleyici kurulamadı: {0}")]
+    #[error("could not build resampler: {0}")]
     Construct(#[from] rubato::ResamplerConstructionError),
-    #[error("yeniden örnekleme hatası: {0}")]
+    #[error("resampling error: {0}")]
     Process(#[from] rubato::ResampleError),
 }
 
@@ -22,7 +22,7 @@ pub struct Resampler {
 }
 
 impl Resampler {
-    /// `from_hz == to_hz` ise kimlik dönüşümü (gecikmesiz).
+    /// If `from_hz == to_hz`, an identity conversion (no delay).
     pub fn new(from_hz: u32, to_hz: u32) -> Result<Self, ResampleError> {
         if from_hz == to_hz {
             return Ok(Self {
@@ -33,7 +33,7 @@ impl Resampler {
                 out_buf: Vec::new(),
             });
         }
-        // ~10 ms'lik giriş parçası hedeflenir; rubato bunu gcd'ye göre yuvarlar.
+        // Aims for ~10 ms input chunks; rubato rounds this according to the gcd.
         let inner =
             FftFixedInOut::<f32>::new(from_hz as usize, to_hz as usize, from_hz as usize / 100, 1)?;
         let chunk_in = inner.input_frames_next();
@@ -47,12 +47,12 @@ impl Resampler {
         })
     }
 
-    /// Dönüşümün eklediği gecikme (çıkış örneği cinsinden).
+    /// Delay added by the conversion (in output samples).
     pub fn delay(&self) -> usize {
         self.inner.as_ref().map(|r| r.output_delay()).unwrap_or(0)
     }
 
-    /// `input`'u işler, dönüştürülmüş örnekleri `out`'a **ekler**.
+    /// Processes `input` and **appends** the converted samples to `out`.
     pub fn process(&mut self, input: &[f32], out: &mut Vec<f32>) -> Result<(), ResampleError> {
         let Some(inner) = self.inner.as_mut() else {
             out.extend_from_slice(input);
@@ -93,10 +93,10 @@ mod tests {
         for chunk in input.chunks(333) {
             r.process(chunk, &mut out).unwrap();
         }
-        // Bir saniyelik giriş ≈ 48_000 çıkış (iç tamponda kalan parça hariç).
+        // One second of input ≈ 48_000 output (excluding what remains in the internal buffer).
         assert!(
             out.len() > 46_000 && out.len() <= 48_000,
-            "çıkış {}",
+            "output {}",
             out.len()
         );
         assert!(r.delay() > 0);

@@ -1,4 +1,4 @@
-// Motor köprüsü: Tauri komutları ve "engine" olay kanalı için tipler + yardımcılar.
+// Engine bridge: types and helpers for the Tauri commands and the "engine" event channel.
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
@@ -47,7 +47,7 @@ export type Settings = {
   noise_suppression: boolean;
 };
 
-/** Motorun gerçek durumu: webview yenilense bile motor bağlı kalır. */
+/** The engine's actual state: the engine stays connected even if the webview reloads. */
 export type Snapshot = {
   connection: ConnectionState;
   user_id: number | null;
@@ -63,7 +63,7 @@ export const send = (command: Command) => invoke<void>("engine_command", { comma
 export const getSettings = () => invoke<Settings>("get_settings");
 export const saveSettings = (settings: Settings) => invoke<void>("save_settings", { settings });
 export const engineSnapshot = () => invoke<Snapshot>("engine_snapshot");
-/** Tuş yakalama sürerken bas-konuş kısayolunu geçici bırakır (yoksa tuş arayüze ulaşmaz). */
+/** Temporarily releases the push-to-talk shortcut during key capture (otherwise the key never reaches the UI). */
 export const pttCapture = (active: boolean) => invoke<void>("ptt_capture", { active });
 export const listDevices = () => invoke<Device[]>("list_audio_devices");
 export const appVersion = () => invoke<string>("app_version");

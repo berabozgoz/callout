@@ -8,8 +8,8 @@ members = [
     "crates/callout-server",
     "apps/callout-app",
 ]
-# callout-app Tauri eklentilerini (webkit vb.) çeker; Linux CI'da yalnızca
-# kütüphane crate'leri derlenir: `cargo check --workspace --exclude callout-app`.
+# callout-app pulls in Tauri plugins (webkit etc.); Linux CI builds only the
+# library crates: `cargo check --workspace --exclude callout-app`.
 default-members = [
     "crates/callout-proto",
     "crates/callout-audio",
@@ -58,6 +58,6 @@ lto = "thin"
 codegen-units = 1
 strip = true
 
-# Ses geri çağrısı debug derlemede bile makul hızda çalışsın.
+# Keep the audio callback reasonably fast even in debug builds.
 [profile.dev.package."*"]
 opt-level = 2

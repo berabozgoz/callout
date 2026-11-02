@@ -1,8 +1,8 @@
-//! Opus kodlama/çözme sarmalayıcısı. Sabitler [`callout_proto`]'dan gelir:
-//! 48 kHz, mono, 20 ms (960 örnek).
+//! Opus encode/decode wrapper. Constants come from [`callout_proto`]:
+//! 48 kHz, mono, 20 ms (960 samples).
 //!
-//! Varsayılan ayarlar oyun içi konuşma için seçildi: VOIP uygulaması, 32 kbps,
-//! in-band FEC (%10 kayıp varsayımı), DTX (sessizlikte paket yok), karmaşıklık 8.
+//! Defaults are chosen for in-game voice: VOIP application, 32 kbps,
+//! in-band FEC (assuming 10% loss), DTX (no packets during silence), complexity 8.
 
 use callout_proto::{FRAME_SAMPLES, MAX_OPUS_PAYLOAD, SAMPLE_RATE_HZ};
 
@@ -12,7 +12,7 @@ pub const FRAME: usize = FRAME_SAMPLES as usize;
 pub enum CodecError {
     #[error("opus: {0}")]
     Opus(#[from] opus::Error),
-    #[error("çerçeve {0} örnek, {FRAME} bekleniyordu")]
+    #[error("frame is {0} samples, expected {FRAME}")]
     BadFrameLen(usize),
 }
 
@@ -20,12 +20,12 @@ pub enum CodecError {
 pub struct EncoderConfig {
     pub bitrate_bps: i32,
     pub fec: bool,
-    /// libopus FEC (LBRR) verisini yalnız bu değer yeterince yüksekse üretir: 32 kbps'de
-    /// %5'te FEC hiç devreye girmiyor, %10'da kayıp çerçeve SNR'ı ~5 → ~16 dB
-    /// (`tests/loss_sim.rs`). %10'un altına indirmeyin.
+    /// libopus only produces FEC (LBRR) data if this value is high enough: at 32 kbps,
+    /// FEC never kicks in at 5%; at 10% the lost-frame SNR goes ~5 → ~16 dB
+    /// (`tests/loss_sim.rs`). Do not go below 10%.
     pub expected_loss_pct: i32,
     pub dtx: bool,
-    /// 0–10; 10 en iyi kalite / en çok CPU.
+    /// 0–10; 10 is best quality / most CPU.
     pub complexity: i32,
 }
 
@@ -66,9 +66,9 @@ impl Encoder {
         })
     }
 
-    /// 960 örneklik mono f32 çerçeveyi kodlar; Opus paketini döner.
-    /// DTX sessizlik kararı verdiyse paket 1–2 bayttır ve gönderilmemelidir
-    /// (bkz. [`Encoder::is_dtx_packet`]).
+    /// Encodes a 960-sample mono f32 frame; returns the Opus packet.
+    /// If DTX decided on silence, the packet is 1–2 bytes and must not be sent
+    /// (see [`Encoder::is_dtx_packet`]).
     pub fn encode(&mut self, frame: &[f32]) -> Result<&[u8], CodecError> {
         if frame.len() != FRAME {
             return Err(CodecError::BadFrameLen(frame.len()));
@@ -77,7 +77,7 @@ impl Encoder {
         Ok(&self.buf[..n])
     }
 
-    /// Opus DTX'te sessizlik için 1–2 baytlık "boş" paket üretir.
+    /// With DTX, Opus emits a 1–2 byte "empty" packet for silence.
     pub fn is_dtx_packet(packet: &[u8]) -> bool {
         packet.len() <= 2
     }
@@ -94,9 +94,9 @@ impl Decoder {
         })
     }
 
-    /// Bir paketi `out`'a (en az 960 örnek) çözer. `packet` `None` ise paket
-    /// kaybı kabul edilir ve PLC ile 960 örnek üretilir.
-    /// Dönüş: yazılan örnek sayısı (her zaman 960).
+    /// Decodes a packet into `out` (at least 960 samples). If `packet` is `None`,
+    /// it is treated as packet loss and PLC produces 960 samples.
+    /// Returns: number of samples written (always 960).
     pub fn decode(&mut self, packet: Option<&[u8]>, out: &mut [f32]) -> Result<usize, CodecError> {
         if out.len() < FRAME {
             return Err(CodecError::BadFrameLen(out.len()));
@@ -107,8 +107,8 @@ impl Decoder {
         Ok(n)
     }
 
-    /// Kayıp paketten sonra gelen paketin FEC verisiyle kayıp çerçeveyi kurtarır.
-    /// Önce bunu (kayıp çerçeve için), sonra normal `decode`'u (mevcut çerçeve için) çağırın.
+    /// Recovers the lost frame using the FEC data of the packet that follows the loss.
+    /// Call this first (for the lost frame), then the normal `decode` (for the current frame).
     pub fn decode_fec(&mut self, next_packet: &[u8], out: &mut [f32]) -> Result<usize, CodecError> {
         if out.len() < FRAME {
             return Err(CodecError::BadFrameLen(out.len()));
@@ -145,16 +145,16 @@ mod tests {
             let n = dec.decode(Some(&pkt), &mut out).unwrap();
             assert_eq!(n, FRAME);
             if i >= 5 {
-                // kodek ısınma süresini atla
+                // skip codec warm-up
                 energy_in += frame.iter().map(|s| s * s).sum::<f32>();
                 energy_out += out.iter().map(|s| s * s).sum::<f32>();
             }
         }
         let ratio = energy_out / energy_in;
-        assert!((0.5..2.0).contains(&ratio), "enerji oranı {ratio}");
+        assert!((0.5..2.0).contains(&ratio), "energy ratio {ratio}");
         let avg = sizes.iter().sum::<usize>() as f32 / sizes.len() as f32;
-        // 32 kbps @ 20 ms ≈ 80 bayt; VBR ile sinüs daha küçük sıkışır.
-        assert!(avg < 120.0, "ortalama paket {avg} bayt");
+        // 32 kbps @ 20 ms ≈ 80 bytes; with VBR a sine compresses smaller.
+        assert!(avg < 120.0, "average packet {avg} bytes");
     }
 
     #[test]
@@ -167,7 +167,7 @@ mod tests {
         }
         assert!(
             Encoder::is_dtx_packet(&vec![0u8; last]),
-            "DTX paket boyutu {last}"
+            "DTX packet size {last}"
         );
     }
 
@@ -184,7 +184,7 @@ mod tests {
         let n = dec.decode(None, &mut out).unwrap();
         assert_eq!(n, FRAME);
         let energy: f32 = out.iter().map(|s| s * s).sum();
-        assert!(energy > 1.0, "PLC sessiz çıktı üretti");
+        assert!(energy > 1.0, "PLC produced silent output");
     }
 
     #[test]

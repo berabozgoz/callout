@@ -1,16 +1,16 @@
-# ADR 0001 — SFU topolojisi ve QUIC taşıma
+# ADR 0001 — SFU topology and QUIC transport
 
-Tarih: 2026-10-26 · Durum: kabul edildi
+Date: 2026-10-26 · Status: accepted
 
-## Bağlam
-Oyuncular için 5–10 kişilik düşük gecikmeli sesli sohbet. P2P'de N-1 yükleme ve NAT geçişi
-sorun; WebRTC yığını tarayıcı olmayan istemci için gereksiz karmaşık.
+## Context
+Low-latency voice chat for gamers, 5–10 people per room. P2P means N-1 uploads and NAT traversal
+problems; the WebRTC stack is needlessly complex for a non-browser client.
 
-## Karar
-Kendi Rust SFU'muz; istemci-sunucu arası tek QUIC bağlantısı (quinn). Kontrol mesajları güvenilir
-akışta, Opus paketleri datagramlarda. Sunucu Opus'u çözmez.
+## Decision
+Our own Rust SFU; a single QUIC connection (quinn) between client and server. Control messages go
+over a reliable stream, Opus packets over datagrams. The server does not decode Opus.
 
-## Sonuçlar
-+ Sunucu CPU'su düşük, self-host kolay, uçtan uca şifreleme sonradan eklenebilir.
-− UDP'nin engellendiği ağlar için güvenilir akış üzerinden yedek mod gerekir (Faz 2).
-− Tarayıcı istemcisi istenirse ayrı WebRTC köprüsü gerekir.
+## Consequences
++ Low server CPU, easy to self-host, end-to-end encryption can be added later.
+− Networks that block UDP need a fallback mode over a reliable stream (Phase 2).
+− A browser client would need a separate WebRTC bridge.

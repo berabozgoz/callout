@@ -1,61 +1,61 @@
-//! CallOut protokolü: istemci ve sunucunun paylaştığı tipler.
+//! CallOut protocol: types shared by the client and the server.
 //!
-//! İki ayrı kanal vardır:
-//! - **Kontrol akışı** (güvenilir QUIC akışı): [`ClientMsg`] / [`ServerMsg`],
-//!   `postcard` ile serileştirilir, her mesajın önünde 4 baytlık LE uzunluk gelir.
-//! - **Ses datagramı** (güvenilmez QUIC datagramı): [`AudioPacket`], sabit
-//!   başlık + Opus yükü. Başlık `postcard` değil, elle yazılan sabit düzen
-//!   kullanır ki sunucu `sender_id`'yi kopyalama yapmadan üstüne yazabilsin.
+//! There are two separate channels:
+//! - **Control stream** (reliable QUIC stream): [`ClientMsg`] / [`ServerMsg`],
+//!   serialized with `postcard`, each message prefixed with a 4-byte LE length.
+//! - **Audio datagram** (unreliable QUIC datagram): [`AudioPacket`], a fixed
+//!   header + Opus payload. The header uses a hand-written fixed layout rather
+//!   than `postcard` so the server can overwrite `sender_id` without copying.
 //!
-//! Kurallar:
-//! - Uyumsuz bir değişiklik [`PROTOCOL_VERSION`]'ı artırır; sunucu eski istemciyi
-//!   [`ServerMsg::Error`] + [`ErrorCode::VersionMismatch`] ile reddeder.
-//! - Yeni alan eklerken enum varyantlarının sonuna ekleyin; sıralama
-//!   `postcard`'ın tel biçimini belirler.
+//! Rules:
+//! - An incompatible change bumps [`PROTOCOL_VERSION`]; the server rejects old
+//!   clients with [`ServerMsg::Error`] + [`ErrorCode::VersionMismatch`].
+//! - When adding something, append it to the end of the enum variants; the order
+//!   determines `postcard`'s wire format.
 
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
-/// Kontrol protokolü sürümü. Uyumsuz değişiklikte artırın.
+/// Control protocol version. Bump on incompatible changes.
 pub const PROTOCOL_VERSION: u16 = 1;
 
-/// Oda kodu uzunluğu (büyük harf + rakam, ör. `K7Q2-MX9P`).
+/// Room code length (uppercase letters + digits, e.g. `K7Q2-MX9P`).
 pub const ROOM_CODE_LEN: usize = 8;
 
-/// MVP'de bir odadaki en fazla üye sayısı (hedef: 5–10 kişilik takım).
+/// Maximum members per room in the MVP (target: a team of 5–10).
 pub const MAX_ROOM_MEMBERS: usize = 16;
 
-/// Ses saati: 48 kHz. Bir 20 ms çerçeve = 960 örnek.
+/// Audio clock: 48 kHz. One 20 ms frame = 960 samples.
 pub const SAMPLE_RATE_HZ: u32 = 48_000;
 pub const FRAME_MS: u32 = 20;
 pub const FRAME_SAMPLES: u32 = SAMPLE_RATE_HZ * FRAME_MS / 1000;
 
-/// Sunucunun bir kullanıcıya verdiği oturum içi kimlik.
+/// Per-session ID the server assigns to a user.
 pub type UserId = u32;
 
-/// Ed25519 açık anahtarı.
+/// Ed25519 public key.
 pub type PublicKey = [u8; 32];
-/// Ed25519 imzası.
+/// Ed25519 signature.
 pub type Signature = [u8; 64];
 
 // ---------------------------------------------------------------------------
-// Kontrol mesajları
+// Control messages
 // ---------------------------------------------------------------------------
 
-/// İstemci → sunucu.
+/// Client → server.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ClientMsg {
-    /// Bağlantıdaki ilk mesaj. Sunucu `Welcome` içindeki `challenge`'ı
-    /// göndermeden önce imza doğrulanamaz; bu yüzden akış şöyledir:
+    /// First message on the connection. The signature cannot be verified before
+    /// the server sends the `challenge` in `Welcome`, so the flow is:
     /// `Hello` → `Welcome{challenge}` → `Auth{signature}` → `Authed`.
     Hello {
         version: u16,
         device_pubkey: PublicKey,
         nickname: String,
     },
-    /// `Welcome.challenge` üzerine Ed25519 imzası.
+    /// Ed25519 signature over `Welcome.challenge`.
     Auth {
         #[serde(with = "BigArray")]
         signature: Signature,
@@ -69,18 +69,18 @@ pub enum ClientMsg {
     LeaveRoom,
     SetMuted(bool),
     SetDeafened(bool),
-    /// RTT ölçümü; sunucu aynı değeri `Pong` ile döner.
+    /// RTT measurement; the server echoes the same value in `Pong`.
     Ping(u64),
 }
 
-/// Sunucu → istemci.
+/// Server → client.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ServerMsg {
     Welcome {
         user_id: UserId,
         challenge: [u8; 32],
     },
-    /// Kimlik doğrulandı; artık oda komutları kabul edilir.
+    /// Authenticated; room commands are now accepted.
     Authed,
     RoomState {
         room: RoomInfo,
@@ -134,64 +134,64 @@ pub enum ErrorCode {
 }
 
 // ---------------------------------------------------------------------------
-// Çerçeveleme ve serileştirme (kontrol akışı)
+// Framing and serialization (control stream)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProtoError {
-    #[error("serileştirme hatası: {0}")]
+    #[error("serialization error: {0}")]
     Codec(#[from] postcard::Error),
-    #[error("ses paketi çok kısa: {0} bayt")]
+    #[error("audio packet too short: {0} bytes")]
     PacketTooShort(usize),
-    #[error("ses yükü çok büyük: {0} bayt (en fazla {MAX_OPUS_PAYLOAD})")]
+    #[error("audio payload too large: {0} bytes (max {MAX_OPUS_PAYLOAD})")]
     PayloadTooLarge(usize),
 }
 
-/// Kontrol mesajını `postcard` ile baytlara çevirir (uzunluk öneki olmadan).
+/// Serializes a control message to bytes with `postcard` (without the length prefix).
 pub fn encode<T: Serialize>(msg: &T) -> Result<Vec<u8>, ProtoError> {
     Ok(postcard::to_allocvec(msg)?)
 }
 
-/// Baytlardan kontrol mesajını okur.
+/// Reads a control message from bytes.
 pub fn decode<'a, T: Deserialize<'a>>(bytes: &'a [u8]) -> Result<T, ProtoError> {
     Ok(postcard::from_bytes(bytes)?)
 }
 
 // ---------------------------------------------------------------------------
-// Ses paketi (datagram)
+// Audio packet (datagram)
 // ---------------------------------------------------------------------------
 
-/// Ses paketi başlık uzunluğu: sender_id(4) + seq(2) + timestamp(4) + flags(1).
+/// Audio packet header length: sender_id(4) + seq(2) + timestamp(4) + flags(1).
 pub const AUDIO_HEADER_LEN: usize = 11;
 
-/// Opus 20 ms çerçevesi 32 kbps'de ~80 bayt; FEC ile sınır payı.
+/// A 20 ms Opus frame is ~80 bytes at 32 kbps; headroom for FEC.
 pub const MAX_OPUS_PAYLOAD: usize = 400;
 
-/// `flags` bitleri.
+/// `flags` bits.
 pub mod flags {
-    /// Konuşma başlangıcı (sessizlikten sonra ilk paket); jitter tamponu sıfırlanabilir.
+    /// Talk start (first packet after silence); the jitter buffer may be reset.
     pub const TALK_START: u8 = 0b0000_0001;
-    /// Yük Opus in-band FEC içeriyor.
+    /// Payload contains Opus in-band FEC.
     pub const HAS_FEC: u8 = 0b0000_0010;
-    /// Yük oda anahtarıyla uçtan uca şifreli (ileri faz; MVP'de hep 0).
+    /// Payload is end-to-end encrypted with the room key (later phase; always 0 in the MVP).
     pub const E2E: u8 = 0b0000_0100;
 }
 
-/// Tek bir 20 ms'lik ses paketi.
+/// A single 20 ms audio packet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AudioPacket<'a> {
-    /// İstemci gönderirken 0; sunucu iletirken gönderenin kimliğiyle doldurur.
+    /// 0 when the client sends; the server fills in the sender's ID when forwarding.
     pub sender_id: UserId,
-    /// Sıra numarası, her pakette +1, taşmada sarar.
+    /// Sequence number, +1 per packet, wraps on overflow.
     pub seq: u16,
-    /// 48 kHz örnek saati; ardışık paketler arasında [`FRAME_SAMPLES`] fark.
+    /// 48 kHz sample clock; consecutive packets differ by [`FRAME_SAMPLES`].
     pub timestamp: u32,
     pub flags: u8,
     pub opus: &'a [u8],
 }
 
 impl<'a> AudioPacket<'a> {
-    /// Başlık + yükü `out`'a yazar; yazılan toplam uzunluğu döner.
+    /// Writes header + payload to `out`; returns the total length written.
     pub fn write_to(&self, out: &mut Vec<u8>) -> Result<usize, ProtoError> {
         if self.opus.len() > MAX_OPUS_PAYLOAD {
             return Err(ProtoError::PayloadTooLarge(self.opus.len()));
@@ -206,7 +206,7 @@ impl<'a> AudioPacket<'a> {
         Ok(out.len())
     }
 
-    /// Ham datagramdan paketi ayrıştırır; yük kopyalanmaz.
+    /// Parses a packet from a raw datagram; the payload is not copied.
     pub fn parse(bytes: &'a [u8]) -> Result<Self, ProtoError> {
         if bytes.len() < AUDIO_HEADER_LEN {
             return Err(ProtoError::PacketTooShort(bytes.len()));
@@ -224,8 +224,8 @@ impl<'a> AudioPacket<'a> {
         })
     }
 
-    /// Sunucu tarafı: paketi kopyalamadan `sender_id` alanının üstüne yazar.
-    /// Yalnızca `parse` ile doğrulanmış bir tamponda çağrılmalıdır.
+    /// Server side: overwrites the `sender_id` field without copying the packet.
+    /// Must only be called on a buffer already validated by `parse`.
     pub fn stamp_sender(bytes: &mut [u8], sender_id: UserId) {
         debug_assert!(bytes.len() >= AUDIO_HEADER_LEN);
         bytes[..4].copy_from_slice(&sender_id.to_le_bytes());
@@ -233,7 +233,7 @@ impl<'a> AudioPacket<'a> {
 }
 
 // ---------------------------------------------------------------------------
-// Testler
+// Tests
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
@@ -265,7 +265,7 @@ mod tests {
         let s = ServerMsg::RoomState {
             room: RoomInfo {
                 code: "K7Q2MX9P".into(),
-                name: "takım".into(),
+                name: "team".into(),
                 owner: 1,
             },
             members: vec![Member {

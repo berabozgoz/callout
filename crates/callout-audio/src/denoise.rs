@@ -1,12 +1,12 @@
-//! Gürültü bastırma: RNNoise'in saf Rust karşılığı `nnnoiseless`.
+//! Noise suppression: `nnnoiseless`, the pure-Rust port of RNNoise.
 //!
-//! Fan, uğultu, oda sesi gibi sürekli gürültüyü siler; kamera ya da dizüstü mikrofonu gibi
-//! ağızdan uzak mikrofonlarda konuşma ile gürültü arasındaki farkı açar. Yan ürün olarak her
-//! çerçeve için "konuşma olasılığı" verir; VAD bunu enerjiye ek olarak kullanır.
+//! Removes steady noise such as fans, hum and room tone; widens the gap between speech and
+//! noise on mics far from the mouth, like webcam or laptop mics. As a by-product it gives a
+//! "speech probability" per frame; the VAD uses it in addition to energy.
 //!
-//! RNNoise 10 ms (480 örnek) çalışır; 20 ms'lik çerçeve iki yarıda işlenir. Girdi `i16`
-//! aralığında beklenir (±32768), bu yüzden ölçeklenir. Ses iş parçacığında çalışır
-//! (gerçek zamanlı geri çağrıda değil); tahsis yalnızca kurulumda.
+//! RNNoise works on 10 ms (480 samples); a 20 ms frame is processed in two halves. Input is
+//! expected in `i16` range (±32768), hence the scaling. Runs on the audio thread
+//! (not in the real-time callback); allocation only at setup.
 
 use crate::codec::FRAME;
 use nnnoiseless::DenoiseState;
@@ -36,8 +36,8 @@ impl Denoiser {
         }
     }
 
-    /// 960 örneklik çerçeveyi yerinde temizler; iki yarının en yüksek konuşma olasılığını
-    /// (0.0–1.0) döner. Çıktı RNNoise'in pencere örtüşmesi kadar (~10 ms) gecikmelidir.
+    /// Cleans a 960-sample frame in place; returns the higher speech probability of the
+    /// two halves (0.0–1.0). Output is delayed by RNNoise's window overlap (~10 ms).
     pub fn process(&mut self, frame: &mut [f32]) -> f32 {
         let mut prob = 0f32;
         for half in frame.chunks_exact_mut(HALF) {
@@ -67,8 +67,8 @@ mod tests {
 
     #[test]
     fn suppresses_steady_noise() {
-        // ~−42 dBFS alçak geçirgen (pembemsi) gürültü: Bera'nın kamera mikrofonu tabanı, 2 sn.
-        // Oda/fan gürültüsü düşük frekanslıdır; yüksek seviyeli beyaz gürültüyü RNNoise az bastırır.
+        // ~−42 dBFS low-passed (pinkish) noise: Bera's webcam mic noise floor, 2 s.
+        // Room/fan noise is low-frequency; RNNoise suppresses loud white noise only slightly.
         let mut x: u64 = 99;
         let mut lp = 0f32;
         let amp = 6.0 * 10f32.powf(-42.0 / 20.0) * 3f32.sqrt();
@@ -90,7 +90,7 @@ mod tests {
             let p = d.process(&mut f);
             assert!(f.iter().all(|s| s.is_finite()));
             if i >= 25 {
-                // ilk 0.5 sn uyum süresi
+                // first 0.5 s is adaptation time
                 before.push(raw);
                 after.push(rms(&f));
                 max_prob = max_prob.max(p);
@@ -98,8 +98,8 @@ mod tests {
         }
         let b = db(before.iter().sum::<f32>() / before.len() as f32);
         let a = db(after.iter().sum::<f32>() / after.len() as f32);
-        assert!(b > -46.0 && b < -38.0, "test gürültüsü {b:.1} dB");
-        assert!(a < b - 30.0, "gürültü {b:.1} dB → {a:.1} dB");
-        assert!(max_prob < 0.5, "gürültüde konuşma olasılığı {max_prob}");
+        assert!(b > -46.0 && b < -38.0, "test noise {b:.1} dB");
+        assert!(a < b - 30.0, "noise {b:.1} dB → {a:.1} dB");
+        assert!(max_prob < 0.5, "speech probability on noise {max_prob}");
     }
 }

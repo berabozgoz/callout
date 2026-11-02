@@ -1,13 +1,13 @@
-//! Ses hattı: cihaz keşfi, yakalama/oynatma ve (ileride) Opus + karıştırıcı.
+//! Audio pipeline: device discovery, capture/playback and (later) Opus + mixer.
 //!
-//! # Gerçek zamanlı kural
-//! `cpal` geri çağrıları ses sürücüsünün iş parçacığında çalışır. Orada
-//! **yalnızca** halka tampona kopyalama yapılır: bellek ayırma, kilit, I/O,
-//! günlükleme ve kodlama yasaktır. Bu kural ihlal edilirse çıtırtı kaçınılmazdır.
+//! # Real-time rule
+//! `cpal` callbacks run on the audio driver's thread. They do **only** a copy
+//! into the ring buffer: memory allocation, locks, I/O, logging and encoding
+//! are forbidden. Break this rule and crackling is inevitable.
 //!
-//! Modüller: [`codec`] (Opus), [`resample`] (cihaz hızı ↔ 48 kHz), [`framer`] (20 ms çerçeve),
-//! [`vad`] (konuşma algılama), [`jitter`] (gönderen başına jitter tamponu), [`mixer`] (karıştırıcı).
-//! Loopback örneği: `cargo run -p callout-audio --example loopback`.
+//! Modules: [`codec`] (Opus), [`resample`] (device rate ↔ 48 kHz), [`framer`] (20 ms frames),
+//! [`vad`] (voice activity detection), [`jitter`] (per-sender jitter buffer), [`mixer`] (mixer).
+//! Loopback example: `cargo run -p callout-audio --example loopback`.
 
 #![forbid(unsafe_code)]
 
@@ -23,17 +23,17 @@ use cpal::traits::{DeviceTrait, HostTrait};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AudioError {
-    #[error("ses cihazı bulunamadı")]
+    #[error("audio device not found")]
     NoDevice,
-    #[error("cihazlar listelenemedi: {0}")]
+    #[error("could not list devices: {0}")]
     Devices(#[from] cpal::DevicesError),
-    #[error("cihaz adı okunamadı: {0}")]
+    #[error("could not read device name: {0}")]
     DeviceName(#[from] cpal::DeviceNameError),
-    #[error("varsayılan yapılandırma alınamadı: {0}")]
+    #[error("could not get default config: {0}")]
     DefaultConfig(#[from] cpal::DefaultStreamConfigError),
-    #[error("akış kurulamadı: {0}")]
+    #[error("could not build stream: {0}")]
     BuildStream(#[from] cpal::BuildStreamError),
-    #[error("akış başlatılamadı: {0}")]
+    #[error("could not start stream: {0}")]
     PlayStream(#[from] cpal::PlayStreamError),
 }
 
@@ -43,10 +43,10 @@ pub enum Direction {
     Output,
 }
 
-/// Arayüze gösterilecek cihaz bilgisi.
+/// Device info shown in the UI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceInfo {
-    /// Sürücünün verdiği ad; aynı zamanda seçim anahtarı olarak kullanılır.
+    /// Name reported by the driver; also used as the selection key.
     pub name: String,
     pub direction: Direction,
     pub is_default: bool,
@@ -54,7 +54,7 @@ pub struct DeviceInfo {
     pub channels: u16,
 }
 
-/// Varsayılan ana bilgisayardaki (Windows'ta WASAPI) tüm giriş ve çıkış cihazlarını listeler.
+/// Lists all input and output devices on the default host (WASAPI on Windows).
 pub fn list_devices() -> Result<Vec<DeviceInfo>, AudioError> {
     let host = cpal::default_host();
     let default_in = host.default_input_device().and_then(|d| d.name().ok());
@@ -88,7 +88,7 @@ pub fn list_devices() -> Result<Vec<DeviceInfo>, AudioError> {
     Ok(out)
 }
 
-/// Ada göre cihaz bulur; `None` verilirse yönün varsayılan cihazı döner.
+/// Finds a device by name; with `None`, returns the default device for the direction.
 pub fn find_device(direction: Direction, name: Option<&str>) -> Result<cpal::Device, AudioError> {
     let host = cpal::default_host();
     let found = match (direction, name) {

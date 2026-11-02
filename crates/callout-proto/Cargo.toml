@@ -1,6 +1,6 @@
 [package]
 name = "callout-proto"
-description = "CallOut istemci-sunucu protokol tipleri (kontrol mesajları ve ses paketi başlığı)"
+description = "CallOut client-server protocol types (control messages and audio packet header)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

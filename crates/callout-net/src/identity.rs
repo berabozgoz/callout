@@ -1,15 +1,15 @@
-//! İstemci kimliği: Ed25519 cihaz anahtarı. Parola yoktur; anahtar + takma ad = kullanıcı.
+//! Client identity: Ed25519 device key. There is no password; key + nickname = user.
 
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use std::path::Path;
 
 #[derive(Debug, thiserror::Error)]
 pub enum IdentityError {
-    #[error("anahtar dosyası: {0}")]
+    #[error("key file: {0}")]
     Io(#[from] std::io::Error),
-    #[error("anahtar dosyası bozuk")]
+    #[error("key file is corrupt")]
     Corrupt,
-    #[error("imza geçersiz")]
+    #[error("invalid signature")]
     BadSignature,
 }
 
@@ -24,7 +24,7 @@ impl DeviceKey {
         }
     }
 
-    /// `path` varsa yükler, yoksa üretip kaydeder (32 bayt ham gizli anahtar).
+    /// Loads `path` if present, otherwise generates and saves it (32-byte raw secret key).
     pub fn load_or_generate(path: &Path) -> Result<Self, IdentityError> {
         if path.exists() {
             let bytes = std::fs::read(path)?;
@@ -50,7 +50,7 @@ impl DeviceKey {
     }
 }
 
-/// Sunucu tarafı: `challenge` üzerindeki imzayı `pubkey` ile doğrular.
+/// Server side: verifies the signature over `challenge` with `pubkey`.
 pub fn verify(
     pubkey: &callout_proto::PublicKey,
     challenge: &[u8],

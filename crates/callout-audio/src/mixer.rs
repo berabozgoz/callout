@@ -1,4 +1,4 @@
-//! Karıştırıcı: kullanıcı başına kazanç, toplama ve yumuşak sınırlayıcı.
+//! Mixer: per-user gain, summing and a soft limiter.
 
 use crate::codec::FRAME;
 use std::collections::HashMap;
@@ -26,7 +26,7 @@ impl Mixer {
         }
     }
 
-    /// Kullanıcı kazancı (1.0 = değişmez, 0.0 = sessiz, 2.0 = +6 dB).
+    /// User gain (1.0 = unchanged, 0.0 = silent, 2.0 = +6 dB).
     pub fn set_gain(&mut self, user_id: u32, gain: f32) {
         self.gains.insert(user_id, gain.clamp(0.0, 4.0));
     }
@@ -39,13 +39,13 @@ impl Mixer {
         self.master = gain.clamp(0.0, 2.0);
     }
 
-    /// Yeni çerçeveye başla.
+    /// Start a new frame.
     pub fn begin(&mut self) {
         self.acc.fill(0.0);
         self.sources = 0;
     }
 
-    /// Bir kullanıcının çözülmüş 960 örneğini ekle.
+    /// Add a user's 960 decoded samples.
     pub fn add(&mut self, user_id: u32, frame: &[f32]) {
         let g = self.gain(user_id) * self.master;
         if g == 0.0 {
@@ -57,7 +57,7 @@ impl Mixer {
         self.sources += 1;
     }
 
-    /// Karışımı `out`'a yazar (sınırlayıcı uygulanmış). Kaynak yoksa sessizlik.
+    /// Writes the mix to `out` (limiter applied). Silence if there are no sources.
     pub fn finish(&self, out: &mut [f32]) {
         for (o, &a) in out.iter_mut().zip(self.acc.iter()) {
             *o = soft_limit(a);
@@ -69,7 +69,7 @@ impl Mixer {
     }
 }
 
-/// |x| ≤ 0.9 doğrusal, üstü tanh ile 1.0'a yaklaşır; klipleme yerine yumuşak ezme.
+/// Linear for |x| ≤ 0.9, above that approaches 1.0 via tanh; soft compression instead of clipping.
 #[inline]
 pub fn soft_limit(x: f32) -> f32 {
     const KNEE: f32 = 0.9;
@@ -92,7 +92,7 @@ mod tests {
         let b = vec![0.8f32; FRAME];
         m.begin();
         m.add(1, &a);
-        m.add(2, &b); // 0.6 + 0.4 = 1.0 → sınırlayıcı < 1.0
+        m.add(2, &b); // 0.6 + 0.4 = 1.0 → limiter < 1.0
         let mut out = vec![0f32; FRAME];
         m.finish(&mut out);
         assert!(out[0] > 0.9 && out[0] < 1.0, "{}", out[0]);

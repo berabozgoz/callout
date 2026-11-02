@@ -1,16 +1,16 @@
-//! Kayıplı ağ simülasyonu: kodlayıcı → kayıp → çözücü (FEC/PLC).
+//! Lossy network simulation: encoder → loss → decoder (FEC/PLC).
 //!
-//! Kayıpsız çözülmüş çıktıyı referans alıp, kayıp çerçevelerde FEC + PLC ile
-//! yalnız PLC'yi karşılaştırır. Sonuçları görmek için:
+//! Using the lossless decoded output as reference, compares FEC + PLC against
+//! PLC alone on the lost frames. To see the results:
 //! `cargo test -p callout-audio --test loss_sim -- --nocapture`
 
 use callout_audio::codec::{Decoder, Encoder, EncoderConfig, FRAME};
 use std::f32::consts::TAU;
 
 const SR: f32 = 48_000.0;
-const FRAMES: usize = 1500; // 30 sn
+const FRAMES: usize = 1500; // 30 s
 
-/// Konuşmaya benzer sinyal: kayan perdeli harmonikler, hece hızında genlik.
+/// Speech-like signal: harmonics with gliding pitch, amplitude at syllable rate.
 fn voice_like(frames: usize) -> Vec<f32> {
     let mut phase = 0f32;
     (0..frames * FRAME)
@@ -28,7 +28,7 @@ fn voice_like(frames: usize) -> Vec<f32> {
         .collect()
 }
 
-/// Belirlenimci kayıp deseni (LCG). `burst`: kayıp başlayınca devam etme olasılığı.
+/// Deterministic loss pattern (LCG). `burst`: probability a loss continues once started.
 fn loss_pattern(frames: usize, start_p: f64, burst: f64, seed: u64) -> Vec<bool> {
     let mut x = seed;
     let mut rnd = || {
@@ -39,7 +39,7 @@ fn loss_pattern(frames: usize, start_p: f64, burst: f64, seed: u64) -> Vec<bool>
     };
     let mut lost = vec![false; frames];
     let mut in_burst = false;
-    // İlk çerçeveler prefill/ısınma; kayıpsız bırak.
+    // The first frames are prefill/warm-up; leave them lossless.
     for l in lost.iter_mut().skip(10) {
         in_burst = if in_burst {
             rnd() < burst
@@ -68,9 +68,9 @@ fn snr_db(reference: &[f32], test: &[f32]) -> f32 {
     (10.0 * (sig / err.max(1e-12)).log10()) as f32
 }
 
-/// Paketleri `lost` desenine göre düşürüp çözer; jitter tamponunun kayıp anındaki
-/// kararını taklit eder (tampon yeterince doluyken: sonraki paket eldeyse FEC, yoksa PLC).
-/// `use_fec` kapalıysa kayıp çerçeveler yalnız PLC ile doldurulur.
+/// Drops packets per the `lost` pattern and decodes; mimics the jitter buffer's decision
+/// on loss (with the buffer full enough: FEC if the next packet is at hand, else PLC).
+/// With `use_fec` off, lost frames are filled with PLC only.
 fn play(packets: &[Vec<u8>], lost: &[bool], use_fec: bool) -> (Vec<Vec<f32>>, u32) {
     let mut dec = Decoder::new().unwrap();
     let mut out = Vec::with_capacity(packets.len());
@@ -104,8 +104,8 @@ fn run(cfg: EncoderConfig, start_p: f64, burst: f64) -> Result {
     let (with_fec, fec_recovered) = play(&packets, &lost, true);
     let (plc_only, _) = play(&packets, &lost, false);
 
-    // Yalnız kayıp çerçeveler (FEC'in kurtarmaya çalıştığı yerler) + sonraki çerçeve
-    // (PLC'den sonra çözücü durumu toparlanırken bozulma sürer).
+    // Only lost frames (where FEC tries to recover) + the following frame
+    // (distortion persists while the decoder state recovers after PLC).
     let mut r = Vec::new();
     let mut f = Vec::new();
     let mut p = Vec::new();
@@ -127,19 +127,19 @@ fn run(cfg: EncoderConfig, start_p: f64, burst: f64) -> Result {
 #[test]
 fn fec_beats_plc_on_random_loss() {
     for (name, start_p, burst) in [
-        ("%5 tekil", 0.05, 0.0),
-        ("%10 tekil", 0.10, 0.0),
-        ("%8 patlama", 0.04, 0.5),
+        ("5% single", 0.05, 0.0),
+        ("10% single", 0.10, 0.0),
+        ("8% burst", 0.04, 0.5),
     ] {
         let r = run(EncoderConfig::default(), start_p, burst);
         println!(
-            "{name}: kayıp %{:.1}, FEC kurtarılan {}, kayıp çerçevelerde SNR: FEC+PLC {:.1} dB, yalnız PLC {:.1} dB",
+            "{name}: loss {:.1}%, FEC recovered {}, SNR on lost frames: FEC+PLC {:.1} dB, PLC only {:.1} dB",
             r.loss_pct, r.fec_recovered, r.snr_lost_fec, r.snr_lost_plc
         );
         if burst == 0.0 {
             assert!(
                 r.snr_lost_fec > r.snr_lost_plc + 3.0,
-                "{name}: FEC belirgin fayda sağlamadı ({:.1} vs {:.1} dB)",
+                "{name}: FEC gave no clear benefit ({:.1} vs {:.1} dB)",
                 r.snr_lost_fec,
                 r.snr_lost_plc
             );
@@ -149,7 +149,7 @@ fn fec_beats_plc_on_random_loss() {
 
 #[test]
 fn fec_disabled_gives_no_gain() {
-    // Kontrol: kodlayıcıda FEC kapalıyken decode_fec, PLC'den iyi olmamalı.
+    // Control: with FEC off in the encoder, decode_fec must not beat PLC.
     let cfg = EncoderConfig {
         fec: false,
         expected_loss_pct: 0,
@@ -157,14 +157,14 @@ fn fec_disabled_gives_no_gain() {
     };
     let r = run(cfg, 0.10, 0.0);
     println!(
-        "FEC kapalı: kayıp %{:.1}, SNR FEC yolu {:.1} dB, PLC {:.1} dB",
+        "FEC off: loss {:.1}%, SNR FEC path {:.1} dB, PLC {:.1} dB",
         r.loss_pct, r.snr_lost_fec, r.snr_lost_plc
     );
     assert!(r.snr_lost_fec < r.snr_lost_plc + 3.0);
 }
 
 #[test]
-#[ignore = "deney: kayıp varsayımı taraması"]
+#[ignore = "experiment: expected-loss sweep"]
 fn sweep_expected_loss() {
     for pct in [5, 10, 20, 30] {
         let cfg = EncoderConfig {
@@ -180,7 +180,7 @@ fn sweep_expected_loss() {
         let single = run(cfg, 0.10, 0.0);
         let burst = run(cfg, 0.04, 0.5);
         println!(
-            "varsayım %{pct}: ort. paket {} bayt, tekil SNR {:.1}/{:.1} dB, patlama SNR {:.1}/{:.1} dB",
+            "assumed {pct}%: avg packet {} bytes, single SNR {:.1}/{:.1} dB, burst SNR {:.1}/{:.1} dB",
             bytes / FRAMES,
             single.snr_lost_fec,
             single.snr_lost_plc,

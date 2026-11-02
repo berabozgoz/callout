@@ -1,6 +1,6 @@
 [package]
 name = "callout-core"
-description = "İstemci durum makinesi: oturum, oda, üyeler; audio ile net'i bağlar"
+description = "Client state machine: session, room, members; ties audio and net together"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

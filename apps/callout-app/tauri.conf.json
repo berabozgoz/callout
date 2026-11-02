@@ -47,7 +47,7 @@
         "silent": true
       }
     },
-    "shortDescription": "Oyuncular için düşük gecikmeli sesli sohbet",
+    "shortDescription": "Low-latency voice chat for gamers",
     "publisher": "berabozgoz"
   }
 }

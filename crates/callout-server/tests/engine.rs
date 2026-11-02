@@ -1,4 +1,4 @@
-//! Motor (callout-core) ile sunucu: ses cihazı olmadan bağlan, oda aç, ayrıl.
+//! Engine (callout-core) against the server: connect without an audio device, create a room, leave.
 
 use callout_core::{Command, ConnectionState, Engine, EngineConfig, Event};
 use std::io::{BufRead, BufReader};
@@ -8,8 +8,8 @@ use std::time::Duration;
 async fn next(rx: &mut tokio::sync::mpsc::UnboundedReceiver<Event>) -> Event {
     tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
-        .expect("olay gelmedi")
-        .expect("motor kapandı")
+        .expect("no event received")
+        .expect("engine shut down")
 }
 
 #[tokio::test]
@@ -31,7 +31,7 @@ async fn engine_connects_creates_room_and_disconnects() {
                 return line[i..].trim().to_string();
             }
         }
-        panic!("davet linki yok");
+        panic!("no invite link");
     })
     .join()
     .unwrap();
@@ -65,11 +65,11 @@ async fn engine_connects_creates_room_and_disconnects() {
         }
     );
     let Event::Connected { user_id } = next(&mut rx).await else {
-        panic!("Connected bekleniyordu")
+        panic!("expected Connected")
     };
 
     engine.send(Command::CreateRoom {
-        name: "takım".into(),
+        name: "team".into(),
     });
     let code = loop {
         match next(&mut rx).await {
@@ -82,12 +82,12 @@ async fn engine_connects_creates_room_and_disconnects() {
                 break r.code;
             }
             Event::Stats { .. } => continue,
-            other => panic!("beklenmeyen: {other:?}"),
+            other => panic!("unexpected: {other:?}"),
         }
     };
     assert_eq!(code.len(), 8);
 
-    // Ayrılınca arayüze "odada değilsin" gelmeli (sunucu onay yollamaz, motor temizler).
+    // After leaving, the UI should get "not in a room" (the server sends no ack; the engine clears it).
     engine.send(Command::LeaveRoom);
     let mut left = false;
     for _ in 0..6 {
@@ -103,9 +103,9 @@ async fn engine_connects_creates_room_and_disconnects() {
             _ => continue,
         }
     }
-    assert!(left, "RoomUpdated{{room: None}} gelmedi");
+    assert!(left, "RoomUpdated{{room: None}} not received");
 
-    // Sunucuda bilinmeyen kod → Error olayı.
+    // Code unknown to the server → Error event.
     engine.send(Command::JoinRoom {
         code: "ZZZZZZZZ".into(),
     });
@@ -119,7 +119,7 @@ async fn engine_connects_creates_room_and_disconnects() {
             _ => continue,
         }
     }
-    assert!(saw_error, "RoomNotFound gelmedi");
+    assert!(saw_error, "RoomNotFound not received");
 
     engine.send(Command::Disconnect);
     let mut disconnected = false;

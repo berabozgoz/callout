@@ -1,11 +1,11 @@
-//! Oda durumu ve SFU iletimi.
+//! Room state and SFU forwarding.
 //!
-//! [`Registry`] oda kodundan odaya gider; oda boşalınca kayıttan silinir.
-//! Kodlar 8 karakterdir ve karışıklık yaratan harfler (I, O, 0, 1) kullanılmaz.
+//! [`Registry`] maps a room code to its room; a room is removed once it becomes empty.
+//! Codes are 8 characters long and avoid confusable characters (I, O, 0, 1).
 //!
-//! İletim kuralı: gelen datagram `stamp_sender` ile damgalanır ve gönderen
-//! dışındaki, sağırlaştırılmamış üyelere kopyalanır. Susturulmuş üyenin paketi
-//! hiç iletilmez (istemci zaten göndermez; bu sunucu tarafı emniyet).
+//! Forwarding rule: an incoming datagram is stamped with `stamp_sender` and copied
+//! to every non-deafened member except the sender. A muted member's packets are
+//! never forwarded (the client does not send them anyway; this is a server-side safeguard).
 
 use bytes::{Bytes, BytesMut};
 use callout_proto::{
@@ -16,10 +16,10 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-/// Son ses paketinden bu kadar süre sonra "konuşmuyor" sayılır.
+/// A member counts as "not speaking" this long after their last audio packet.
 pub const SPEAKING_TIMEOUT: Duration = Duration::from_millis(300);
 
-/// Bir üyenin bağlantı görevine giden kontrol mesajı kuyruğu.
+/// Queue of control messages to a member's connection task.
 pub type ControlTx = mpsc::UnboundedSender<ServerMsg>;
 
 struct Peer {
@@ -38,10 +38,10 @@ pub struct Room {
 #[derive(Clone)]
 pub struct SharedRoom(Arc<Mutex<Room>>);
 
-/// Oda kodu alfabesi: I, O, 0, 1 yok.
+/// Room code alphabet: no I, O, 0, 1.
 const CODE_ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-/// Rastgele oda kodu üretir (ör. `K7Q2MX9P`).
+/// Generates a random room code (e.g. `K7Q2MX9P`).
 pub fn generate_code() -> String {
     use rand::Rng;
     let mut rng = rand::thread_rng();
@@ -50,7 +50,7 @@ pub fn generate_code() -> String {
         .collect()
 }
 
-/// Kullanıcının yazdığı kodu normalize eder: büyük harf, tire/boşluk atılır.
+/// Normalizes a user-typed code: uppercased, dashes/spaces stripped.
 pub fn normalize_code(input: &str) -> String {
     input
         .chars()
@@ -59,7 +59,7 @@ pub fn normalize_code(input: &str) -> String {
         .collect()
 }
 
-/// Kod → oda kaydı.
+/// Code → room registry.
 #[derive(Clone, Default)]
 pub struct Registry(Arc<Mutex<HashMap<String, SharedRoom>>>);
 
@@ -68,7 +68,7 @@ impl Registry {
         Self::default()
     }
 
-    /// Yeni oda açar ve kaydeder; benzersiz kod garanti edilir.
+    /// Creates and registers a new room; the code is guaranteed unique.
     pub fn create(&self, name: String, owner: UserId) -> SharedRoom {
         let mut map = self.0.lock().unwrap();
         let code = loop {
@@ -90,13 +90,13 @@ impl Registry {
         self.0.lock().unwrap().get(&normalize_code(code)).cloned()
     }
 
-    /// Oda boşsa kayıttan siler.
+    /// Removes the room from the registry if it is empty.
     pub fn remove_if_empty(&self, room: &SharedRoom) {
         let code = room.code();
         let mut map = self.0.lock().unwrap();
         if room.len() == 0 {
             map.remove(&code);
-            tracing::info!(code, "oda kapandı");
+            tracing::info!(code, "room closed");
         }
     }
 
@@ -105,7 +105,7 @@ impl Registry {
         self.0.lock().unwrap().len()
     }
 
-    /// Tüm odalarda süresi dolan konuşmacıları kapatır.
+    /// Clears timed-out speakers in all rooms.
     pub fn tick_speaking(&self) {
         let rooms: Vec<SharedRoom> = self.0.lock().unwrap().values().cloned().collect();
         for r in rooms {
@@ -126,8 +126,8 @@ impl SharedRoom {
         self.0.lock().unwrap().info.code.clone()
     }
 
-    /// Üye ekler; dolu ise `None`. Mevcut üyelere `MemberJoined` yayınlar,
-    /// yeni üyeye `RoomState` gönderir.
+    /// Adds a member; `None` if the room is full. Broadcasts `MemberJoined` to existing
+    /// members and sends `RoomState` to the new member.
     pub fn join(&self, member: Member, control: ControlTx, conn: quinn::Connection) -> Option<()> {
         let mut room = self.0.lock().unwrap();
         if room.peers.len() >= MAX_ROOM_MEMBERS {
@@ -194,7 +194,7 @@ impl SharedRoom {
         self.0.lock().unwrap().peers.len()
     }
 
-    /// Periyodik (100 ms): süresi dolan konuşmacılar için `Speaking{false}` yayınlar.
+    /// Periodic (100 ms): broadcasts `Speaking{false}` for timed-out speakers.
     pub fn tick_speaking(&self) {
         let mut room = self.0.lock().unwrap();
         let now = Instant::now();
@@ -218,11 +218,11 @@ impl SharedRoom {
         }
     }
 
-    /// SFU: `from`'dan gelen ham datagramı damgalayıp diğerlerine iletir.
-    /// Kilit yalnızca alıcı listesini kopyalarken tutulur; gönderim kilitsiz.
+    /// SFU: stamps the raw datagram from `from` and forwards it to the others.
+    /// The lock is held only while copying the recipient list; sending is lock-free.
     pub fn forward_audio(&self, from: UserId, mut packet: BytesMut) {
         if AudioPacket::parse(&packet).is_err() {
-            return; // bozuk paket; sessizce düşür
+            return; // malformed packet; drop silently
         }
         AudioPacket::stamp_sender(&mut packet, from);
         let packet: Bytes = packet.freeze();
@@ -253,7 +253,7 @@ impl SharedRoom {
                 .collect()
         };
         for conn in targets {
-            // Datagram gönderimi tıkanmaz; tampon doluysa paket düşer (ses için doğru davranış).
+            // Sending a datagram never blocks; if the buffer is full the packet is dropped (the right behavior for audio).
             let _ = conn.send_datagram(packet.clone());
         }
     }

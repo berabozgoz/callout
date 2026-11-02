@@ -1,6 +1,6 @@
 [package]
 name = "callout-app"
-description = "CallOut masaüstü uygulaması (Tauri 2 kabuğu)"
+description = "CallOut desktop app (Tauri 2 shell)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

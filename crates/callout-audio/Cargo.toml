@@ -1,6 +1,6 @@
 [package]
 name = "callout-audio"
-description = "Ses yakalama/oynatma, kodlama ve karıştırma hattı"
+description = "Audio capture/playback, encoding and mixing pipeline"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

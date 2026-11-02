@@ -1,5 +1,5 @@
-//! Kontrol akışı: çift yönlü QUIC akışı üzerinde uzunluk önekli `postcard` mesajları.
-//! İstemci `ControlStream<ClientMsg, ServerMsg>`, sunucu `ControlStream<ServerMsg, ClientMsg>` kullanır.
+//! Control stream: length-prefixed `postcard` messages over a bidirectional QUIC stream.
+//! The client uses `ControlStream<ClientMsg, ServerMsg>`, the server `ControlStream<ServerMsg, ClientMsg>`.
 
 use crate::{frame_control, unframe_control, NetError, MAX_CONTROL_FRAME};
 use serde::{de::DeserializeOwned, Serialize};
@@ -9,11 +9,11 @@ use std::marker::PhantomData;
 pub enum ControlError {
     #[error(transparent)]
     Net(#[from] NetError),
-    #[error("akış yazma: {0}")]
+    #[error("stream write: {0}")]
     Write(#[from] quinn::WriteError),
-    #[error("akış okuma: {0}")]
+    #[error("stream read: {0}")]
     Read(#[from] quinn::ReadError),
-    #[error("karşı taraf kontrol akışını kapattı")]
+    #[error("peer closed the control stream")]
     Closed,
 }
 
@@ -43,7 +43,7 @@ impl<Tx: Serialize, Rx: DeserializeOwned> ControlStream<Tx, Rx> {
         Ok(())
     }
 
-    /// Bir sonraki tam mesajı bekler.
+    /// Waits for the next complete message.
     pub async fn recv(&mut self) -> Result<Rx, ControlError> {
         loop {
             match unframe_control::<Rx>(&self.inbuf) {
@@ -67,7 +67,7 @@ impl<Tx: Serialize, Rx: DeserializeOwned> ControlStream<Tx, Rx> {
         }
     }
 
-    /// Akışı düzgünce kapatır (FIN gönderir).
+    /// Closes the stream cleanly (sends FIN).
     pub async fn finish(&mut self) -> Result<(), ControlError> {
         self.send.finish().map_err(|_| ControlError::Closed)?;
         Ok(())

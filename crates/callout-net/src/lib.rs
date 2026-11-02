@@ -1,12 +1,12 @@
-//! QUIC taşıma katmanı (quinn).
+//! QUIC transport layer (quinn).
 //!
-//! Tek bağlantı, iki yol:
-//! - kontrol: çift yönlü bir QUIC akışı, uzunluk önekli `postcard` mesajları
+//! One connection, two paths:
+//! - control: a bidirectional QUIC stream of length-prefixed `postcard` messages
 //!   ([`callout_proto::ClientMsg`] / [`callout_proto::ServerMsg`]);
-//! - ses: QUIC datagramları ([`callout_proto::AudioPacket`]).
+//! - audio: QUIC datagrams ([`callout_proto::AudioPacket`]).
 //!
-//! Modüller: [`cert`] (sertifika, parmak izi, davet linki, TOFU), [`identity`] (Ed25519
-//! cihaz anahtarı), [`control`] (kontrol akışı), [`client`] (bağlantı + el sıkışma).
+//! Modules: [`cert`] (certificate, fingerprint, invite link, TOFU), [`identity`] (Ed25519
+//! device key), [`control`] (control stream), [`client`] (connection + handshake).
 
 #![forbid(unsafe_code)]
 
@@ -19,33 +19,33 @@ use callout_proto::ProtoError;
 use serde::{de::DeserializeOwned, Serialize};
 use std::time::Duration;
 
-/// QUIC ALPN kimliği; sunucu ve istemci aynı değeri sunmalıdır.
+/// QUIC ALPN identifier; server and client must offer the same value.
 pub const ALPN: &[u8] = b"callout/1";
 
-/// Varsayılan sunucu portu (UDP).
+/// Default server port (UDP).
 pub const DEFAULT_PORT: u16 = 4433;
 
-/// Kontrol akışında tek mesaj için üst sınır (DoS koruması).
+/// Upper limit for a single message on the control stream (DoS protection).
 pub const MAX_CONTROL_FRAME: usize = 64 * 1024;
 
 #[derive(Debug, thiserror::Error)]
 pub enum NetError {
     #[error(transparent)]
     Proto(#[from] ProtoError),
-    #[error("kontrol çerçevesi çok büyük: {0} bayt")]
+    #[error("control frame too large: {0} bytes")]
     FrameTooLarge(usize),
-    #[error("eksik veri: {0} bayt daha gerekli")]
+    #[error("incomplete data: {0} more bytes needed")]
     Incomplete(usize),
 }
 
-/// İstemci ve sunucunun ortak QUIC taşıma ayarları.
+/// QUIC transport settings shared by client and server.
 pub fn transport_config() -> quinn::TransportConfig {
     let mut t = quinn::TransportConfig::default();
     t.max_idle_timeout(Some(
         Duration::from_secs(10).try_into().expect("idle timeout"),
     ));
     t.keep_alive_interval(Some(Duration::from_secs(3)));
-    // Ses datagramları için tampon: ~1 s @ 16 kişi × 130 bayt × 50/s.
+    // Buffer for audio datagrams: ~1 s @ 16 people × 130 bytes × 50/s.
     t.datagram_receive_buffer_size(Some(128 * 1024));
     t.datagram_send_buffer_size(128 * 1024);
     t.max_concurrent_bidi_streams(4u8.into());
@@ -53,7 +53,7 @@ pub fn transport_config() -> quinn::TransportConfig {
     t
 }
 
-/// `msg`'yi `[u32 LE uzunluk][postcard gövde]` olarak `out`'a ekler.
+/// Appends `msg` to `out` as `[u32 LE length][postcard body]`.
 pub fn frame_control<T: Serialize>(msg: &T, out: &mut Vec<u8>) -> Result<(), NetError> {
     let body = callout_proto::encode(msg)?;
     if body.len() > MAX_CONTROL_FRAME {
@@ -64,8 +64,8 @@ pub fn frame_control<T: Serialize>(msg: &T, out: &mut Vec<u8>) -> Result<(), Net
     Ok(())
 }
 
-/// `buf`'ın başındaki tam bir çerçeveyi çözer; tüketilen bayt sayısını döner.
-/// Çerçeve henüz tam değilse [`NetError::Incomplete`] döner ve `buf` değişmez.
+/// Decodes one complete frame at the start of `buf`; returns the number of bytes consumed.
+/// If the frame is not complete yet, returns [`NetError::Incomplete`] and `buf` is unchanged.
 pub fn unframe_control<T: DeserializeOwned>(buf: &[u8]) -> Result<(T, usize), NetError> {
     if buf.len() < 4 {
         return Err(NetError::Incomplete(4 - buf.len()));
