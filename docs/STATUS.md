@@ -48,13 +48,19 @@
       (an artificial case). Why: on Bera's Logitech C310 webcam mic the floor was −42 and
       speech peaks ~−32 dBFS (SNR ~10 dB); in the mic test 15% of the recording got through. In the field: floor
       −42 → −79 dBFS, sent share in the mic test 16% → 57%, voice "very clean and intelligible".
-   2. **Adaptive jitter (moved up, 3 Nov):** cocart on Wi-Fi sat at RTT + buffer ≈ 208 ms because the buffer
-      grows on every late burst and only shrinks after 30 s without any late packet. Target a late-packet rate
-      (≤1–2%), shrink faster, accept occasional PLC. Validate with the jitter part of the simulation (item 6).
+   2. **Adaptive jitter done (3 Nov, not released or field-tested yet):** the target now follows the measured
+      delay spread (`DelayEstimator` in `jitter.rs`: arrival time − sender timestamp, 95th percentile above the
+      minimum over ~20 s; pre-roll bursts and sender clock restarts are ignored) instead of the late/underflow
+      counter, which grew on every burst and only shrank after 30 quiet seconds. Second finding from the
+      simulation: after a network stall >60 ms the buffer went idle and re-prefilled from the stale clump, so
+      the rest of the talk spurt played 100–250 ms late (matches cocart's 140–240 ms); a resync now trims the
+      backlog to the target. `tests/jitter_sim.rs` (old → new avg buffering): wired 38 → 37 ms, Wi-Fi 120 → 84 ms,
+      Wi-Fi with stalls 127 → 99 ms, for ~1.5% concealed (late) frames. Field check: cocart's `stats` jitter_ms.
    3. AGC: target −20 dBFS, gentle gain.
    4. Automatic reconnect (exponential backoff, rejoin the same room).
    5. Fallback for UDP-blocked networks: a mode that carries audio packets over a reliable QUIC stream.
-   6. Lossy network simulation test (5% loss, 100 ms jitter) — headless. The loss part is in
+   6. Lossy network simulation test (5% loss, 100 ms jitter) — headless. Jitter part done
+      (`tests/jitter_sim.rs`). The loss part is in
       `callout-audio/tests/loss_sim.rs`; the jitter (delay variation) part remains.
    7. UI polish: VAD threshold margin setting, warning when the connection drops. **Mic test done (2 Nov,
       v0.1.8, tried in the app):** a "Mic test" section in settings — 5 s recording, played back the way
@@ -124,6 +130,8 @@
 - 3 Nov: analysed cocart's log from the 1 Nov four-person test (`GATE_TEST.md`): on Wi-Fi, RTT + buffer
   ≈ 208 ms at cocart (above 150 ms), caused by downlink delay variation (late packets from every sender, ~5/min),
   not loss. Adaptive jitter (target a late-packet rate, shrink faster) moves up in the Phase 2 queue.
+- 3 Nov (adaptive jitter): delay-spread estimator + stall resync, measured with a new jitter simulation
+  (wired / Wi-Fi / Wi-Fi with stalls). fmt/clippy (incl. app)/test clean; not tried in the app, not released.
 
 ## Previous session
 

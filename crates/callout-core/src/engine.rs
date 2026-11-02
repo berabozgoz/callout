@@ -313,6 +313,7 @@ fn audio_thread(
     let mut calib: Vec<f32> = Vec::with_capacity(75);
     let mut enc = Encoder::new(EncoderConfig::default()).expect("opus encoder");
     let mut receivers: HashMap<UserId, Receiver> = HashMap::new();
+    let started = Instant::now();
     let mut mixer = Mixer::new();
 
     let mut chunk = Vec::with_capacity(1024);
@@ -515,9 +516,18 @@ fn audio_thread(
                 jitter: JitterBuffer::new(JITTER_TARGET),
                 last_packet: Instant::now(),
             });
-            r.jitter
-                .push(p.seq, p.flags & flags::TALK_START != 0, p.opus);
-            r.last_packet = Instant::now();
+            // Arrival time feeds the per-sender delay estimate (target depth). It is taken here,
+            // not at the socket: the loop's few-ms latency is small against 20 ms frames.
+            let now = Instant::now();
+            let arrival_ms = now.duration_since(started).as_secs_f64() * 1000.0;
+            r.jitter.push_timed(
+                p.seq,
+                p.timestamp,
+                p.flags & flags::TALK_START != 0,
+                p.opus,
+                arrival_ms,
+            );
+            r.last_packet = now;
         }
 
         // 3) Mix
