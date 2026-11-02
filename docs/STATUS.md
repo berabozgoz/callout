@@ -10,7 +10,7 @@
 - **Server is on the internet:** Oracle Always Free (Frankfurt, VM.Standard.E2.1.Micro, Ubuntu 24.04),
   installed as a systemd service via `deploy/install.sh`. Bera connected from the app: RTT 36 ms.
   Connection details are in `CLAUDE.local.md`.
-- **Release v0.1.9** is on GitHub Releases, and the server runs v0.1.9 (updated 2 Nov; invite link unchanged): NSIS installer (currentUser), portable
+- **Release v0.1.10** is on GitHub Releases (adaptive jitter, casing fix); the server runs v0.1.9 (compatible; invite link unchanged): NSIS installer (currentUser), portable
   `callout-app.exe`, `callout-server.exe`, `callout-server-linux-x64`.
 - **English + i18n (2 Nov, v0.1.9):** code, docs, logs, server output and commits are
   English. The UI is localized in 11 languages (`ui/src/i18n/*.ts`: en source, tr, de, es, fr, pt-BR, ru, ar
@@ -20,7 +20,7 @@
   (`set_tray_labels`); the NSIS installer has the same 11 languages. Server log lines changed to English
   (e.g. `connection stats`, `connection closed`, `joined room`, `left room`) since the server update.
   An empty room name now gets a default in the creator's language. Fixed after v0.1.9 (commit a2b4fa5,
-  goes out with the next release): `index.html` declared `lang="tr"`, so CSS uppercase rendered "SETTİNGS".
+  released in v0.1.10): `index.html` declared `lang="tr"`, so CSS uppercase rendered "SETTİNGS".
 - The home network is behind CGNAT, so hosting the server from home is not possible; Tailscale was not wanted.
 
 ## Next
@@ -48,7 +48,7 @@
       (an artificial case). Why: on Bera's Logitech C310 webcam mic the floor was −42 and
       speech peaks ~−32 dBFS (SNR ~10 dB); in the mic test 15% of the recording got through. In the field: floor
       −42 → −79 dBFS, sent share in the mic test 16% → 57%, voice "very clean and intelligible".
-   2. **Adaptive jitter done (3 Nov, not released or field-tested yet):** the target now follows the measured
+   2. **Adaptive jitter done (3 Nov, v0.1.10, not field-tested yet):** the target now follows the measured
       delay spread (`DelayEstimator` in `jitter.rs`: arrival time − sender timestamp, 95th percentile above the
       minimum over ~20 s; pre-roll bursts and sender clock restarts are ignored) instead of the late/underflow
       counter, which grew on every burst and only shrank after 30 quiet seconds. Second finding from the
@@ -131,7 +131,7 @@
   ≈ 208 ms at cocart (above 150 ms), caused by downlink delay variation (late packets from every sender, ~5/min),
   not loss. Adaptive jitter (target a late-packet rate, shrink faster) moves up in the Phase 2 queue.
 - 3 Nov (adaptive jitter): delay-spread estimator + stall resync, measured with a new jitter simulation
-  (wired / Wi-Fi / Wi-Fi with stalls). fmt/clippy (incl. app)/test clean; not tried in the app, not released.
+  (wired / Wi-Fi / Wi-Fi with stalls). fmt/clippy (incl. app)/test clean; released as v0.1.10, not field-tested yet.
 
 ## Previous session
 
