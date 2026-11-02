@@ -1,0 +1,92 @@
+import type { Messages } from "./en";
+
+export const tr: Messages = {
+  "header.connected": "bağlı · {ms} ms",
+  "header.connecting": "bağlanıyor…",
+  "header.settings": "Ayarlar",
+
+  "settings.title": "Ayarlar",
+  "settings.language": "Dil",
+  "settings.languageAuto": "Sistem dili",
+  "settings.microphone": "Mikrofon",
+  "settings.speaker": "Hoparlör",
+  "settings.default": "Varsayılan",
+  "settings.noiseSuppression": "Gürültü bastırma (fan, uğultu, oda sesi)",
+  "settings.pushToTalk": "Bas-konuş (kapalıysa ses algılama)",
+  "settings.pttKey": "Bas-konuş tuşu",
+  "settings.pttCapturing": "Bir tuşa ya da kombinasyona bas… (Esc iptal)",
+  "settings.pttUnassigned": "Atanmamış — tıkla ve bir tuşa bas",
+  "settings.pttHint":
+    "Kısayol yalnızca bir odadayken etkindir. Düz bir harf (ör. T) seçersen odadayken diğer uygulamalarda o tuşla yazamazsın; F9 ya da Ctrl+Alt gibi birleşimler daha güvenlidir.",
+  "settings.save": "Kaydet",
+  "settings.cancel": "Vazgeç",
+
+  "test.title": "Ses testi",
+  "test.threshold": "Konuşma algılama eşiği",
+  "test.calibrating": "Hazırlanıyor… sessiz kal",
+  "test.recording": "⏺ Konuş… {s} sn",
+  "test.playing": "▶ Kayıt çalınıyor… (durdur)",
+  "test.start": "🎙 Mikrofonu test et",
+  "test.tone": "🔊 Test sesi çal",
+  "test.resultNone":
+    "Kayıtta hiç ses gönderilmedi: mikrofon sesi eşiğin altında kaldı ya da yanlış mikrofon seçili.",
+  "test.result":
+    "Kaydın %{pct}'i ses olarak gönderilecekti; gerisi sessizlik sayıldı. Sözlerinin başı ya da sonu kesik geldiyse sesin eşiğe çok yakın.",
+  "test.hintPtt":
+    "5 sn konuş; kayıt odadakilerin duyacağı haliyle geri çalınır. Bas-konuş açıkken test tuşsuz kaydedilir.",
+  "test.hintVad":
+    "5 sn konuş; kayıt odadakilerin duyacağı haliyle geri çalınır. Çizgi konuşma algılama eşiği: çubuk çizgiyi geçince ses gönderilir (yeşil).",
+
+  "connect.title": "Sunucuya bağlan",
+  "connect.nickname": "Takma ad",
+  "connect.invite": "Davet linki",
+  "connect.invitePlaceholder": "callout://IP:4433#parmak-izi",
+  "connect.button": "Bağlan",
+  "connect.connecting": "Bağlanıyor…",
+  "connect.hint": "Davet linkini sunucuyu çalıştıran arkadaşından al. Sunucu ilk açılışta linki ekrana basar.",
+  "connect.nicknameRequired": "Takma ad gerekli",
+  "connect.inviteInvalid": "Davet linki callout:// ile başlamalı",
+
+  "lobby.create": "Oda aç",
+  "lobby.roomName": "Oda adı (isteğe bağlı)",
+  "lobby.roomNamePlaceholder": "takım",
+  "lobby.createButton": "Oda aç",
+  "lobby.join": "Odaya gir",
+  "lobby.code": "Oda kodu",
+  "lobby.joinButton": "Gir",
+  "lobby.disconnect": "Bağlantıyı kes",
+
+  "room.copyCode": "Kodu kopyala",
+  "room.leave": "Ayrıl",
+  "room.you": "(sen)",
+  "room.volume": "Ses: %{pct}",
+  "room.mute": "Mikrofonu sustur",
+  "room.deafen": "Sesi kapat",
+  "room.stats": "{rtt} ms · tampon {jitter} ms",
+  "room.lost": "kayıp {n}",
+  "room.pttHint": "Bas-konuş: {key} basılıyken gönderilir.",
+  "footer.muted": "sessiz",
+
+  "tray.show": "CallOut'u göster",
+  "tray.quit": "Çık",
+
+  "audio.fallback": "Seçili ses cihazı bulunamadı; varsayılan cihaza geçildi.",
+
+  "error.generic": "{detail}",
+  "error.invalid_invite": "Davet linki geçersiz. Tamamını kopyaladığından emin ol.",
+  "error.device_key": "Bu cihazın kimlik anahtarı oluşturulamadı ({detail}).",
+  "error.connect_failed": "Sunucuya bağlanılamadı. Davet linkini ve sunucunun çalıştığını kontrol et. ({detail})",
+  "error.audio_failed": "Ses cihazları açılamadı ({detail}).",
+  "error.mic_access_denied":
+    "Windows mikrofon erişimini engelliyor. Ayarlar → Gizlilik → Mikrofon'da “Masaüstü uygulamalarının mikrofonunuza erişmesine izin verin” seçeneğini aç, sonra CallOut'u yeniden başlat.",
+  "error.audio_device_lost": "Ses cihazı kayboldu; otomatik yeniden bağlanılıyor…",
+  "error.connection_lost": "Sunucuyla bağlantı koptu ({detail}).",
+  "error.request_failed": "İstek başarısız oldu ({detail}).",
+  "error.version_mismatch": "CallOut sürümü sunucuyla uyumlu değil. CallOut'u ya da sunucuyu güncelle.",
+  "error.room_not_found": "Bu kodla bir oda yok.",
+  "error.room_full": "Oda dolu.",
+  "error.already_in_room": "Önce bulunduğun odadan ayrıl.",
+  "error.not_in_room": "Bir odada değilsin.",
+  "error.rate_limited": "Çok fazla istek; biraz bekleyip tekrar dene.",
+  "error.server_error": "Sunucu hatası ({detail}).",
+};

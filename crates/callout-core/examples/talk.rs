@@ -155,7 +155,7 @@ async fn main() -> Result<()> {
                         tracing::info!(fallback_to_default, "audio pipeline recovered");
                     }
                     Event::MicTest { .. } => {}
-                    Event::Error { message } => {
+                    Event::Error { message, .. } => {
                         tracing::error!(message, "error");
                         if message.contains("RoomNotFound") || message.contains("RoomFull") || message.starts_with("could not connect") || message.starts_with("connection lost") {
                             break;

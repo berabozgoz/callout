@@ -1,6 +1,6 @@
 //! Engine (callout-core) against the server: connect without an audio device, create a room, leave.
 
-use callout_core::{Command, ConnectionState, Engine, EngineConfig, Event};
+use callout_core::{Command, ConnectionState, Engine, EngineConfig, ErrorKind, Event};
 use std::io::{BufRead, BufReader};
 use std::process::{Command as Proc, Stdio};
 use std::time::Duration;
@@ -112,7 +112,10 @@ async fn engine_connects_creates_room_and_disconnects() {
     let mut saw_error = false;
     for _ in 0..6 {
         match next(&mut rx).await {
-            Event::Error { message } if message.contains("RoomNotFound") => {
+            Event::Error {
+                kind: ErrorKind::RoomNotFound,
+                ..
+            } => {
                 saw_error = true;
                 break;
             }

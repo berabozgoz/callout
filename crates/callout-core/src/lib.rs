@@ -121,9 +121,84 @@ pub enum Event {
         state: MicTestState,
         transmitted_pct: Option<u8>,
     },
+    /// `kind` is what the UI translates; `message` is the technical detail (English, for logs
+    /// and as a fallback).
     Error {
+        kind: ErrorKind,
         message: String,
     },
+}
+
+/// Machine-readable error category for [`Event::Error`], so the UI can show it in the user's
+/// language.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorKind {
+    /// The invite link could not be parsed.
+    InvalidInvite,
+    /// The device identity key could not be loaded or created.
+    DeviceKey,
+    /// Connecting to the server failed (unreachable, wrong fingerprint, rejected).
+    ConnectFailed,
+    /// The audio devices could not be opened.
+    AudioFailed,
+    /// Windows denied microphone access (privacy settings; HRESULT 0x80070005).
+    MicAccessDenied,
+    /// An audio device disappeared; the engine is reopening it.
+    AudioDeviceLost,
+    /// The connection to the server dropped.
+    ConnectionLost,
+    /// A command failed (network error while sending, or not valid in the current state).
+    RequestFailed,
+    // Errors reported by the server (`ServerMsg::Error`).
+    VersionMismatch,
+    RoomNotFound,
+    RoomFull,
+    AlreadyInRoom,
+    NotInRoom,
+    RateLimited,
+    ServerError,
+}
+
+impl ErrorKind {
+    /// Classifies an audio pipeline error message (cpal/WASAPI text).
+    pub fn from_audio_error(message: &str) -> Self {
+        // E_ACCESSDENIED: Windows microphone privacy setting (or another app holding it exclusively).
+        if message.contains("0x80070005") {
+            ErrorKind::MicAccessDenied
+        } else {
+            ErrorKind::AudioFailed
+        }
+    }
+
+    pub fn from_server(code: callout_proto::ErrorCode) -> Self {
+        use callout_proto::ErrorCode as C;
+        match code {
+            C::VersionMismatch => ErrorKind::VersionMismatch,
+            C::RoomNotFound => ErrorKind::RoomNotFound,
+            C::RoomFull => ErrorKind::RoomFull,
+            C::AlreadyInRoom => ErrorKind::AlreadyInRoom,
+            C::NotInRoom => ErrorKind::NotInRoom,
+            C::RateLimited => ErrorKind::RateLimited,
+            C::NotAuthenticated | C::BadSignature | C::Internal => ErrorKind::ServerError,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classifies_mic_access_denied() {
+        let msg =
+            "input stream: A backend-specific error has occurred: Access is denied. (0x80070005)";
+        assert_eq!(ErrorKind::from_audio_error(msg), ErrorKind::MicAccessDenied);
+        assert_eq!(
+            ErrorKind::from_audio_error("output device: not found"),
+            ErrorKind::AudioFailed
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

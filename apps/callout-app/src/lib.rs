@@ -28,6 +28,8 @@ pub struct Settings {
     pub ptt_shortcut: String,
     /// Noise suppression (RNNoise); on if missing from older settings files.
     pub noise_suppression: bool,
+    /// UI language code (`en`, `tr`, …); `None` follows the system language.
+    pub language: Option<String>,
 }
 
 impl Default for Settings {
@@ -40,6 +42,7 @@ impl Default for Settings {
             push_to_talk: false,
             ptt_shortcut: "F9".into(),
             noise_suppression: true,
+            language: None,
         }
     }
 }
@@ -243,6 +246,22 @@ fn ptt_capture(app: AppHandle, state: State<AppState>, active: bool) -> Result<(
     sync_ptt(&app)
 }
 
+/// Tray menu items, so the UI can relabel them in its language.
+struct TrayItems {
+    show: MenuItem<tauri::Wry>,
+    quit: MenuItem<tauri::Wry>,
+}
+
+/// The UI owns the translations; it sends the tray labels whenever the language changes.
+#[tauri::command]
+fn set_tray_labels(app: AppHandle, show: String, quit: String) -> Result<(), String> {
+    let Some(items) = app.try_state::<TrayItems>() else {
+        return Ok(());
+    };
+    items.show.set_text(show).map_err(|e| e.to_string())?;
+    items.quit.set_text(quit).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn app_version(app: AppHandle) -> String {
     // Packaged version (same source as the installer's: Cargo.toml, written from the tag).
@@ -397,6 +416,10 @@ pub fn run() {
             let show = MenuItem::with_id(app, "show", "Show CallOut", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
+            app.manage(TrayItems {
+                show: show.clone(),
+                quit: quit.clone(),
+            });
             let mut tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .tooltip("CallOut")
@@ -451,7 +474,8 @@ pub fn run() {
             engine_command,
             engine_snapshot,
             ptt_capture,
-            app_version
+            app_version,
+            set_tray_labels
         ])
         .run(tauri::generate_context!())
         .expect("failed to start tauri");

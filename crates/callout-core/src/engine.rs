@@ -10,7 +10,7 @@
 //! The audio thread lives while connected; while disconnected it only runs when settings are
 //! open (preview: for the level meter and the sound test). It is rebuilt when the device changes.
 
-use crate::{Command, ConnectionState, Event, MicTestState};
+use crate::{Command, ConnectionState, ErrorKind, Event, MicTestState};
 use bytes::Bytes;
 use callout_audio::codec::{Decoder, Encoder, EncoderConfig, FRAME};
 use callout_audio::denoise::Denoiser;
@@ -715,6 +715,7 @@ fn open_preview(
         Ok(a) => Some(a),
         Err(e) => {
             let _ = ev.send(Event::Error {
+                kind: ErrorKind::from_audio_error(&e),
                 message: format!("audio pipeline: {e}"),
             });
             None
@@ -800,6 +801,7 @@ async fn run(
                 }
                 Some(Command::Disconnect) => {}
                 Some(other) => emit(Event::Error {
+                    kind: ErrorKind::RequestFailed,
                     message: format!("while disconnected: {other:?}"),
                 }),
             }
@@ -816,6 +818,7 @@ async fn run(
             Ok(i) => i,
             Err(e) => {
                 emit(Event::Error {
+                    kind: ErrorKind::InvalidInvite,
                     message: format!("invite link: {e}"),
                 });
                 continue;
@@ -825,6 +828,7 @@ async fn run(
             Ok(k) => k,
             Err(e) => {
                 emit(Event::Error {
+                    kind: ErrorKind::DeviceKey,
                     message: format!("device key: {e}"),
                 });
                 continue;
@@ -834,6 +838,7 @@ async fn run(
             Ok(c) => c,
             Err(e) => {
                 emit(Event::Error {
+                    kind: ErrorKind::ConnectFailed,
                     message: format!("could not connect: {e}"),
                 });
                 continue;
@@ -852,6 +857,7 @@ async fn run(
                 Ok(a) => Some(a),
                 Err(e) => {
                     emit(Event::Error {
+                        kind: ErrorKind::from_audio_error(&e),
                         message: format!("audio pipeline: {e}"),
                     });
                     client.close();
@@ -912,7 +918,7 @@ async fn run(
             tokio::select! {
                 cmd = cmd_rx.recv() => {
                     let Some(cmd) = cmd else { break "engine shut down".into() };
-                    let r: Result<(), String> = match cmd {
+                    let r: Result<(), (ErrorKind, String)> = match cmd {
                         Command::Disconnect => break "user disconnected".into(),
                         // The UI may have lost its state (e.g. the webview was reloaded): don't error,
                         // re-emit the current state.
@@ -922,11 +928,11 @@ async fn run(
                             emit(Event::RoomUpdated { room: room.clone(), members: members.clone() });
                             Ok(())
                         }
-                        Command::CreateRoom { name } => client.create_room(&name).await.map_err(|e| e.to_string()),
-                        Command::JoinRoom { code } => client.join_room(&code).await.map_err(|e| e.to_string()),
+                        Command::CreateRoom { name } => client.create_room(&name).await.map_err(request_err),
+                        Command::JoinRoom { code } => client.join_room(&code).await.map_err(request_err),
                         Command::LeaveRoom => {
                             // The server sends no confirmation to the leaver; clear local state right away.
-                            let r = client.leave_room().await.map_err(|e| e.to_string());
+                            let r = client.leave_room().await.map_err(request_err);
                             if room.is_some() {
                                 room = None;
                                 ctl.in_room.store(false, Ordering::Relaxed);
@@ -937,11 +943,11 @@ async fn run(
                         }
                         Command::SetMuted { muted } => {
                             ctl.muted.store(muted, Ordering::Relaxed);
-                            client.control().send(&ClientMsg::SetMuted(muted)).await.map_err(|e| e.to_string())
+                            client.control().send(&ClientMsg::SetMuted(muted)).await.map_err(request_err)
                         }
                         Command::SetDeafened { deafened } => {
                             ctl.deafened.store(deafened, Ordering::Relaxed);
-                            client.control().send(&ClientMsg::SetDeafened(deafened)).await.map_err(|e| e.to_string())
+                            client.control().send(&ClientMsg::SetDeafened(deafened)).await.map_err(request_err)
                         }
                         Command::SetPushToTalkMode { enabled } => { ctl.ptt_mode.store(enabled, Ordering::Relaxed); Ok(()) }
                         Command::PushToTalk { pressed } => { ctl.ptt_pressed.store(pressed, Ordering::Relaxed); Ok(()) }
@@ -951,22 +957,22 @@ async fn run(
                         }
                         Command::SetInputDevice { name } => {
                             cfg.input_device = name;
-                            restart_audio(&cfg, &ctl, &tx_net, &audio_restart_rx, &ev, &mut audio)
+                            restart_audio(&cfg, &ctl, &tx_net, &audio_restart_rx, &ev, &mut audio).map_err(audio_err)
                         }
                         Command::SetOutputDevice { name } => {
                             cfg.output_device = name;
-                            restart_audio(&cfg, &ctl, &tx_net, &audio_restart_rx, &ev, &mut audio)
+                            restart_audio(&cfg, &ctl, &tx_net, &audio_restart_rx, &ev, &mut audio).map_err(audio_err)
                         }
                         // While connected the pipeline is already open; just remember what to do after a disconnect.
                         Command::SetAudioPreview { enabled } => { preview_wanted = enabled; Ok(()) }
-                        Command::StartMicTest if audio.is_none() => Err("audio pipeline is not running".into()),
+                        Command::StartMicTest if audio.is_none() => Err((ErrorKind::AudioFailed, "audio pipeline is not running".into())),
                         Command::StartMicTest => { ctl.mic_test_start.store(true, Ordering::Relaxed); Ok(()) }
                         Command::StopMicTest => { ctl.mic_test_stop.store(true, Ordering::Relaxed); Ok(()) }
                         Command::PlayTestSound => { ctl.test_sound.store(true, Ordering::Relaxed); Ok(()) }
                         Command::SetNoiseSuppression { enabled } => { ctl.noise_suppression.store(enabled, Ordering::Relaxed); Ok(()) }
                     };
-                    if let Err(message) = r {
-                        emit(Event::Error { message });
+                    if let Err((kind, message)) = r {
+                        emit(Event::Error { kind, message });
                     }
                 }
                 msg = client.control().recv() => {
@@ -1004,7 +1010,7 @@ async fn run(
                         ServerMsg::Speaking { user_id, speaking } => emit(Event::SpeakingChanged { user_id, speaking }),
                         ServerMsg::Error { code, message } => {
                             // Leaving a room is not confirmed by the server; errors other than NotInRoom go to the user.
-                            emit(Event::Error { message: format!("{code:?}: {message}") });
+                            emit(Event::Error { kind: ErrorKind::from_server(code), message: format!("{code:?}: {message}") });
                         }
                         ServerMsg::Pong(_) | ServerMsg::Welcome { .. } | ServerMsg::Authed => {}
                     }
@@ -1023,7 +1029,7 @@ async fn run(
                     }
                     if !recovering {
                         recovering = true;
-                        emit(Event::Error { message: "Audio device lost; reconnecting automatically…".into() });
+                        emit(Event::Error { kind: ErrorKind::AudioDeviceLost, message: "Audio device lost; reconnecting automatically…".into() });
                     }
                     if Instant::now() < next_retry {
                         continue;
@@ -1092,6 +1098,7 @@ async fn run(
         }
         if reason.starts_with("connection lost") || reason.starts_with("ping") {
             emit(Event::Error {
+                kind: ErrorKind::ConnectionLost,
                 message: reason.clone(),
             });
         }
@@ -1099,6 +1106,19 @@ async fn run(
             return;
         }
     }
+}
+
+/// A command's network/state failure, for [`Event::Error`].
+fn request_err(e: impl std::fmt::Display) -> (ErrorKind, String) {
+    (ErrorKind::RequestFailed, e.to_string())
+}
+
+/// An audio pipeline (re)start failure, for [`Event::Error`].
+fn audio_err(e: String) -> (ErrorKind, String) {
+    (
+        ErrorKind::from_audio_error(&e),
+        format!("audio pipeline: {e}"),
+    )
 }
 
 fn restart_audio(

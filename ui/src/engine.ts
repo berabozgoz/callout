@@ -6,6 +6,11 @@ export type RoomInfo = { code: string; name: string; owner: number };
 export type Member = { user_id: number; nickname: string; muted: boolean; deafened: boolean };
 export type ConnectionState = "disconnected" | "connecting" | "connected";
 export type MicTestState = "calibrating" | "recording" | "playing" | "idle";
+/** `callout_core::ErrorKind`: translated by the UI, `message` is the technical detail. */
+export type ErrorKind =
+  | "invalid_invite" | "device_key" | "connect_failed" | "audio_failed" | "mic_access_denied"
+  | "audio_device_lost" | "connection_lost" | "request_failed" | "version_mismatch"
+  | "room_not_found" | "room_full" | "already_in_room" | "not_in_room" | "rate_limited" | "server_error";
 
 export type EngineEvent =
   | { type: "connection_state"; state: ConnectionState }
@@ -16,7 +21,7 @@ export type EngineEvent =
   | { type: "stats"; rtt_ms: number; jitter_ms: number; lost: number; sent: number; received: number }
   | { type: "audio_restored"; fallback_to_default: boolean }
   | { type: "mic_test"; state: MicTestState; transmitted_pct: number | null }
-  | { type: "error"; message: string };
+  | { type: "error"; kind: ErrorKind; message: string };
 
 export type Command =
   | { type: "connect"; invite: string; nickname: string }
@@ -45,6 +50,8 @@ export type Settings = {
   push_to_talk: boolean;
   ptt_shortcut: string;
   noise_suppression: boolean;
+  /** UI language code, or null to follow the system language. */
+  language: string | null;
 };
 
 /** The engine's actual state: the engine stays connected even if the webview reloads. */
@@ -67,6 +74,8 @@ export const engineSnapshot = () => invoke<Snapshot>("engine_snapshot");
 export const pttCapture = (active: boolean) => invoke<void>("ptt_capture", { active });
 export const listDevices = () => invoke<Device[]>("list_audio_devices");
 export const appVersion = () => invoke<string>("app_version");
+/** Tray menu labels live in the Rust shell; the UI sends them in the current language. */
+export const setTrayLabels = (show: string, quit: string) => invoke<void>("set_tray_labels", { show, quit });
 
 export function onEngine(handler: (e: EngineEvent) => void): Promise<UnlistenFn> {
   return listen<EngineEvent>("engine", (ev) => handler(ev.payload));

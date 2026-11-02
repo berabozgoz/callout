@@ -3,12 +3,19 @@
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import {
     send, getSettings, saveSettings, listDevices, appVersion, onEngine, onPtt, prettyCode,
-    engineSnapshot, pttCapture, prettyShortcut,
+    engineSnapshot, pttCapture, prettyShortcut, setTrayLabels,
     type Settings, type Device, type Member, type RoomInfo, type ConnectionState, type MicTestState,
+    type ErrorKind,
   } from "./engine";
+  import { t, i18n, setLanguage, LANGUAGES } from "./i18n/index.svelte";
+  import type { MessageKey } from "./i18n/en";
+
+  /** Errors are stored untranslated so they follow a language change. */
+  type UiError = { key: MessageKey; vars?: Record<string, string | number>; kind?: ErrorKind };
+  const fail = (e: unknown): UiError => ({ key: "error.generic", vars: { detail: String(e) } });
 
   // ---- state ----
-  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9", noise_suppression: true });
+  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9", noise_suppression: true, language: null });
   let devices = $state<Device[]>([]);
   let version = $state("");
   let conn = $state<ConnectionState>("disconnected");
@@ -23,7 +30,7 @@
   let muted = $state(false);
   let deafened = $state(false);
   let stats = $state({ rtt_ms: 0, jitter_ms: 0, lost: 0 });
-  let error = $state("");
+  let error = $state<UiError | null>(null);
   let joinCode = $state("");
   let roomName = $state("");
   let showSettings = $state(false);
@@ -41,6 +48,12 @@
   const me = $derived(members.find((m) => m.user_id === myId));
   const remaining = $derived(Math.max(1, 5 - Math.floor((now - recStart) / 1000)));
 
+  // Tray menu follows the UI language.
+  $effect(() => {
+    void i18n.lang;
+    setTrayLabels(t("tray.show"), t("tray.quit")).catch(() => {});
+  });
+
   // Countdown while recording.
   $effect(() => {
     if (micTest !== "recording") return;
@@ -51,7 +64,8 @@
   onMount(async () => {
     version = await appVersion();
     settings = await getSettings();
-    try { devices = await listDevices(); } catch (e) { error = String(e); }
+    setLanguage(settings.language);
+    try { devices = await listDevices(); } catch (e) { error = fail(e); }
 
     await onEngine((e) => {
       switch (e.type) {
@@ -59,7 +73,7 @@
           conn = e.state;
           if (e.state === "disconnected") { room = null; members = []; myId = null; speaking = new Set(); }
           break;
-        case "connected": myId = e.user_id; error = ""; break;
+        case "connected": myId = e.user_id; error = null; break;
         case "room_updated":
           room = e.room; members = e.members;
           if (!e.room) speaking = new Set();
@@ -74,15 +88,17 @@
         case "stats": stats = { rtt_ms: e.rtt_ms, jitter_ms: e.jitter_ms, lost: e.lost }; break;
         case "audio_restored":
           error = e.fallback_to_default
-            ? "Seçili ses cihazı bulunamadı; varsayılan cihaza geçildi."
-            : error.startsWith("Audio device") ? "" : error;
+            ? { key: "audio.fallback" }
+            : error?.kind === "audio_device_lost" ? null : error;
           break;
         case "mic_test":
           micTest = e.state;
           if (e.state === "recording") { recStart = now = Date.now(); micResult = null; }
           if (e.state === "idle" && e.transmitted_pct !== null) micResult = e.transmitted_pct;
           break;
-        case "error": error = e.message; break;
+        case "error":
+          error = { key: `error.${e.kind}` as MessageKey, vars: { detail: e.message }, kind: e.kind };
+          break;
       }
     });
     await onPtt((pressed) => { transmitting = pressed && !muted; });
@@ -93,7 +109,7 @@
       const s = await engineSnapshot();
       conn = s.connection; myId = s.user_id; room = s.room; members = s.members;
       muted = s.muted; deafened = s.deafened;
-    } catch (e) { error = String(e); }
+    } catch (e) { error = fail(e); }
   });
 
   // In release builds the reload keys and the context menu are disabled: a reload would reset the UI state.
@@ -109,11 +125,11 @@
   // ---- push-to-talk key capture ----
   async function startCapture() {
     capturing = true;
-    try { await pttCapture(true); } catch (e) { error = String(e); }
+    try { await pttCapture(true); } catch (e) { error = fail(e); }
   }
   async function stopCapture() {
     capturing = false;
-    try { await pttCapture(false); } catch (e) { error = String(e); }
+    try { await pttCapture(false); } catch (e) { error = fail(e); }
   }
   function captureKey(e: KeyboardEvent) {
     e.preventDefault();
@@ -133,10 +149,10 @@
 
   // ---- actions ----
   async function connect() {
-    error = "";
+    error = null;
     settings = { ...settings, nickname: settings.nickname.trim(), last_invite: settings.last_invite.trim() };
-    if (!settings.nickname) { error = "Takma ad gerekli"; return; }
-    if (!settings.last_invite.startsWith("callout://")) { error = "Davet linki callout:// ile başlamalı"; return; }
+    if (!settings.nickname) { error = { key: "connect.nicknameRequired" }; return; }
+    if (!settings.last_invite.startsWith("callout://")) { error = { key: "connect.inviteInvalid" }; return; }
     await saveSettings(settings);
     await send({ type: "connect", invite: settings.last_invite, nickname: settings.nickname });
   }
@@ -174,7 +190,7 @@
     try {
       await saveSettings(settings);
       closeSettings();
-    } catch (e) { error = String(e); }
+    } catch (e) { error = fail(e); }
   }
   async function cancelSettings() {
     if (capturing) await stopCapture();
@@ -183,6 +199,7 @@
       if (savedSettings.input_device !== settings.input_device) send({ type: "set_input_device", name: savedSettings.input_device });
       if (savedSettings.output_device !== settings.output_device) send({ type: "set_output_device", name: savedSettings.output_device });
       if (savedSettings.noise_suppression !== settings.noise_suppression) send({ type: "set_noise_suppression", enabled: savedSettings.noise_suppression });
+      if (savedSettings.language !== settings.language) setLanguage(savedSettings.language);
       settings = savedSettings;
     }
     closeSettings();
@@ -210,7 +227,7 @@
   <div class="meter" class:tx={transmitting}>
     <div class="fill" style="width: {Math.round(level * 100)}%"></div>
     {#if !settings.push_to_talk}
-      <div class="thr" style="left: {Math.round(threshold * 100)}%" title="Konuşma algılama eşiği"></div>
+      <div class="thr" style="left: {Math.round(threshold * 100)}%" title={t("test.threshold")}></div>
     {/if}
   </div>
 {/snippet}
@@ -220,113 +237,119 @@
     <h1>CallOut</h1>
     <div class="right">
       {#if conn === "connected"}
-        <span class="pill ok">bağlı · {stats.rtt_ms} ms</span>
+        <span class="pill ok">{t("header.connected", { ms: stats.rtt_ms })}</span>
       {:else if conn === "connecting"}
-        <span class="pill">bağlanıyor…</span>
+        <span class="pill">{t("header.connecting")}</span>
       {/if}
-      <button class="icon" title="Ayarlar" onclick={() => (showSettings ? cancelSettings() : openSettings())}>⚙</button>
+      <button class="icon" title={t("header.settings")} onclick={() => (showSettings ? cancelSettings() : openSettings())}>⚙</button>
     </div>
   </header>
 
   {#if error}
-    <button class="error" type="button" onclick={() => (error = "")}>{error}</button>
+    <button class="error" type="button" onclick={() => (error = null)}>{t(error.key, error.vars)}</button>
   {/if}
 
   {#if showSettings}
     <section class="card">
-      <h2>Ayarlar</h2>
-      <label>Mikrofon
+      <h2>{t("settings.title")}</h2>
+      <label>{t("settings.language")}
+        <select bind:value={settings.language} onchange={() => setLanguage(settings.language)}>
+          <option value={null}>{t("settings.languageAuto")}</option>
+          {#each LANGUAGES as l (l.code)}<option value={l.code}>{l.name}</option>{/each}
+        </select>
+      </label>
+      <label>{t("settings.microphone")}
         <select bind:value={settings.input_device} onchange={pickInput}>
-          <option value={null}>Varsayılan</option>
+          <option value={null}>{t("settings.default")}</option>
           {#each inputs as d (d.name)}<option value={d.name}>{d.name}</option>{/each}
         </select>
       </label>
-      <label>Hoparlör
+      <label>{t("settings.speaker")}
         <select bind:value={settings.output_device} onchange={pickOutput}>
-          <option value={null}>Varsayılan</option>
+          <option value={null}>{t("settings.default")}</option>
           {#each outputs as d (d.name)}<option value={d.name}>{d.name}</option>{/each}
         </select>
       </label>
       <label class="row">
         <input type="checkbox" bind:checked={settings.noise_suppression}
           onchange={(e) => send({ type: "set_noise_suppression", enabled: (e.currentTarget as HTMLInputElement).checked })} />
-        Gürültü bastırma (fan, uğultu, oda sesi)
+        {t("settings.noiseSuppression")}
       </label>
       <label class="row">
         <input type="checkbox" bind:checked={settings.push_to_talk} />
-        Bas-konuş (kapalıysa ses algılama)
+        {t("settings.pushToTalk")}
       </label>
       {#if settings.push_to_talk}
-        <label>Bas-konuş tuşu
+        <label>{t("settings.pttKey")}
           <button type="button" class="capture" class:listening={capturing} onclick={(e) => { if (e.detail === 0) return; /* ignore the click synthesized when Space/Enter is the captured key */ capturing ? stopCapture() : startCapture(); }}>
-            {capturing ? "Bir tuşa ya da kombinasyona bas… (Esc iptal)" : settings.ptt_shortcut ? prettyShortcut(settings.ptt_shortcut) : "Atanmamış — tıkla ve bir tuşa bas"}
+            {capturing ? t("settings.pttCapturing") : settings.ptt_shortcut ? prettyShortcut(settings.ptt_shortcut) : t("settings.pttUnassigned")}
           </button>
         </label>
-        <p class="hint">Kısayol yalnızca bir odadayken etkindir. Düz bir harf (ör. T) seçersen odadayken diğer uygulamalarda o tuşla yazamazsın; F9 ya da Ctrl+Alt gibi birleşimler daha güvenlidir.</p>
+        <p class="hint">{t("settings.pttHint")}</p>
       {/if}
 
       <div class="soundtest">
-        <h3>Ses testi</h3>
+        <h3>{t("test.title")}</h3>
         {@render meter()}
         <div class="actions">
           <button class:recording={micTest === "recording"} onclick={toggleMicTest}>
-            {#if micTest === "calibrating"}Hazırlanıyor… sessiz kal
-            {:else if micTest === "recording"}⏺ Konuş… {remaining} sn
-            {:else if micTest === "playing"}▶ Kayıt çalınıyor… (durdur)
-            {:else}🎙 Mikrofonu test et{/if}
+            {#if micTest === "calibrating"}{t("test.calibrating")}
+            {:else if micTest === "recording"}{t("test.recording", { s: remaining })}
+            {:else if micTest === "playing"}{t("test.playing")}
+            {:else}{t("test.start")}{/if}
           </button>
-          <button onclick={playTestSound}>🔊 Test sesi çal</button>
+          <button onclick={playTestSound}>{t("test.tone")}</button>
         </div>
         {#if micResult === 0}
-          <p class="hint warn">Kayıtta hiç ses gönderilmedi: mikrofon sesi eşiğin altında kaldı ya da yanlış mikrofon seçili.</p>
+          <p class="hint warn">{t("test.resultNone")}</p>
         {:else if micResult !== null}
-          <p class="hint">Kaydın %{micResult}'i ses olarak gönderilecekti; gerisi sessizlik sayıldı. Sözlerinin başı ya da sonu kesik geldiyse sesin eşiğe çok yakın.</p>
+          <p class="hint">{t("test.result", { pct: micResult })}</p>
         {:else if settings.push_to_talk}
-          <p class="hint">5 sn konuş; kayıt odadakilerin duyacağı haliyle geri çalınır. Bas-konuş açıkken test tuşsuz kaydedilir.</p>
+          <p class="hint">{t("test.hintPtt")}</p>
         {:else}
-          <p class="hint">5 sn konuş; kayıt odadakilerin duyacağı haliyle geri çalınır. Çizgi konuşma algılama eşiği: çubuk çizgiyi geçince ses gönderilir (yeşil).</p>
+          <p class="hint">{t("test.hintVad")}</p>
         {/if}
       </div>
 
       <div class="actions">
-        <button class="primary" onclick={applySettings}>Kaydet</button>
-        <button onclick={cancelSettings}>Vazgeç</button>
+        <button class="primary" onclick={applySettings}>{t("settings.save")}</button>
+        <button onclick={cancelSettings}>{t("settings.cancel")}</button>
       </div>
     </section>
   {:else if conn !== "connected"}
     <!-- ---------- Connect ---------- -->
     <section class="card">
-      <h2>Sunucuya bağlan</h2>
-      <label>Takma ad
+      <h2>{t("connect.title")}</h2>
+      <label>{t("connect.nickname")}
         <input type="text" bind:value={settings.nickname} placeholder="bera" maxlength="24" />
       </label>
-      <label>Davet linki
-        <input type="text" bind:value={settings.last_invite} placeholder="callout://IP:4433#parmak-izi" />
+      <label>{t("connect.invite")}
+        <input type="text" bind:value={settings.last_invite} placeholder={t("connect.invitePlaceholder")} />
       </label>
       <div class="actions">
         <button class="primary" disabled={conn === "connecting"} onclick={connect}>
-          {conn === "connecting" ? "Bağlanıyor…" : "Bağlan"}
+          {conn === "connecting" ? t("connect.connecting") : t("connect.button")}
         </button>
       </div>
-      <p class="hint">Davet linkini sunucuyu çalıştıran arkadaşından al. Sunucu ilk açılışta linki ekrana basar.</p>
+      <p class="hint">{t("connect.hint")}</p>
     </section>
   {:else if !room}
     <!-- ---------- Lobby ---------- -->
     <section class="card">
-      <h2>Oda aç</h2>
-      <label>Oda adı (isteğe bağlı)
-        <input type="text" bind:value={roomName} placeholder="takım" maxlength="32" />
+      <h2>{t("lobby.create")}</h2>
+      <label>{t("lobby.roomName")}
+        <input type="text" bind:value={roomName} placeholder={t("lobby.roomNamePlaceholder")} maxlength="32" />
       </label>
-      <div class="actions"><button class="primary" onclick={createRoom}>Oda aç</button></div>
+      <div class="actions"><button class="primary" onclick={createRoom}>{t("lobby.createButton")}</button></div>
     </section>
     <section class="card">
-      <h2>Odaya gir</h2>
-      <label>Oda kodu
+      <h2>{t("lobby.join")}</h2>
+      <label>{t("lobby.code")}
         <input type="text" bind:value={joinCode} placeholder="ABCD-1234" class="code" onkeydown={(e) => e.key === "Enter" && joinRoom()} />
       </label>
       <div class="actions">
-        <button class="primary" onclick={joinRoom}>Gir</button>
-        <button onclick={disconnect}>Bağlantıyı kes</button>
+        <button class="primary" onclick={joinRoom}>{t("lobby.joinButton")}</button>
+        <button onclick={disconnect}>{t("lobby.disconnect")}</button>
       </div>
     </section>
   {:else}
@@ -335,24 +358,24 @@
       <div class="roomhead">
         <div>
           <h2>{room.name}</h2>
-          <button class="codebtn" title="Kodu kopyala" onclick={copyCode}>
+          <button class="codebtn" title={t("room.copyCode")} onclick={copyCode}>
             {prettyCode(room.code)} {copied ? "✓" : "⧉"}
           </button>
         </div>
-        <button onclick={leaveRoom}>Ayrıl</button>
+        <button onclick={leaveRoom}>{t("room.leave")}</button>
       </div>
 
       <ul class="members">
         {#each members as m (m.user_id)}
           <li class:speaking={speaking.has(m.user_id)} class:me={m.user_id === myId}>
             <span class="ring"></span>
-            <span class="name">{m.nickname}{m.user_id === myId ? " (sen)" : ""}</span>
+            <span class="name">{m.nickname}{m.user_id === myId ? ` ${t("room.you")}` : ""}</span>
             <span class="flags">{m.muted ? "🔇" : ""}{m.deafened ? "🙉" : ""}</span>
             {#if m.user_id !== myId}
               <input class="vol" type="range" min="0" max="2" step="0.05"
                 value={volumes[m.user_id] ?? 1}
                 oninput={(e) => setVolume(m.user_id, Number((e.target as HTMLInputElement).value))}
-                title="Ses: {Math.round((volumes[m.user_id] ?? 1) * 100)}%" />
+                title={t("room.volume", { pct: Math.round((volumes[m.user_id] ?? 1) * 100) })} />
             {/if}
           </li>
         {/each}
@@ -361,14 +384,14 @@
 
     <section class="bar">
       {@render meter()}
-      <button class:active={muted} onclick={toggleMute} title="Mikrofonu sustur">{muted ? "🔇" : "🎙"}</button>
-      <button class:active={deafened} onclick={toggleDeafen} title="Sesi kapat">{deafened ? "🙉" : "🎧"}</button>
-      <span class="stats">{stats.rtt_ms} ms · tampon {stats.jitter_ms} ms{stats.lost ? ` · kayıp ${stats.lost}` : ""}</span>
+      <button class:active={muted} onclick={toggleMute} title={t("room.mute")}>{muted ? "🔇" : "🎙"}</button>
+      <button class:active={deafened} onclick={toggleDeafen} title={t("room.deafen")}>{deafened ? "🙉" : "🎧"}</button>
+      <span class="stats">{t("room.stats", { rtt: stats.rtt_ms, jitter: stats.jitter_ms })}{stats.lost ? ` · ${t("room.lost", { n: stats.lost })}` : ""}</span>
     </section>
     {#if settings.push_to_talk}
-      <p class="hint">Bas-konuş: <b>{settings.ptt_shortcut}</b> basılıyken gönderilir.</p>
+      <p class="hint">{t("room.pttHint", { key: prettyShortcut(settings.ptt_shortcut) })}</p>
     {/if}
   {/if}
 
-  <footer>v{version}{me?.muted ? " · sessiz" : ""}</footer>
+  <footer>v{version}{me?.muted ? ` · ${t("footer.muted")}` : ""}</footer>
 </main>
