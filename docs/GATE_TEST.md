@@ -174,3 +174,18 @@ output + dynamic mic). Logs: server, bera, batayta, at (none from cocart).
   (listen-only) join; (4) the panic hook should write to the log to tell crashes apart from forced closes.
 - **Decision (1 Nov 2026): Phase 1 closed.** The criterion was not met to the letter (4 people uninterrupted for 60 min), but the
   missing time was on the participants' side; server and client ran with 4 people without drops or errors.
+- **cocart's client log (analysed 3 Nov; Wi-Fi):** 18:19–20:19 UTC on one connection, clean close (`bye`).
+  - **Latency at cocart fails the criterion:** RTT avg 68 ms (max 174) + jitter buffer avg 140 ms (max 240;
+    100–160 ms most of the time) ≈ **208 ms**, above the 150 ms target. The buffer was 60 ms until 18:36,
+    then stayed at 100–200 ms for the rest of the session.
+  - **The cause is delay variation on cocart's downlink, not loss:** every sender arrives late at cocart, including
+    bera on a clean wired line (sender 7: 445 late, 20 lost over ~1.5 h, ~5 late/min). batayta (Wi-Fi + Bluetooth)
+    is worst: 491 late, target avg 140 ms, peaks at 240 ms. Total buffer loss only ~56 frames in 2 h. Server-side
+    QUIC loss toward cocart was high only in the first 25 min (before 18:45), matching the "choppy" report.
+  - At 18:36 cocart's audio pipeline restarted (a device change, around the time they were told to switch
+    microphones); input was 48 kHz stereo both times, so not the AirPods hands-free profile. The VAD floor
+    calibrated at −100/−91 dB (digital silence between words: a mic with its own gate), threshold clamped to −60.
+  - **Takeaway:** for Wi-Fi players, delay variation costs more than loss. The adaptive jitter buffer grows
+    quickly but shrinks only after 30 s with no late packets (6 quiet 5 s windows), so with ~5 late/min it
+    rarely comes back down. Phase 2 adaptive jitter should target a late-packet *rate* (e.g. ≤1–2%) and allow
+    occasional late packets/PLC instead of growing the buffer on every burst.

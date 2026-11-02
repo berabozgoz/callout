@@ -48,12 +48,15 @@
       (an artificial case). Why: on Bera's Logitech C310 webcam mic the floor was −42 and
       speech peaks ~−32 dBFS (SNR ~10 dB); in the mic test 15% of the recording got through. In the field: floor
       −42 → −79 dBFS, sent share in the mic test 16% → 57%, voice "very clean and intelligible".
-   2. AGC: target −20 dBFS, gentle gain.
-   3. Automatic reconnect (exponential backoff, rejoin the same room).
-   4. Fallback for UDP-blocked networks: a mode that carries audio packets over a reliable QUIC stream.
-   5. Lossy network simulation test (5% loss, 100 ms jitter) — headless. The loss part is in
+   2. **Adaptive jitter (moved up, 3 Nov):** cocart on Wi-Fi sat at RTT + buffer ≈ 208 ms because the buffer
+      grows on every late burst and only shrinks after 30 s without any late packet. Target a late-packet rate
+      (≤1–2%), shrink faster, accept occasional PLC. Validate with the jitter part of the simulation (item 6).
+   3. AGC: target −20 dBFS, gentle gain.
+   4. Automatic reconnect (exponential backoff, rejoin the same room).
+   5. Fallback for UDP-blocked networks: a mode that carries audio packets over a reliable QUIC stream.
+   6. Lossy network simulation test (5% loss, 100 ms jitter) — headless. The loss part is in
       `callout-audio/tests/loss_sim.rs`; the jitter (delay variation) part remains.
-   6. UI polish: VAD threshold margin setting, warning when the connection drops. **Mic test done (2 Nov,
+   7. UI polish: VAD threshold margin setting, warning when the connection drops. **Mic test done (2 Nov,
       v0.1.8, tried in the app):** a "Mic test" section in settings — 5 s recording, played back the way
       others in the room would hear it (VAD/push-to-talk gate + Opus) along with the sent share; "Play test sound"
       (a chime); a speech-detection threshold line on the level meter (also on the in-room meter). When not connected
@@ -118,6 +121,9 @@
   and RTL. Commits b84d9ee, 5b5860a, d8d8139. fmt/clippy (incl. app)/test/svelte-check clean; Arabic RTL and
   Japanese checked in the browser preview; tried in the Tauri app by Bera (English system language, tray,
   error messages OK); released as v0.1.9 and the server updated.
+- 3 Nov: analysed cocart's log from the 1 Nov four-person test (`GATE_TEST.md`): on Wi-Fi, RTT + buffer
+  ≈ 208 ms at cocart (above 150 ms), caused by downlink delay variation (late packets from every sender, ~5/min),
+  not loss. Adaptive jitter (target a late-packet rate, shrink faster) moves up in the Phase 2 queue.
 
 ## Previous session
 
