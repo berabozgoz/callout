@@ -8,6 +8,7 @@
     type ErrorKind,
   } from "./engine";
   import { t, i18n, setLanguage, LANGUAGES } from "./i18n/index.svelte";
+  import Icon from "./Icon.svelte";
   import type { MessageKey } from "./i18n/en";
 
   /** Errors are stored untranslated so they follow a language change. */
@@ -372,7 +373,10 @@
           <li class:speaking={speaking.has(m.user_id)} class:me={m.user_id === myId}>
             <span class="ring"></span>
             <span class="name">{m.nickname}{m.user_id === myId ? ` ${t("room.you")}` : ""}</span>
-            <span class="flags">{m.muted ? "🔇" : ""}{m.deafened ? "🙉" : ""}</span>
+            <span class="flags">
+              {#if m.muted}<span title={t("room.mute")}><Icon name="microphone-off" size={14} /></span>{/if}
+              {#if m.deafened}<span title={t("room.deafen")}><Icon name="headphones-off" size={14} /></span>{/if}
+            </span>
             {#if m.user_id !== myId}
               <input class="vol" type="range" min="0" max="2" step="0.05"
                 value={volumes[m.user_id] ?? 1}
@@ -386,8 +390,12 @@
 
     <section class="bar">
       {@render meter()}
-      <button class:active={muted} onclick={toggleMute} title={t("room.mute")}>{muted ? "🔇" : "🎙"}</button>
-      <button class:active={deafened} onclick={toggleDeafen} title={t("room.deafen")}>{deafened ? "🙉" : "🎧"}</button>
+      <button class="iconbtn" class:active={muted} onclick={toggleMute} title={t("room.mute")} aria-label={t("room.mute")} aria-pressed={muted}>
+        <Icon name={muted ? "microphone-off" : "microphone"} />
+      </button>
+      <button class="iconbtn" class:active={deafened} onclick={toggleDeafen} title={t("room.deafen")} aria-label={t("room.deafen")} aria-pressed={deafened}>
+        <Icon name={deafened ? "headphones-off" : "headphones"} />
+      </button>
       <span class="stats">{t("room.stats", { rtt: stats.rtt_ms, jitter: stats.jitter_ms })}{stats.lost ? ` · ${t("room.lost", { n: stats.lost })}` : ""}</span>
     </section>
     {#if settings.push_to_talk}

@@ -57,7 +57,9 @@ ul.members li.me { grid-template-columns: 14px 1fr auto; }
 .ring { width: 12px; height: 12px; border-radius: 50%; background: #3a4049; transition: box-shadow .1s, background .1s; }
 li.speaking .ring { background: var(--ok); box-shadow: 0 0 0 3px rgba(61, 220, 132, .25); }
 .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.flags { color: var(--muted); font-size: 12px; }
+.flags { color: var(--danger); display: flex; gap: 4px; align-items: center; }
+.icon { display: block; }
+button.iconbtn { display: flex; align-items: center; justify-content: center; padding: 7px 10px; }
 input.vol { width: 90px; accent-color: var(--accent); }
 
 .bar { display: flex; align-items: center; gap: 8px; background: var(--panel); border-radius: 10px; padding: 10px 12px; }
