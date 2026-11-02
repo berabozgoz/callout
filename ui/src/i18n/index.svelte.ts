@@ -63,3 +63,7 @@ export function t(key: MessageKey, vars?: Record<string, string | number>): stri
   if (!vars) return text;
   return text.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m));
 }
+
+// Apply the system language right away (before settings load), so text and CSS casing rules
+// (e.g. `text-transform: uppercase`, which is locale-sensitive: Turkish i → İ) match from the first paint.
+setLanguage(null);
