@@ -36,9 +36,19 @@
     "windows": {
       "nsis": {
         "languages": [
+          "English",
           "Turkish",
-          "English"
+          "German",
+          "Spanish",
+          "French",
+          "Arabic",
+          "SimpChinese",
+          "Japanese",
+          "Russian",
+          "PortugueseBR",
+          "Korean"
         ],
+        "displayLanguageSelector": true,
         "installerIcon": "icons/icon.ico",
         "installMode": "currentUser"
       },

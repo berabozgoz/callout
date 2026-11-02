@@ -1,0 +1,93 @@
+import type { Messages } from "./en";
+
+export const ar: Messages = {
+  "header.connected": "متصل · {ms} ms",
+  "header.connecting": "جارٍ الاتصال…",
+  "header.settings": "الإعدادات",
+
+  "settings.title": "الإعدادات",
+  "settings.language": "اللغة",
+  "settings.languageAuto": "لغة النظام",
+  "settings.microphone": "الميكروفون",
+  "settings.speaker": "مكبر الصوت",
+  "settings.default": "الافتراضي",
+  "settings.noiseSuppression": "كتم الضوضاء (المراوح، الطنين، ضجيج الغرفة)",
+  "settings.pushToTalk": "الضغط للتحدث (وإلا فاكتشاف الصوت)",
+  "settings.pttKey": "مفتاح الضغط للتحدث",
+  "settings.pttCapturing": "اضغط مفتاحًا أو مجموعة مفاتيح… (Esc للإلغاء)",
+  "settings.pttUnassigned": "غير معيّن — انقر ثم اضغط مفتاحًا",
+  "settings.pttHint":
+    "يعمل الاختصار فقط أثناء وجودك في غرفة. إذا اخترت حرفًا عاديًا (مثل T) فلن تتمكن من كتابة هذا الحرف في التطبيقات الأخرى ما دمت في غرفة؛ المفتاح F9 أو مجموعات مثل Ctrl+Alt أكثر أمانًا.",
+  "settings.save": "حفظ",
+  "settings.cancel": "إلغاء",
+
+  "test.title": "اختبار الصوت",
+  "test.threshold": "عتبة اكتشاف الصوت",
+  "test.calibrating": "جارٍ التحضير… التزم الصمت",
+  "test.recording": "⏺ تحدّث… {s} ث",
+  "test.playing": "▶ جارٍ تشغيل التسجيل… (إيقاف)",
+  "test.start": "🎙 اختبار الميكروفون",
+  "test.tone": "🔊 تشغيل صوت اختبار",
+  "test.resultNone":
+    "لم يكن أي جزء من التسجيل ليُرسَل: بقي الميكروفون دون العتبة، أو أن الميكروفون المحدد غير صحيح.",
+  "test.result":
+    "كان {pct}% من التسجيل سيُرسَل كصوت، واحتُسب الباقي صمتًا. إذا انقطعت بدايات كلماتك أو نهاياتها، فصوتك قريب جدًا من العتبة.",
+  "test.hintPtt":
+    "تحدّث لمدة 5 ث؛ سيُعاد تشغيل التسجيل كما سيسمعه الآخرون في الغرفة. عند تفعيل الضغط للتحدث، يسجّل الاختبار دون الحاجة إلى المفتاح.",
+  "test.hintVad":
+    "تحدّث لمدة 5 ث؛ سيُعاد تشغيل التسجيل كما سيسمعه الآخرون في الغرفة. الخط هو عتبة اكتشاف الصوت: عندما يتجاوزه الشريط يُرسَل صوتك (باللون الأخضر).",
+
+  "connect.title": "الاتصال بخادم",
+  "connect.nickname": "الاسم المستعار",
+  "connect.invite": "رابط الدعوة",
+  "connect.invitePlaceholder": "callout://IP:4433#fingerprint",
+  "connect.button": "اتصال",
+  "connect.connecting": "جارٍ الاتصال…",
+  "connect.hint":
+    "احصل على رابط الدعوة من الصديق الذي يشغّل الخادم. يعرض الخادم الرابط عند تشغيله أول مرة.",
+  "connect.nicknameRequired": "الاسم المستعار مطلوب",
+  "connect.inviteInvalid": "يجب أن يبدأ رابط الدعوة بـ callout://",
+
+  "lobby.create": "إنشاء غرفة",
+  "lobby.roomName": "اسم الغرفة (اختياري)",
+  "lobby.roomNamePlaceholder": "الفريق",
+  "lobby.createButton": "إنشاء الغرفة",
+  "lobby.join": "الانضمام إلى غرفة",
+  "lobby.code": "رمز الغرفة",
+  "lobby.joinButton": "انضمام",
+  "lobby.disconnect": "قطع الاتصال",
+
+  "room.copyCode": "نسخ الرمز",
+  "room.leave": "مغادرة",
+  "room.you": "(أنت)",
+  "room.volume": "مستوى الصوت: {pct}%",
+  "room.mute": "كتم الميكروفون",
+  "room.deafen": "كتم الصوت",
+  "room.stats": "{rtt} ms · المخزن المؤقت {jitter} ms",
+  "room.lost": "المفقود: {n}",
+  "room.pttHint": "الضغط للتحدث: يُرسَل الصوت ما دام {key} مضغوطًا.",
+  "footer.muted": "الميكروفون مكتوم",
+
+  "tray.show": "إظهار CallOut",
+  "tray.quit": "إنهاء",
+
+  "audio.fallback": "لم يُعثر على جهاز الصوت المحدد؛ تم التبديل إلى الجهاز الافتراضي.",
+
+  "error.generic": "{detail}",
+  "error.invalid_invite": "رابط الدعوة غير صالح. تأكد من نسخه بالكامل.",
+  "error.device_key": "تعذّر إنشاء مفتاح هوية هذا الجهاز ({detail}).",
+  "error.connect_failed": "تعذّر الاتصال بالخادم. تحقق من رابط الدعوة ومن أن الخادم قيد التشغيل. ({detail})",
+  "error.audio_failed": "تعذّر فتح أجهزة الصوت ({detail}).",
+  "error.mic_access_denied":
+    "يحظر Windows الوصول إلى الميكروفون. افتح الإعدادات ← الخصوصية ← الميكروفون، وشغّل «السماح لتطبيقات سطح المكتب بالوصول إلى الميكروفون»، ثم أعد تشغيل CallOut.",
+  "error.audio_device_lost": "فُقد جهاز الصوت؛ جارٍ إعادة الاتصال تلقائيًا…",
+  "error.connection_lost": "انقطع الاتصال بالخادم ({detail}).",
+  "error.request_failed": "فشل الطلب ({detail}).",
+  "error.version_mismatch": "إصدار CallOut هذا غير متوافق مع الخادم. حدّث CallOut أو الخادم.",
+  "error.room_not_found": "لا توجد غرفة بهذا الرمز.",
+  "error.room_full": "الغرفة ممتلئة.",
+  "error.already_in_room": "غادر غرفتك الحالية أولًا.",
+  "error.not_in_room": "أنت لست في غرفة.",
+  "error.rate_limited": "طلبات كثيرة جدًا؛ انتظر قليلًا ثم حاول مجددًا.",
+  "error.server_error": "خطأ في الخادم ({detail}).",
+};

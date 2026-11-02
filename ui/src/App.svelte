@@ -227,7 +227,7 @@
   <div class="meter" class:tx={transmitting}>
     <div class="fill" style="width: {Math.round(level * 100)}%"></div>
     {#if !settings.push_to_talk}
-      <div class="thr" style="left: {Math.round(threshold * 100)}%" title={t("test.threshold")}></div>
+      <div class="thr" style="inset-inline-start: {Math.round(threshold * 100)}%" title={t("test.threshold")}></div>
     {/if}
   </div>
 {/snippet}

@@ -1,0 +1,94 @@
+import type { Messages } from "./en";
+
+export const es: Messages = {
+  "header.connected": "conectado · {ms} ms",
+  "header.connecting": "conectando…",
+  "header.settings": "Ajustes",
+
+  "settings.title": "Ajustes",
+  "settings.language": "Idioma",
+  "settings.languageAuto": "Idioma del sistema",
+  "settings.microphone": "Micrófono",
+  "settings.speaker": "Altavoz",
+  "settings.default": "Predeterminado",
+  "settings.noiseSuppression": "Supresión de ruido (ventiladores, zumbidos, ruido ambiente)",
+  "settings.pushToTalk": "Pulsar para hablar (si no, detección de voz)",
+  "settings.pttKey": "Tecla de pulsar para hablar",
+  "settings.pttCapturing": "Pulsa una tecla o combinación… (Esc para cancelar)",
+  "settings.pttUnassigned": "Sin asignar — haz clic y pulsa una tecla",
+  "settings.pttHint":
+    "El atajo solo está activo mientras estás en una sala. Si eliges una letra sola (p. ej., T), no podrás escribir esa letra en otras aplicaciones mientras estés en una sala; F9 o combinaciones como Ctrl+Alt son más seguras.",
+  "settings.save": "Guardar",
+  "settings.cancel": "Cancelar",
+
+  "test.title": "Prueba de sonido",
+  "test.threshold": "Umbral de detección de voz",
+  "test.calibrating": "Preparando… guarda silencio",
+  "test.recording": "⏺ Habla… {s} s",
+  "test.playing": "▶ Reproduciendo la grabación… (detener)",
+  "test.start": "🎙 Probar micrófono",
+  "test.tone": "🔊 Reproducir sonido de prueba",
+  "test.resultNone":
+    "No se habría enviado nada de la grabación: tu micrófono se mantuvo por debajo del umbral o está seleccionado el micrófono equivocado.",
+  "test.result":
+    "El {pct} % de la grabación se habría enviado como voz; el resto contó como silencio. Si se cortó el principio o el final de tus palabras, tu voz está muy cerca del umbral.",
+  "test.hintPtt":
+    "Habla durante 5 s; la grabación se reproduce tal como te oirán los demás en la sala. Con pulsar para hablar activado, la prueba graba sin la tecla.",
+  "test.hintVad":
+    "Habla durante 5 s; la grabación se reproduce tal como te oirán los demás en la sala. La línea es el umbral de detección de voz: cuando la barra la supera, tu voz se envía (verde).",
+
+  "connect.title": "Conectarse a un servidor",
+  "connect.nickname": "Apodo",
+  "connect.invite": "Enlace de invitación",
+  "connect.invitePlaceholder": "callout://IP:4433#huella",
+  "connect.button": "Conectar",
+  "connect.connecting": "Conectando…",
+  "connect.hint":
+    "Pide el enlace de invitación a quien aloja el servidor. El servidor muestra el enlace la primera vez que se inicia.",
+  "connect.nicknameRequired": "Se necesita un apodo",
+  "connect.inviteInvalid": "El enlace de invitación debe empezar por callout://",
+
+  "lobby.create": "Crear una sala",
+  "lobby.roomName": "Nombre de la sala (opcional)",
+  "lobby.roomNamePlaceholder": "equipo",
+  "lobby.createButton": "Crear sala",
+  "lobby.join": "Unirse a una sala",
+  "lobby.code": "Código de sala",
+  "lobby.joinButton": "Unirse",
+  "lobby.disconnect": "Desconectar",
+
+  "room.copyCode": "Copiar código",
+  "room.leave": "Salir",
+  "room.you": "(tú)",
+  "room.volume": "Volumen: {pct} %",
+  "room.mute": "Silenciar micrófono",
+  "room.deafen": "Silenciar sonido",
+  "room.stats": "{rtt} ms · búfer {jitter} ms",
+  "room.lost": "{n} perdidos",
+  "room.pttHint": "Pulsar para hablar: se envía mientras mantengas pulsada la tecla {key}.",
+  "footer.muted": "silenciado",
+
+  "tray.show": "Mostrar CallOut",
+  "tray.quit": "Salir",
+
+  "audio.fallback": "No se encontró el dispositivo de audio seleccionado; se usa el dispositivo predeterminado.",
+
+  "error.generic": "{detail}",
+  "error.invalid_invite": "El enlace de invitación no es válido. Asegúrate de haberlo copiado completo.",
+  "error.device_key": "No se pudo crear la clave de identidad de este dispositivo ({detail}).",
+  "error.connect_failed":
+    "No se pudo conectar al servidor. Comprueba el enlace de invitación y que el servidor esté en marcha. ({detail})",
+  "error.audio_failed": "No se pudieron abrir los dispositivos de audio ({detail}).",
+  "error.mic_access_denied":
+    "Windows está bloqueando el acceso al micrófono. Abre Configuración → Privacidad → Micrófono, activa «Permitir que las aplicaciones de escritorio accedan al micrófono» y luego reinicia CallOut.",
+  "error.audio_device_lost": "Se perdió el dispositivo de audio; reconectando automáticamente…",
+  "error.connection_lost": "Se perdió la conexión con el servidor ({detail}).",
+  "error.request_failed": "La solicitud falló ({detail}).",
+  "error.version_mismatch": "Esta versión de CallOut no es compatible con el servidor. Actualiza CallOut o el servidor.",
+  "error.room_not_found": "No hay ninguna sala con ese código.",
+  "error.room_full": "La sala está llena.",
+  "error.already_in_room": "Primero sal de tu sala actual.",
+  "error.not_in_room": "No estás en ninguna sala.",
+  "error.rate_limited": "Demasiadas solicitudes; espera un momento y vuelve a intentarlo.",
+  "error.server_error": "Error del servidor ({detail}).",
+};

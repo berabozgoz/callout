@@ -2,15 +2,33 @@
 // `t()` reads reactive state, so templates re-render when the language changes.
 import { en, type MessageKey, type Messages } from "./en";
 import { tr } from "./tr";
+import { de } from "./de";
+import { es } from "./es";
+import { fr } from "./fr";
+import { ptBR } from "./pt-BR";
+import { ru } from "./ru";
+import { ar } from "./ar";
+import { zhCN } from "./zh-CN";
+import { ja } from "./ja";
+import { ko } from "./ko";
 
-export type Lang = "en" | "tr";
+export type Lang = "en" | "de" | "es" | "fr" | "pt-BR" | "ru" | "tr" | "ar" | "zh-CN" | "ja" | "ko";
 
 type LangInfo = { code: Lang; name: string; dir: "ltr" | "rtl"; messages: Messages };
 
 // Listed by their own name so users can find their language whatever the current one is.
 export const LANGUAGES: LangInfo[] = [
   { code: "en", name: "English", dir: "ltr", messages: en },
+  { code: "de", name: "Deutsch", dir: "ltr", messages: de },
+  { code: "es", name: "Español", dir: "ltr", messages: es },
+  { code: "fr", name: "Français", dir: "ltr", messages: fr },
+  { code: "pt-BR", name: "Português (Brasil)", dir: "ltr", messages: ptBR },
+  { code: "ru", name: "Русский", dir: "ltr", messages: ru },
   { code: "tr", name: "Türkçe", dir: "ltr", messages: tr },
+  { code: "ar", name: "العربية", dir: "rtl", messages: ar },
+  { code: "zh-CN", name: "中文（简体）", dir: "ltr", messages: zhCN },
+  { code: "ja", name: "日本語", dir: "ltr", messages: ja },
+  { code: "ko", name: "한국어", dir: "ltr", messages: ko },
 ];
 
 const byCode = new Map(LANGUAGES.map((l) => [l.code, l]));
@@ -28,7 +46,7 @@ export function detectLang(preferred: readonly string[] = navigator.languages ??
   return "en";
 }
 
-/** `"auto"` follows the system language. */
+/** Current UI language; `setLanguage(null)` follows the system language. */
 export const i18n = $state<{ lang: Lang }>({ lang: "en" });
 
 export function setLanguage(choice: string | null | undefined) {

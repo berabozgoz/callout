@@ -1,0 +1,92 @@
+import type { Messages } from "./en";
+
+export const zhCN: Messages = {
+  "header.connected": "已连接 · {ms} ms",
+  "header.connecting": "正在连接…",
+  "header.settings": "设置",
+
+  "settings.title": "设置",
+  "settings.language": "语言",
+  "settings.languageAuto": "跟随系统",
+  "settings.microphone": "麦克风",
+  "settings.speaker": "扬声器",
+  "settings.default": "默认",
+  "settings.noiseSuppression": "噪音抑制（风扇、嗡嗡声、环境噪音）",
+  "settings.pushToTalk": "按键说话（关闭时为语音激活）",
+  "settings.pttKey": "按键说话快捷键",
+  "settings.pttCapturing": "请按下一个键或组合键…（Esc 取消）",
+  "settings.pttUnassigned": "未设置 — 点击后按下一个键",
+  "settings.pttHint":
+    "快捷键仅在你位于房间内时生效。如果选择单个字母键（如 T），在房间内时将无法在其他应用中输入该字母；F9 或 Ctrl+Alt 之类的组合键更安全。",
+  "settings.save": "保存",
+  "settings.cancel": "取消",
+
+  "test.title": "声音测试",
+  "test.threshold": "语音激活阈值",
+  "test.calibrating": "准备中…请保持安静",
+  "test.recording": "⏺ 请说话… {s} 秒",
+  "test.playing": "▶ 正在播放录音…（停止）",
+  "test.start": "🎙 测试麦克风",
+  "test.tone": "🔊 播放测试音",
+  "test.resultNone":
+    "录音中没有任何内容会被发送：你的麦克风音量一直低于阈值，或者选错了麦克风。",
+  "test.result":
+    "录音中有 {pct}% 会作为语音发送，其余部分被视为静音。如果你说话的开头或结尾被截断，说明你的音量非常接近阈值。",
+  "test.hintPtt":
+    "请说话 5 秒；录音将按房间内其他人听到的效果回放。开启按键说话时，测试录音无需按键。",
+  "test.hintVad":
+    "请说话 5 秒；录音将按房间内其他人听到的效果回放。这条线是语音激活阈值：音量条越过它时，你的声音就会被发送（绿色）。",
+
+  "connect.title": "连接到服务器",
+  "connect.nickname": "昵称",
+  "connect.invite": "邀请链接",
+  "connect.invitePlaceholder": "callout://IP:4433#指纹",
+  "connect.button": "连接",
+  "connect.connecting": "正在连接…",
+  "connect.hint": "请向运行服务器的朋友获取邀请链接。服务器首次启动时会显示该链接。",
+  "connect.nicknameRequired": "请输入昵称",
+  "connect.inviteInvalid": "邀请链接必须以 callout:// 开头",
+
+  "lobby.create": "创建房间",
+  "lobby.roomName": "房间名称（可选）",
+  "lobby.roomNamePlaceholder": "小队",
+  "lobby.createButton": "创建房间",
+  "lobby.join": "加入房间",
+  "lobby.code": "房间代码",
+  "lobby.joinButton": "加入",
+  "lobby.disconnect": "断开连接",
+
+  "room.copyCode": "复制代码",
+  "room.leave": "离开",
+  "room.you": "（你）",
+  "room.volume": "音量：{pct}%",
+  "room.mute": "麦克风静音",
+  "room.deafen": "关闭声音",
+  "room.stats": "{rtt} ms · 缓冲 {jitter} ms",
+  "room.lost": "丢包 {n}",
+  "room.pttHint": "按键说话：按住 {key} 时发送语音。",
+  "footer.muted": "已静音",
+
+  "tray.show": "显示 CallOut",
+  "tray.quit": "退出",
+
+  "audio.fallback": "未找到所选音频设备，已切换到默认设备。",
+
+  "error.generic": "{detail}",
+  "error.invalid_invite": "邀请链接无效。请确认已完整复制。",
+  "error.device_key": "无法创建此设备的身份密钥（{detail}）。",
+  "error.connect_failed": "无法连接到服务器。请检查邀请链接，并确认服务器正在运行。（{detail}）",
+  "error.audio_failed": "无法打开音频设备（{detail}）。",
+  "error.mic_access_denied":
+    "Windows 阻止了麦克风访问。请打开“设置 → 隐私 → 麦克风”，开启“允许桌面应用访问你的麦克风”，然后重新启动 CallOut。",
+  "error.audio_device_lost": "音频设备已断开，正在自动重新连接…",
+  "error.connection_lost": "与服务器的连接已断开（{detail}）。",
+  "error.request_failed": "请求失败（{detail}）。",
+  "error.version_mismatch": "此版本的 CallOut 与服务器不匹配。请更新 CallOut 或服务器。",
+  "error.room_not_found": "不存在使用该代码的房间。",
+  "error.room_full": "房间已满。",
+  "error.already_in_room": "请先离开当前房间。",
+  "error.not_in_room": "你不在任何房间中。",
+  "error.rate_limited": "请求过于频繁，请稍后再试。",
+  "error.server_error": "服务器错误（{detail}）。",
+};

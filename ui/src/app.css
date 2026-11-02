@@ -42,10 +42,10 @@ button.icon { padding: 6px 9px; font-size: 15px; }
 button.active { background: var(--danger); border-color: var(--danger); color: #fff; }
 .pill { font-size: 12px; color: var(--muted); background: var(--panel2); padding: 4px 8px; border-radius: 999px; }
 .pill.ok { color: var(--ok); }
-button.capture { text-align: left; font-size: 13px; }
+button.capture { text-align: start; font-size: 13px; }
 button.capture.listening { border-color: var(--accent); color: var(--accent); }
 .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
-.error { color: var(--danger); background: #2a1c1c; border: none; border-radius: 8px; padding: 8px 10px; margin: 0; cursor: pointer; text-align: left; font-size: 13px; }
+.error { color: var(--danger); background: #2a1c1c; border: none; border-radius: 8px; padding: 8px 10px; margin: 0; cursor: pointer; text-align: start; font-size: 13px; }
 
 .roomhead { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
 .roomhead h2 { color: var(--text); text-transform: none; font-size: 16px; letter-spacing: 0; margin: 0 0 6px; }
@@ -64,11 +64,11 @@ input.vol { width: 90px; accent-color: var(--accent); }
 .meter { position: relative; flex: 1; height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; }
 .meter .fill { height: 100%; background: var(--muted); transition: width .08s linear; }
 .meter.tx .fill { background: var(--ok); }
-.meter .thr { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--text); opacity: .7; }
+.meter .thr { position: absolute; top: 0; bottom: 0; width: 2px; margin-inline-start: -1px; background: var(--text); opacity: .7; }
 .soundtest { border-top: 1px solid #343941; margin: 14px 0 12px; padding-top: 12px; }
 .soundtest h3 { font-size: 12px; color: var(--muted); font-weight: 600; margin: 0 0 8px; }
 .soundtest .meter { height: 10px; margin-bottom: 10px; }
 button.recording { border-color: var(--danger); color: var(--danger); }
 .hint.warn { color: var(--danger); }
 .stats { color: var(--muted); font-size: 12px; white-space: nowrap; }
-footer { margin-top: auto; color: var(--muted); font-size: 11px; text-align: right; }
+footer { margin-top: auto; color: var(--muted); font-size: 11px; text-align: end; }

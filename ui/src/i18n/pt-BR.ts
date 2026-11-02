@@ -1,0 +1,93 @@
+import type { Messages } from "./en";
+
+export const ptBR: Messages = {
+  "header.connected": "conectado · {ms} ms",
+  "header.connecting": "conectando…",
+  "header.settings": "Configurações",
+
+  "settings.title": "Configurações",
+  "settings.language": "Idioma",
+  "settings.languageAuto": "Idioma do sistema",
+  "settings.microphone": "Microfone",
+  "settings.speaker": "Alto-falante",
+  "settings.default": "Padrão",
+  "settings.noiseSuppression": "Supressão de ruído (ventoinhas, zumbido, barulho do ambiente)",
+  "settings.pushToTalk": "Pressione para falar (senão, detecção de voz)",
+  "settings.pttKey": "Tecla de pressione para falar",
+  "settings.pttCapturing": "Pressione uma tecla ou combinação… (Esc para cancelar)",
+  "settings.pttUnassigned": "Não definida — clique e pressione uma tecla",
+  "settings.pttHint":
+    "O atalho só fica ativo enquanto você está em uma sala. Se você escolher uma letra simples (ex.: T), não vai conseguir digitar essa letra em outros aplicativos enquanto estiver em uma sala; F9 ou combinações como Ctrl+Alt são mais seguras.",
+  "settings.save": "Salvar",
+  "settings.cancel": "Cancelar",
+
+  "test.title": "Teste de som",
+  "test.threshold": "Limite de detecção de voz",
+  "test.calibrating": "Preparando… fique em silêncio",
+  "test.recording": "⏺ Fale… {s} s",
+  "test.playing": "▶ Reproduzindo gravação… (parar)",
+  "test.start": "🎙 Testar microfone",
+  "test.tone": "🔊 Tocar som de teste",
+  "test.resultNone":
+    "Nada da gravação teria sido enviado: seu microfone ficou abaixo do limite ou o microfone errado está selecionado.",
+  "test.result":
+    "{pct}% da gravação teria sido enviado como voz; o resto contou como silêncio. Se o começo ou o fim das suas palavras foi cortado, sua voz está muito perto do limite.",
+  "test.hintPtt":
+    "Fale por 5 s; a gravação é reproduzida do jeito que os outros na sala vão ouvir. Com o pressione para falar ativado, o teste grava sem precisar da tecla.",
+  "test.hintVad":
+    "Fale por 5 s; a gravação é reproduzida do jeito que os outros na sala vão ouvir. A linha é o limite de detecção de voz: quando a barra passa dela, sua voz é enviada (verde).",
+
+  "connect.title": "Conectar a um servidor",
+  "connect.nickname": "Apelido",
+  "connect.invite": "Link de convite",
+  "connect.invitePlaceholder": "callout://IP:4433#impressão-digital",
+  "connect.button": "Conectar",
+  "connect.connecting": "Conectando…",
+  "connect.hint":
+    "Peça o link de convite ao amigo que roda o servidor. O servidor mostra o link na primeira vez que é iniciado.",
+  "connect.nicknameRequired": "O apelido é obrigatório",
+  "connect.inviteInvalid": "O link de convite deve começar com callout://",
+
+  "lobby.create": "Criar uma sala",
+  "lobby.roomName": "Nome da sala (opcional)",
+  "lobby.roomNamePlaceholder": "time",
+  "lobby.createButton": "Criar sala",
+  "lobby.join": "Entrar em uma sala",
+  "lobby.code": "Código da sala",
+  "lobby.joinButton": "Entrar",
+  "lobby.disconnect": "Desconectar",
+
+  "room.copyCode": "Copiar código",
+  "room.leave": "Sair",
+  "room.you": "(você)",
+  "room.volume": "Volume: {pct}%",
+  "room.mute": "Silenciar microfone",
+  "room.deafen": "Desativar áudio",
+  "room.stats": "{rtt} ms · buffer {jitter} ms",
+  "room.lost": "perdidos: {n}",
+  "room.pttHint": "Pressione para falar: enviando enquanto {key} estiver pressionada.",
+  "footer.muted": "microfone silenciado",
+
+  "tray.show": "Mostrar CallOut",
+  "tray.quit": "Sair",
+
+  "audio.fallback": "O dispositivo de áudio selecionado não foi encontrado; mudamos para o dispositivo padrão.",
+
+  "error.generic": "{detail}",
+  "error.invalid_invite": "O link de convite é inválido. Verifique se você copiou o link inteiro.",
+  "error.device_key": "Não foi possível criar a chave de identidade deste dispositivo ({detail}).",
+  "error.connect_failed": "Não foi possível conectar ao servidor. Verifique o link de convite e se o servidor está rodando. ({detail})",
+  "error.audio_failed": "Não foi possível abrir os dispositivos de áudio ({detail}).",
+  "error.mic_access_denied":
+    "O Windows está bloqueando o acesso ao microfone. Abra Configurações → Privacidade → Microfone, ative “Permitir que aplicativos da área de trabalho acessem seu microfone” e reinicie o CallOut.",
+  "error.audio_device_lost": "Dispositivo de áudio perdido; reconectando automaticamente…",
+  "error.connection_lost": "A conexão com o servidor foi perdida ({detail}).",
+  "error.request_failed": "A solicitação falhou ({detail}).",
+  "error.version_mismatch": "Esta versão do CallOut não é compatível com o servidor. Atualize o CallOut ou o servidor.",
+  "error.room_not_found": "Não existe sala com esse código.",
+  "error.room_full": "A sala está cheia.",
+  "error.already_in_room": "Saia da sua sala atual primeiro.",
+  "error.not_in_room": "Você não está em uma sala.",
+  "error.rate_limited": "Muitas solicitações; aguarde um momento e tente novamente.",
+  "error.server_error": "Erro do servidor ({detail}).",
+};

@@ -1,0 +1,92 @@
+import type { Messages } from "./en";
+
+export const ko: Messages = {
+  "header.connected": "연결됨 · {ms} ms",
+  "header.connecting": "연결 중…",
+  "header.settings": "설정",
+
+  "settings.title": "설정",
+  "settings.language": "언어",
+  "settings.languageAuto": "시스템 언어",
+  "settings.microphone": "마이크",
+  "settings.speaker": "스피커",
+  "settings.default": "기본값",
+  "settings.noiseSuppression": "소음 억제(팬, 웅웅거림, 실내 소음)",
+  "settings.pushToTalk": "눌러서 말하기(끄면 음성 감지)",
+  "settings.pttKey": "눌러서 말하기 키",
+  "settings.pttCapturing": "키 또는 키 조합을 누르세요… (Esc로 취소)",
+  "settings.pttUnassigned": "설정 안 됨 — 클릭한 뒤 키를 누르세요",
+  "settings.pttHint":
+    "단축키는 방에 있는 동안에만 작동해요. 일반 글자 키(예: T)를 고르면 방에 있는 동안 다른 앱에서 그 글자를 입력할 수 없어요. F9나 Ctrl+Alt 같은 조합이 더 안전해요.",
+  "settings.save": "저장",
+  "settings.cancel": "취소",
+
+  "test.title": "사운드 테스트",
+  "test.threshold": "음성 감지 임계값",
+  "test.calibrating": "준비 중… 조용히 해 주세요",
+  "test.recording": "⏺ 말해 보세요… {s}초",
+  "test.playing": "▶ 녹음 재생 중… (중지)",
+  "test.start": "🎙 마이크 테스트",
+  "test.tone": "🔊 테스트 사운드 재생",
+  "test.resultNone":
+    "녹음에서 전송될 부분이 없었어요. 마이크 소리가 임계값보다 낮았거나 다른 마이크가 선택되어 있어요.",
+  "test.result":
+    "녹음의 {pct}%가 음성으로 전송되고 나머지는 무음으로 처리됐을 거예요. 말의 시작이나 끝이 잘렸다면 목소리가 임계값에 매우 가까운 상태예요.",
+  "test.hintPtt":
+    "5초 동안 말해 보세요. 녹음은 방에 있는 다른 사람들이 듣는 그대로 재생돼요. 눌러서 말하기가 켜져 있어도 테스트는 키 없이 녹음해요.",
+  "test.hintVad":
+    "5초 동안 말해 보세요. 녹음은 방에 있는 다른 사람들이 듣는 그대로 재생돼요. 선은 음성 감지 임계값이에요. 막대가 선을 넘으면 목소리가 전송돼요(초록색).",
+
+  "connect.title": "서버에 연결",
+  "connect.nickname": "닉네임",
+  "connect.invite": "초대 링크",
+  "connect.invitePlaceholder": "callout://IP:4433#지문",
+  "connect.button": "연결",
+  "connect.connecting": "연결 중…",
+  "connect.hint": "서버를 운영하는 친구에게 초대 링크를 받으세요. 서버는 처음 시작할 때 링크를 출력해요.",
+  "connect.nicknameRequired": "닉네임을 입력하세요",
+  "connect.inviteInvalid": "초대 링크는 callout://로 시작해야 해요",
+
+  "lobby.create": "방 만들기",
+  "lobby.roomName": "방 이름(선택)",
+  "lobby.roomNamePlaceholder": "팀",
+  "lobby.createButton": "방 만들기",
+  "lobby.join": "방 참가",
+  "lobby.code": "방 코드",
+  "lobby.joinButton": "참가",
+  "lobby.disconnect": "연결 끊기",
+
+  "room.copyCode": "코드 복사",
+  "room.leave": "나가기",
+  "room.you": "(나)",
+  "room.volume": "볼륨: {pct}%",
+  "room.mute": "마이크 음소거",
+  "room.deafen": "소리 끄기",
+  "room.stats": "{rtt} ms · 버퍼 {jitter} ms",
+  "room.lost": "손실 {n}",
+  "room.pttHint": "눌러서 말하기: {key} 키를 누르고 있는 동안 전송해요.",
+  "footer.muted": "음소거됨",
+
+  "tray.show": "CallOut 표시",
+  "tray.quit": "종료",
+
+  "audio.fallback": "선택한 오디오 장치를 찾을 수 없어 기본 장치로 전환했어요.",
+
+  "error.generic": "{detail}",
+  "error.invalid_invite": "초대 링크가 올바르지 않아요. 전체를 복사했는지 확인하세요.",
+  "error.device_key": "이 기기의 ID 키를 만들 수 없어요({detail}).",
+  "error.connect_failed": "서버에 연결할 수 없어요. 초대 링크와 서버가 실행 중인지 확인하세요. ({detail})",
+  "error.audio_failed": "오디오 장치를 열 수 없어요({detail}).",
+  "error.mic_access_denied":
+    "Windows에서 마이크 액세스를 차단하고 있어요. 설정 → 개인 정보 → 마이크에서 “데스크톱 앱에서 마이크에 액세스하도록 허용”을 켠 다음 CallOut을 다시 시작하세요.",
+  "error.audio_device_lost": "오디오 장치 연결이 끊겼어요. 자동으로 다시 연결하는 중…",
+  "error.connection_lost": "서버와의 연결이 끊겼어요({detail}).",
+  "error.request_failed": "요청에 실패했어요({detail}).",
+  "error.version_mismatch": "이 CallOut 버전은 서버와 맞지 않아요. CallOut 또는 서버를 업데이트하세요.",
+  "error.room_not_found": "해당 코드의 방이 없어요.",
+  "error.room_full": "방이 꽉 찼어요.",
+  "error.already_in_room": "먼저 지금 있는 방에서 나가세요.",
+  "error.not_in_room": "방에 들어가 있지 않아요.",
+  "error.rate_limited": "요청이 너무 많아요. 잠시 후 다시 시도하세요.",
+  "error.server_error": "서버 오류({detail}).",
+};
