@@ -39,6 +39,7 @@ export const ptBR: Messages = {
 
   "connect.title": "Conectar a um servidor",
   "connect.nickname": "Apelido",
+  "connect.nicknamePlaceholder": "nome de usuário",
   "connect.invite": "Link de convite",
   "connect.invitePlaceholder": "callout://IP:4433#impressão-digital",
   "connect.button": "Conectar",
@@ -50,7 +51,7 @@ export const ptBR: Messages = {
 
   "lobby.create": "Criar uma sala",
   "lobby.roomName": "Nome da sala (opcional)",
-  "lobby.roomNamePlaceholder": "time",
+  "lobby.defaultRoomName": "Sala de {name}",
   "lobby.createButton": "Criar sala",
   "lobby.join": "Entrar em uma sala",
   "lobby.code": "Código da sala",

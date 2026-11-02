@@ -39,6 +39,7 @@ export const de: Messages = {
 
   "connect.title": "Mit einem Server verbinden",
   "connect.nickname": "Spitzname",
+  "connect.nicknamePlaceholder": "Benutzername",
   "connect.invite": "Einladungslink",
   "connect.invitePlaceholder": "callout://IP:4433#Fingerabdruck",
   "connect.button": "Verbinden",
@@ -50,7 +51,7 @@ export const de: Messages = {
 
   "lobby.create": "Raum erstellen",
   "lobby.roomName": "Raumname (optional)",
-  "lobby.roomNamePlaceholder": "Team",
+  "lobby.defaultRoomName": "Raum von {name}",
   "lobby.createButton": "Raum erstellen",
   "lobby.join": "Raum beitreten",
   "lobby.code": "Raumcode",

@@ -39,6 +39,7 @@ export const ar: Messages = {
 
   "connect.title": "الاتصال بخادم",
   "connect.nickname": "الاسم المستعار",
+  "connect.nicknamePlaceholder": "اسم المستخدم",
   "connect.invite": "رابط الدعوة",
   "connect.invitePlaceholder": "callout://IP:4433#fingerprint",
   "connect.button": "اتصال",
@@ -50,7 +51,7 @@ export const ar: Messages = {
 
   "lobby.create": "إنشاء غرفة",
   "lobby.roomName": "اسم الغرفة (اختياري)",
-  "lobby.roomNamePlaceholder": "الفريق",
+  "lobby.defaultRoomName": "غرفة {name}",
   "lobby.createButton": "إنشاء الغرفة",
   "lobby.join": "الانضمام إلى غرفة",
   "lobby.code": "رمز الغرفة",

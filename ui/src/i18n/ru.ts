@@ -39,6 +39,7 @@ export const ru: Messages = {
 
   "connect.title": "Подключение к серверу",
   "connect.nickname": "Никнейм",
+  "connect.nicknamePlaceholder": "имя пользователя",
   "connect.invite": "Ссылка-приглашение",
   "connect.invitePlaceholder": "callout://IP:4433#отпечаток",
   "connect.button": "Подключиться",
@@ -50,7 +51,7 @@ export const ru: Messages = {
 
   "lobby.create": "Создать комнату",
   "lobby.roomName": "Название комнаты (необязательно)",
-  "lobby.roomNamePlaceholder": "команда",
+  "lobby.defaultRoomName": "Комната {name}",
   "lobby.createButton": "Создать",
   "lobby.join": "Войти в комнату",
   "lobby.code": "Код комнаты",

@@ -39,6 +39,7 @@ export const tr: Messages = {
 
   "connect.title": "Sunucuya bağlan",
   "connect.nickname": "Takma ad",
+  "connect.nicknamePlaceholder": "kullanıcı adı",
   "connect.invite": "Davet linki",
   "connect.invitePlaceholder": "callout://IP:4433#parmak-izi",
   "connect.button": "Bağlan",
@@ -49,7 +50,7 @@ export const tr: Messages = {
 
   "lobby.create": "Oda aç",
   "lobby.roomName": "Oda adı (isteğe bağlı)",
-  "lobby.roomNamePlaceholder": "takım",
+  "lobby.defaultRoomName": "{name} odası",
   "lobby.createButton": "Oda aç",
   "lobby.join": "Odaya gir",
   "lobby.code": "Oda kodu",

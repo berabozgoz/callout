@@ -39,6 +39,7 @@ export const ko: Messages = {
 
   "connect.title": "서버에 연결",
   "connect.nickname": "닉네임",
+  "connect.nicknamePlaceholder": "사용자 이름",
   "connect.invite": "초대 링크",
   "connect.invitePlaceholder": "callout://IP:4433#지문",
   "connect.button": "연결",
@@ -49,7 +50,7 @@ export const ko: Messages = {
 
   "lobby.create": "방 만들기",
   "lobby.roomName": "방 이름(선택)",
-  "lobby.roomNamePlaceholder": "팀",
+  "lobby.defaultRoomName": "{name}의 방",
   "lobby.createButton": "방 만들기",
   "lobby.join": "방 참가",
   "lobby.code": "방 코드",

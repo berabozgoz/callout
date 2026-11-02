@@ -39,6 +39,7 @@ export const es: Messages = {
 
   "connect.title": "Conectarse a un servidor",
   "connect.nickname": "Apodo",
+  "connect.nicknamePlaceholder": "nombre de usuario",
   "connect.invite": "Enlace de invitación",
   "connect.invitePlaceholder": "callout://IP:4433#huella",
   "connect.button": "Conectar",
@@ -50,7 +51,7 @@ export const es: Messages = {
 
   "lobby.create": "Crear una sala",
   "lobby.roomName": "Nombre de la sala (opcional)",
-  "lobby.roomNamePlaceholder": "equipo",
+  "lobby.defaultRoomName": "Sala de {name}",
   "lobby.createButton": "Crear sala",
   "lobby.join": "Unirse a una sala",
   "lobby.code": "Código de sala",

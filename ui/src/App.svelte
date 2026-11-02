@@ -157,7 +157,9 @@
     await send({ type: "connect", invite: settings.last_invite, nickname: settings.nickname });
   }
   const disconnect = () => send({ type: "disconnect" });
-  const createRoom = () => send({ type: "create_room", name: roomName.trim() });
+  // An empty name gets a default in the creator's language (the server's own fallback is English).
+  const defaultRoomName = $derived(t("lobby.defaultRoomName", { name: settings.nickname.trim() }));
+  const createRoom = () => send({ type: "create_room", name: roomName.trim() || defaultRoomName });
   const joinRoom = () => { if (joinCode.trim()) send({ type: "join_room", code: joinCode.trim() }); };
   const leaveRoom = () => send({ type: "leave_room" });
   function toggleMute() { muted = !muted; send({ type: "set_muted", muted }); }
@@ -321,7 +323,7 @@
     <section class="card">
       <h2>{t("connect.title")}</h2>
       <label>{t("connect.nickname")}
-        <input type="text" bind:value={settings.nickname} placeholder="bera" maxlength="24" />
+        <input type="text" bind:value={settings.nickname} placeholder={t("connect.nicknamePlaceholder")} maxlength="24" />
       </label>
       <label>{t("connect.invite")}
         <input type="text" bind:value={settings.last_invite} placeholder={t("connect.invitePlaceholder")} />
@@ -338,7 +340,7 @@
     <section class="card">
       <h2>{t("lobby.create")}</h2>
       <label>{t("lobby.roomName")}
-        <input type="text" bind:value={roomName} placeholder={t("lobby.roomNamePlaceholder")} maxlength="32" />
+        <input type="text" bind:value={roomName} placeholder={defaultRoomName} maxlength="32" />
       </label>
       <div class="actions"><button class="primary" onclick={createRoom}>{t("lobby.createButton")}</button></div>
     </section>

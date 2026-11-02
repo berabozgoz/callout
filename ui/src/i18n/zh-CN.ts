@@ -39,6 +39,7 @@ export const zhCN: Messages = {
 
   "connect.title": "连接到服务器",
   "connect.nickname": "昵称",
+  "connect.nicknamePlaceholder": "用户名",
   "connect.invite": "邀请链接",
   "connect.invitePlaceholder": "callout://IP:4433#指纹",
   "connect.button": "连接",
@@ -49,7 +50,7 @@ export const zhCN: Messages = {
 
   "lobby.create": "创建房间",
   "lobby.roomName": "房间名称（可选）",
-  "lobby.roomNamePlaceholder": "小队",
+  "lobby.defaultRoomName": "{name}的房间",
   "lobby.createButton": "创建房间",
   "lobby.join": "加入房间",
   "lobby.code": "房间代码",

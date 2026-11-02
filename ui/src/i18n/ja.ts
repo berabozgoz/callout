@@ -39,6 +39,7 @@ export const ja: Messages = {
 
   "connect.title": "サーバーに接続",
   "connect.nickname": "ニックネーム",
+  "connect.nicknamePlaceholder": "ユーザー名",
   "connect.invite": "招待リンク",
   "connect.invitePlaceholder": "callout://IP:4433#フィンガープリント",
   "connect.button": "接続",
@@ -50,7 +51,7 @@ export const ja: Messages = {
 
   "lobby.create": "ルームを作成",
   "lobby.roomName": "ルーム名（任意）",
-  "lobby.roomNamePlaceholder": "チーム",
+  "lobby.defaultRoomName": "{name}のルーム",
   "lobby.createButton": "ルームを作成",
   "lobby.join": "ルームに参加",
   "lobby.code": "ルームコード",

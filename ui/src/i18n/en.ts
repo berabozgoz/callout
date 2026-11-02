@@ -43,6 +43,7 @@ export const en = {
   // connect
   "connect.title": "Connect to a server",
   "connect.nickname": "Nickname",
+  "connect.nicknamePlaceholder": "username",
   "connect.invite": "Invite link",
   "connect.invitePlaceholder": "callout://IP:4433#fingerprint",
   "connect.button": "Connect",
@@ -55,7 +56,8 @@ export const en = {
   // lobby
   "lobby.create": "Create a room",
   "lobby.roomName": "Room name (optional)",
-  "lobby.roomNamePlaceholder": "team",
+  // used when the room name is left empty; the creator's language names the room
+  "lobby.defaultRoomName": "{name}'s room",
   "lobby.createButton": "Create room",
   "lobby.join": "Join a room",
   "lobby.code": "Room code",
