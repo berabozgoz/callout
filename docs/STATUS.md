@@ -3,15 +3,22 @@
 > Read this file at the start of every session; at the end of a session update the "Last session" and "Next" sections.
 > Private details such as the server address and invite link are not written here but in `CLAUDE.local.md`, which is not in git.
 
-## Where we left off (1 Nov 2026)
+## Where we left off (2 Nov 2026)
 
 - **Phase 0 and Phase 1 done** (gate test closed on 1 Nov; Phase 2 is next). Two Windows PCs talked over the desktop app on the same network; room codes,
   speaking indicator, jitter 40–60 ms, 0 loss on LAN.
 - **Server is on the internet:** Oracle Always Free (Frankfurt, VM.Standard.E2.1.Micro, Ubuntu 24.04),
   installed as a systemd service via `deploy/install.sh`. Bera connected from the app: RTT 36 ms.
   Connection details are in `CLAUDE.local.md`.
-- **Release v0.1.6** is on GitHub Releases (server also v0.1.6): NSIS installer (currentUser), portable
+- **Release v0.1.8** is on GitHub Releases (server still v0.1.6, compatible): NSIS installer (currentUser), portable
   `callout-app.exe`, `callout-server.exe`, `callout-server-linux-x64`.
+- **English + i18n (2 Nov, after v0.1.8, not released yet):** code, docs, logs, server output and commits are
+  English. The UI is localized in 11 languages (`ui/src/i18n/*.ts`: en source, tr, de, es, fr, pt-BR, ru, ar
+  with right-to-left layout, zh-CN, ja, ko; first drafts, native review welcome) with a language setting
+  (system default or fixed, `Settings.language`). `Event::Error` carries an `ErrorKind` the UI translates;
+  microphone access denied (`0x80070005`) has its own message. Tray labels come from the UI
+  (`set_tray_labels`); the NSIS installer has the same 11 languages. Server log lines changed to English
+  (e.g. `connection stats`, `connection closed`, `joined room`, `left room`) once the server is updated.
 - The home network is behind CGNAT, so hosting the server from home is not possible; Tailscale was not wanted.
 
 ## Next
@@ -104,6 +111,10 @@
   hold 300 → 400 ms; TALK_START now fires on the first packet actually sent. Result 91%. Remaining loss:
   whole sentences spoken below the threshold → noise suppression (lowers the floor) and a sensitivity setting.
   Tried in the field together with noise suppression and released as v0.1.8.
+- 2 Nov (English switch and localization): four parallel passes translated code/docs/server to English
+  (docs/DURUM.md → docs/STATUS.md, docs/KAPI_TESTI.md → docs/GATE_TEST.md); error kinds; i18n with 11 languages
+  and RTL. Commits b84d9ee, 5b5860a, d8d8139. fmt/clippy (incl. app)/test/svelte-check clean; Arabic RTL and
+  Japanese checked in the browser preview; not yet tried in the Tauri app, not pushed or released.
 
 ## Previous session
 
