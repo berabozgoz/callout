@@ -23,6 +23,40 @@
   released in v0.1.10): `index.html` declared `lang="tr"`, so CSS uppercase rendered "SETTİNGS".
 - The home network is behind CGNAT, so hosting the server from home is not possible; Tailscale was not wanted.
 
+## Pending manual tests
+
+Things that passed automated checks but still need a person, a real Windows PC or a real network.
+Tick and move the result to "Last session" (or `GATE_TEST.md`) when done; release only after the
+items marked **before release** pass.
+
+- [ ] **Automatic reconnect, room survives** (before release; since 0d98bc3): two people in a room, pull one
+      PC's ethernet for ~5 s. Expected: "Reconnecting…" card within ~10 s, back in the same room after the
+      cable returns; the other side sees leave + join. Log: `reconnect failed` attempts, then
+      `reconnected; rejoining room`.
+- [ ] **Reconnect keeps mute** (before release): same as above while muted; the others still see you muted.
+- [ ] **Reconnect "Stop" button** (before release): pull the cable, press Stop. Back on the connect screen; no
+      reconnect when the cable returns.
+- [ ] **Long outage** : cable out ~1 min. Reconnects within ~15 s of the cable returning.
+- [ ] **Listen-only join** (before release; since 53e73f4): Windows Settings → Privacy → Microphone → turn off
+      desktop app access, connect. Expected: the microphone error is shown, but you can join a room and hear
+      the others; "Listening only" hint in the room and in settings; the mic test reports 0%. Turn access back on.
+- [ ] **Bluetooth mic warning** (since 53e73f4): pick an AirPods/Bluetooth headset mic. Expected: the 16 kHz
+      warning in settings and in the room.
+- [ ] **Adaptive jitter in the field** (since v0.1.10): a Wi-Fi player (cocart) on v0.1.10+ plays a session.
+      Expected: `stats` jitter_ms around 80–100 ms instead of ~140 (v0.1.6), late/lost up slightly (~1.5%).
+- [ ] **FEC field data** (since v0.1.7): any session with loss; compare `lost` and `fec` in the `sender jitter`
+      lines. A large `lost − fec` means burst loss → consider RED.
+- [ ] **Audio device auto-recovery** (since v0.1.6): unplug and replug the headphones while in a room.
+      Expected: "Audio device lost; reconnecting…" then audio back; log line `audio pipeline recovered`.
+- [ ] **Language persists and tray follows it** (since v0.1.9): pick a language, Save, quit from the tray,
+      reopen. The UI and the tray menu use the saved language; Cancel reverts an unsaved pick.
+- [ ] **Installer language selector** (since v0.1.9): run `CallOut_*_x64-setup.exe`; the NSIS language list shows
+      the 11 languages and the installer uses the chosen one.
+- [ ] **Mic test is private in a room** (since v0.1.8): run the mic test while in a room; the others must not
+      hear the recording.
+- [ ] **Push-to-talk in a fullscreen game** (known gap since Phase 1): the global shortcut works while a
+      fullscreen game has focus.
+
 ## Next
 
 1. **Phase 1 closed (1 Nov 2026).** Four-person test (`GATE_TEST.md`): 4 people for ~52 min total

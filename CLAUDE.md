@@ -6,7 +6,8 @@ our own SFU server (QUIC). MVP is Windows only. Full architecture: `docs/ARCHITE
 ## Session workflow
 
 - **When starting**, read `docs/STATUS.md`: where we left off, what is next.
-- **When finishing**, update the "Last session" and "Next" sections in `docs/STATUS.md`; when a phase
+- **When finishing**, update the "Last session", "Next" and "Pending manual tests" sections in
+  `docs/STATUS.md` (add anything that only a person or a real network can verify); when a phase
   is completed, also tick it in the "Phase status" list below.
 - Private details such as the server IP, invite link and SSH key path live in `CLAUDE.local.md`
   (not in git). Never write them into `docs/`, `README.md` or commit messages.
