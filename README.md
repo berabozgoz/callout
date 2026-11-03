@@ -19,7 +19,8 @@ Status: **Phase 2 (audio quality) in progress.** Rooms for 5–10 people, Window
    [Releases](https://github.com/berabozgoz/callout/releases) page. The app is not code-signed yet, so
    Windows SmartScreen shows "unknown publisher": choose **More info → Run anyway**.
 2. Get an invite link (`callout://…`) from whoever runs the server, enter a nickname and connect.
-3. Create a room and share its code, or join a room with a code.
+3. Create a room and share its code, or join a room with a code. Rooms are permanent: the same code
+   works next time (rooms unused for 30 days are removed), and the lobby lists your recent rooms.
 
 Before your first session, open **Settings (⚙)**:
 
@@ -54,8 +55,8 @@ local firewall and prints the invite link. Also allow UDP 4433 in your provider'
 group. Run the same command again to update.
 
 - Logs: `journalctl -u callout -f` (connection stats every 10 s, joins/leaves, close reasons).
-- Data: `/var/lib/callout` holds the server certificate. Deleting it changes the fingerprint, and
-  everyone needs a new invite link.
+- Data: `/var/lib/callout` holds the server certificate and `rooms.tsv` (the room list). Deleting the
+  certificate changes the fingerprint, and everyone needs a new invite link.
 - Windows: run `callout-server.exe` from the Releases page; it prints the invite link.
 - From home: forward **UDP 4433** on the router and set `CALLOUT_PUBLIC_IP=<your external IP>`. This
   does not work behind CGNAT (the router's WAN address differs from your public IP); use a VPS then.

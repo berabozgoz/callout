@@ -17,7 +17,7 @@
   const fail = (e: unknown): UiError => ({ key: "error.generic", vars: { detail: String(e) } });
 
   // ---- state ----
-  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9", noise_suppression: true, vad_sensitivity: 0, language: null });
+  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9", noise_suppression: true, vad_sensitivity: 0, language: null, recent_rooms: [] });
   let devices = $state<Device[]>([]);
   let version = $state("");
   let conn = $state<ConnectionState>("disconnected");
@@ -126,6 +126,7 @@
           break;
         case "connected": myId = e.user_id; error = null; break;
         case "room_updated":
+          if (e.room && e.room.code !== room?.code) rememberRoom(e.room);
           room = e.room; members = e.members;
           if (!e.room) speaking = new Set();
           break;
@@ -215,6 +216,19 @@
   const createRoom = () => send({ type: "create_room", name: roomName.trim() || defaultRoomName });
   const joinRoom = () => { if (joinCode.trim()) send({ type: "join_room", code: joinCode.trim() }); };
   const leaveRoom = () => send({ type: "leave_room" });
+
+  // ---- recent rooms (persistent on the server: the same code works next time) ----
+  const MAX_RECENT = 5;
+  function rememberRoom(r: RoomInfo) {
+    const rest = settings.recent_rooms.filter((x) => x.code !== r.code);
+    settings.recent_rooms = [{ code: r.code, name: r.name }, ...rest].slice(0, MAX_RECENT);
+    saveSettings(settings).catch((e) => (error = fail(e)));
+  }
+  function forgetRoom(code: string) {
+    settings.recent_rooms = settings.recent_rooms.filter((x) => x.code !== code);
+    saveSettings(settings).catch((e) => (error = fail(e)));
+  }
+  const joinRecent = (code: string) => send({ type: "join_room", code });
   function toggleMute() { muted = !muted; send({ type: "set_muted", muted }); }
   function toggleDeafen() { deafened = !deafened; send({ type: "set_deafened", deafened }); }
   function setVolume(user_id: number, gain: number) {
@@ -446,6 +460,19 @@
     </section>
     <section class="card">
       <h2>{t("lobby.join")}</h2>
+      {#if settings.recent_rooms.length}
+        <ul class="recent">
+          {#each settings.recent_rooms as r (r.code)}
+            <li>
+              <button class="recentbtn" onclick={() => joinRecent(r.code)} title={t("lobby.joinButton")}>
+                <span class="name">{r.name}</span>
+                <span class="codetag">{prettyCode(r.code)}</span>
+              </button>
+              <button class="icon forget" onclick={() => forgetRoom(r.code)} title={t("lobby.forget")} aria-label={t("lobby.forget")}>×</button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
       <label>{t("lobby.code")}
         <input type="text" bind:value={joinCode} placeholder="ABCD-1234" class="code" onkeydown={(e) => e.key === "Enter" && joinRoom()} />
       </label>

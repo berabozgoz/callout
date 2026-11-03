@@ -71,6 +71,7 @@ export const ja: Messages = {
   "lobby.join": "ルームに参加",
   "lobby.code": "ルームコード",
   "lobby.joinButton": "参加",
+  "lobby.forget": "リストから削除",
   "lobby.disconnect": "切断",
 
   "room.copyCode": "コードをコピー",

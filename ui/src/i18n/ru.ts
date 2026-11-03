@@ -71,6 +71,7 @@ export const ru: Messages = {
   "lobby.join": "Войти в комнату",
   "lobby.code": "Код комнаты",
   "lobby.joinButton": "Войти",
+  "lobby.forget": "Убрать из списка",
   "lobby.disconnect": "Отключиться",
 
   "room.copyCode": "Копировать код",

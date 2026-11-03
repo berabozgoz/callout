@@ -195,10 +195,20 @@ async fn rooms_sfu_and_speaking() {
         other => panic!("unexpected: {other:?}"),
     }
 
-    // Once A leaves too, the room closes: joining with the same code gives RoomNotFound.
+    // Rooms are persistent: once A leaves too the room is empty but keeps its code.
     a.leave_room().await.unwrap();
     tokio::time::sleep(Duration::from_millis(100)).await;
     c.join_room(&code).await.unwrap();
+    match recv(&mut c).await {
+        ServerMsg::RoomState { room, members } => {
+            assert_eq!(room.code, code);
+            assert_eq!(members.len(), 1);
+        }
+        other => panic!("unexpected: {other:?}"),
+    }
+    // An unknown code still gives RoomNotFound.
+    c.leave_room().await.unwrap();
+    c.join_room("ZZZZZZZZ").await.unwrap();
     match recv(&mut c).await {
         ServerMsg::Error { code, .. } => assert_eq!(code, ErrorCode::RoomNotFound),
         other => panic!("unexpected: {other:?}"),

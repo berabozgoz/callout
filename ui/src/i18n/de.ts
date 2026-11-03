@@ -71,6 +71,7 @@ export const de: Messages = {
   "lobby.join": "Raum beitreten",
   "lobby.code": "Raumcode",
   "lobby.joinButton": "Beitreten",
+  "lobby.forget": "Aus der Liste entfernen",
   "lobby.disconnect": "Trennen",
 
   "room.copyCode": "Code kopieren",

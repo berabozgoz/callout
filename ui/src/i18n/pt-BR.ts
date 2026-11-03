@@ -71,6 +71,7 @@ export const ptBR: Messages = {
   "lobby.join": "Entrar em uma sala",
   "lobby.code": "Código da sala",
   "lobby.joinButton": "Entrar",
+  "lobby.forget": "Remover da lista",
   "lobby.disconnect": "Desconectar",
 
   "room.copyCode": "Copiar código",

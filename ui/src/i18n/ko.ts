@@ -70,6 +70,7 @@ export const ko: Messages = {
   "lobby.join": "방 참가",
   "lobby.code": "방 코드",
   "lobby.joinButton": "참가",
+  "lobby.forget": "목록에서 삭제",
   "lobby.disconnect": "연결 끊기",
 
   "room.copyCode": "코드 복사",

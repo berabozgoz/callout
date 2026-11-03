@@ -60,6 +60,9 @@ items marked **before release** pass.
       the banner appears (at start or within 6 h), "Update and restart" downloads, leaves the room cleanly and
       installs; CallOut reopens on N+1 with settings kept. In the portable exe the banner instead says to
       download the new exe and its "Download" button opens the Releases page.
+- [ ] **Persistent rooms** (after the server update): create a room, everyone leaves, rejoin with the same code;
+      the lobby's recent rooms list joins with one click; after `install.sh` re-runs (server restart) everyone
+      reconnects into the same room.
 - [ ] **Push-to-talk in a fullscreen game** (known gap since Phase 1): the global shortcut works while a
       fullscreen game has focus.
 
@@ -198,6 +201,11 @@ items marked **before release** pass.
   and shows a banner; "Update and restart" downloads, disconnects cleanly, then runs the NSIS installer in
   passive mode. The first updater-enabled release has to be installed by hand once. The portable exe
   (no `uninstall.exe` next to it) gets a "Download" button that opens the Releases page instead.
+- 4 Nov (persistent rooms): the server keeps empty rooms (same code later) and saves them to
+  `<data>/rooms.tsv` (`code<TAB>last_used<TAB>name`, write-then-rename); rooms unused for 30 days expire (hourly
+  check), at most 1000 rooms. After a server restart reconnecting clients land back in their room (the
+  reconnect end-to-end test now asserts this). The lobby lists the last 5 rooms (`Settings.recent_rooms`) for
+  one-click rejoin. Needs a server update to take effect; protocol unchanged.
 
 ## Previous session
 

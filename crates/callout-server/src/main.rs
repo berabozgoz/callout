@@ -70,7 +70,16 @@ async fn main() -> Result<()> {
         );
     }
 
-    let registry = Registry::new();
+    let registry = Registry::load(data_dir.join("rooms.tsv"));
+    // Forget rooms nobody has used for a long time (checked hourly).
+    let expiry_reg = registry.clone();
+    tokio::spawn(async move {
+        let mut t = tokio::time::interval(std::time::Duration::from_secs(3600));
+        loop {
+            t.tick().await;
+            expiry_reg.expire();
+        }
+    });
     let next_id = Arc::new(AtomicU32::new(1));
 
     // Speaking indicator: every 100 ms, clear the ones that have timed out.
@@ -200,7 +209,7 @@ async fn handle_connection(
         room.map(|room| {
             let code = room.code();
             room.leave(user_id);
-            registry.remove_if_empty(&room);
+            registry.member_left(&room);
             code
         })
     };

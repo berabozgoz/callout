@@ -71,6 +71,7 @@ export const ar: Messages = {
   "lobby.join": "الانضمام إلى غرفة",
   "lobby.code": "رمز الغرفة",
   "lobby.joinButton": "انضمام",
+  "lobby.forget": "إزالة من القائمة",
   "lobby.disconnect": "قطع الاتصال",
 
   "room.copyCode": "نسخ الرمز",

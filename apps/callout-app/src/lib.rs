@@ -32,6 +32,14 @@ pub struct Settings {
     pub vad_sensitivity: f32,
     /// UI language code (`en`, `tr`, …); `None` follows the system language.
     pub language: Option<String>,
+    /// Rooms joined lately (newest first), for one-click rejoin. Rooms are persistent on the server.
+    pub recent_rooms: Vec<RecentRoom>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RecentRoom {
+    pub code: String,
+    pub name: String,
 }
 
 impl Default for Settings {
@@ -46,6 +54,7 @@ impl Default for Settings {
             noise_suppression: true,
             vad_sensitivity: 0.0,
             language: None,
+            recent_rooms: Vec::new(),
         }
     }
 }

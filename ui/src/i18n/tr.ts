@@ -70,6 +70,7 @@ export const tr: Messages = {
   "lobby.join": "Odaya gir",
   "lobby.code": "Oda kodu",
   "lobby.joinButton": "Gir",
+  "lobby.forget": "Listeden kaldır",
   "lobby.disconnect": "Bağlantıyı kes",
 
   "room.copyCode": "Kodu kopyala",

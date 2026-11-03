@@ -1,7 +1,9 @@
 //! Room state and SFU forwarding.
 //!
-//! [`Registry`] maps a room code to its room; a room is removed once it becomes empty.
-//! Codes are 8 characters long and avoid confusable characters (I, O, 0, 1).
+//! [`Registry`] maps a room code to its room. Rooms are persistent: an empty room keeps its code
+//! (friends can always rejoin with the same code, and reconnecting clients find their room after a
+//! server restart). The list is saved to `rooms.tsv` in the data directory; rooms unused for
+//! `ROOM_TTL` are dropped. Codes are 8 characters long and avoid confusable characters (I, O, 0, 1).
 //!
 //! Forwarding rule: an incoming datagram is stamped with `stamp_sender` and copied
 //! to every non-deafened member except the sender. A muted member's packets are
@@ -12,8 +14,9 @@ use callout_proto::{
     AudioPacket, Member, RoomInfo, ServerMsg, UserId, MAX_ROOM_MEMBERS, ROOM_CODE_LEN,
 };
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 
 /// A member counts as "not speaking" this long after their last audio packet.
@@ -59,21 +62,126 @@ pub fn normalize_code(input: &str) -> String {
         .collect()
 }
 
+/// An empty room is forgotten after this long without anyone in it.
+pub const ROOM_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+/// Upper bound on stored rooms; creating more drops the longest-unused empty room.
+const MAX_ROOMS: usize = 1000;
+
+fn unix_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+#[derive(Default)]
+struct Rooms {
+    rooms: HashMap<String, SharedRoom>,
+    /// When each room was last in use (unix seconds): creation, or when the last member left.
+    last_used: HashMap<String, u64>,
+    /// `rooms.tsv` (`code<TAB>last_used<TAB>name` per line); `None` keeps rooms in memory only.
+    path: Option<PathBuf>,
+}
+
+impl Rooms {
+    fn save(&self) {
+        let Some(path) = &self.path else { return };
+        let mut out = String::new();
+        for (code, room) in &self.rooms {
+            let name: String = room.name().chars().filter(|c| !c.is_control()).collect();
+            let used = self.last_used.get(code).copied().unwrap_or_else(unix_now);
+            out.push_str(&format!("{code}\t{used}\t{name}\n"));
+        }
+        // Write-then-rename so a crash never leaves a half-written file.
+        let tmp = path.with_extension("tsv.tmp");
+        if let Err(e) = std::fs::write(&tmp, out).and_then(|_| std::fs::rename(&tmp, path)) {
+            tracing::warn!("could not save rooms: {e}");
+        }
+    }
+
+    /// Drops empty rooms unused for longer than `ttl`; returns how many.
+    fn expire(&mut self, now: u64, ttl: Duration) -> usize {
+        let stale: Vec<String> = self
+            .rooms
+            .iter()
+            .filter(|(code, room)| {
+                room.len() == 0
+                    && now.saturating_sub(self.last_used.get(*code).copied().unwrap_or(now))
+                        > ttl.as_secs()
+            })
+            .map(|(code, _)| code.clone())
+            .collect();
+        for code in &stale {
+            self.rooms.remove(code);
+            self.last_used.remove(code);
+            tracing::info!(code, "room expired");
+        }
+        stale.len()
+    }
+}
+
 /// Code → room registry.
 #[derive(Clone, Default)]
-pub struct Registry(Arc<Mutex<HashMap<String, SharedRoom>>>);
+pub struct Registry(Arc<Mutex<Rooms>>);
 
 impl Registry {
-    pub fn new() -> Self {
-        Self::default()
+    /// Registry backed by `path`: loads the rooms saved there (skipping expired ones) and saves
+    /// every change. A missing or unreadable file starts empty.
+    pub fn load(path: PathBuf) -> Self {
+        let mut rooms = Rooms {
+            path: Some(path.clone()),
+            ..Default::default()
+        };
+        let text = std::fs::read_to_string(&path).unwrap_or_default();
+        for line in text.lines() {
+            let mut parts = line.splitn(3, '\t');
+            let (Some(code), Some(used), Some(name)) = (parts.next(), parts.next(), parts.next())
+            else {
+                continue;
+            };
+            let Ok(used) = used.parse::<u64>() else {
+                continue;
+            };
+            let code = normalize_code(code);
+            if code.len() != ROOM_CODE_LEN {
+                continue;
+            }
+            // Owners are per-connection ids; they mean nothing after a restart.
+            let room = SharedRoom::new(RoomInfo {
+                code: code.clone(),
+                name: name.to_string(),
+                owner: 0,
+            });
+            rooms.rooms.insert(code.clone(), room);
+            rooms.last_used.insert(code, used);
+        }
+        let expired = rooms.expire(unix_now(), ROOM_TTL);
+        if expired > 0 {
+            rooms.save();
+        }
+        tracing::info!(rooms = rooms.rooms.len(), expired, "rooms loaded");
+        Self(Arc::new(Mutex::new(rooms)))
     }
 
     /// Creates and registers a new room; the code is guaranteed unique.
     pub fn create(&self, name: String, owner: UserId) -> SharedRoom {
         let mut map = self.0.lock().unwrap();
+        if map.rooms.len() >= MAX_ROOMS {
+            // Make room by dropping the longest-unused empty room.
+            let oldest = map
+                .rooms
+                .iter()
+                .filter(|(_, r)| r.len() == 0)
+                .min_by_key(|(code, _)| map.last_used.get(*code).copied().unwrap_or(0))
+                .map(|(code, _)| code.clone());
+            if let Some(code) = oldest {
+                map.rooms.remove(&code);
+                map.last_used.remove(&code);
+            }
+        }
         let code = loop {
             let c = generate_code();
-            if !map.contains_key(&c) {
+            if !map.rooms.contains_key(&c) {
                 break c;
             }
         };
@@ -82,32 +190,48 @@ impl Registry {
             name,
             owner,
         });
-        map.insert(code, room.clone());
+        map.rooms.insert(code.clone(), room.clone());
+        map.last_used.insert(code, unix_now());
+        map.save();
         room
     }
 
     pub fn get(&self, code: &str) -> Option<SharedRoom> {
-        self.0.lock().unwrap().get(&normalize_code(code)).cloned()
+        self.0
+            .lock()
+            .unwrap()
+            .rooms
+            .get(&normalize_code(code))
+            .cloned()
     }
 
-    /// Removes the room from the registry if it is empty.
-    pub fn remove_if_empty(&self, room: &SharedRoom) {
-        let code = room.code();
-        let mut map = self.0.lock().unwrap();
+    /// Called after a member left: an empty room is kept (same code later) and its last use noted.
+    pub fn member_left(&self, room: &SharedRoom) {
         if room.len() == 0 {
-            map.remove(&code);
-            tracing::info!(code, "room closed");
+            let code = room.code();
+            let mut map = self.0.lock().unwrap();
+            map.last_used.insert(code.clone(), unix_now());
+            map.save();
+            tracing::info!(code, "room empty (kept)");
+        }
+    }
+
+    /// Drops rooms unused for longer than [`ROOM_TTL`]; call periodically.
+    pub fn expire(&self) {
+        let mut map = self.0.lock().unwrap();
+        if map.expire(unix_now(), ROOM_TTL) > 0 {
+            map.save();
         }
     }
 
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
-        self.0.lock().unwrap().len()
+        self.0.lock().unwrap().rooms.len()
     }
 
     /// Clears timed-out speakers in all rooms.
     pub fn tick_speaking(&self) {
-        let rooms: Vec<SharedRoom> = self.0.lock().unwrap().values().cloned().collect();
+        let rooms: Vec<SharedRoom> = self.0.lock().unwrap().rooms.values().cloned().collect();
         for r in rooms {
             r.tick_speaking();
         }
@@ -120,6 +244,10 @@ impl SharedRoom {
             info,
             peers: HashMap::new(),
         })))
+    }
+
+    pub fn name(&self) -> String {
+        self.0.lock().unwrap().info.name.clone()
     }
 
     pub fn code(&self) -> String {
@@ -256,5 +384,49 @@ impl SharedRoom {
             // Sending a datagram never blocks; if the buffer is full the packet is dropped (the right behavior for audio).
             let _ = conn.send_datagram(packet.clone());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_file(tag: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("callout-rooms-{tag}-{}.tsv", std::process::id()))
+    }
+
+    #[test]
+    fn rooms_survive_a_restart_and_keep_their_code() {
+        let path = temp_file("restart");
+        let _ = std::fs::remove_file(&path);
+        let reg = Registry::load(path.clone());
+        let room = reg.create("team\twith tab".into(), 7);
+        let code = room.code();
+        reg.member_left(&room); // empty: kept
+        assert!(reg.get(&code).is_some());
+
+        let reloaded = Registry::load(path.clone());
+        let again = reloaded.get(&code).expect("room lost on restart");
+        assert_eq!(again.name(), "teamwith tab");
+        assert_eq!(reloaded.len(), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn unused_rooms_expire() {
+        let path = temp_file("expire");
+        let old = unix_now() - ROOM_TTL.as_secs() - 10;
+        let fresh = unix_now() - 60;
+        std::fs::write(
+            &path,
+            format!("AAAAAAAA\t{old}\told\nBBBBBBBB\t{fresh}\tfresh\nbad line\n"),
+        )
+        .unwrap();
+        let reg = Registry::load(path.clone());
+        assert!(reg.get("AAAA-AAAA").is_none(), "expired room kept");
+        assert!(reg.get("bbbb-bbbb").is_some());
+        // The expired room is gone from the file too.
+        assert!(!std::fs::read_to_string(&path).unwrap().contains("AAAAAAAA"));
+        let _ = std::fs::remove_file(&path);
     }
 }

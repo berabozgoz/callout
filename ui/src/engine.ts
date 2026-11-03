@@ -56,6 +56,8 @@ export type Settings = {
   vad_sensitivity: number;
   /** UI language code, or null to follow the system language. */
   language: string | null;
+  /** Rooms joined lately, newest first (rooms are persistent on the server). */
+  recent_rooms: { code: string; name: string }[];
 };
 
 /** The engine's actual state: the engine stays connected even if the webview reloads. */

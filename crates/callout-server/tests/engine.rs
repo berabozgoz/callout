@@ -192,7 +192,7 @@ async fn wait_for(
 }
 
 #[tokio::test]
-async fn engine_reconnects_after_server_restart_and_tries_to_rejoin() {
+async fn engine_reconnects_after_server_restart_and_rejoins_its_room() {
     let dir = std::env::temp_dir().join(format!("callout-reconnect-{}", std::process::id()));
     let port = 40000 + ((std::process::id() as usize + 7777) % 20000) as u16;
     let (mut server, invite) = start_server(port, &dir);
@@ -213,10 +213,16 @@ async fn engine_reconnects_after_server_restart_and_tries_to_rejoin() {
     engine.send(Command::CreateRoom {
         name: "team".into(),
     });
-    wait_for(&mut rx, 10, "room", |e| {
+    let Event::RoomUpdated {
+        room: Some(room), ..
+    } = wait_for(&mut rx, 10, "room", |e| {
         matches!(e, Event::RoomUpdated { room: Some(_), .. })
     })
-    .await;
+    .await
+    else {
+        unreachable!()
+    };
+    let code = room.code;
 
     // The server dies without closing the connection (crash, reboot, update).
     server.kill().unwrap();
@@ -246,16 +252,13 @@ async fn engine_reconnects_after_server_restart_and_tries_to_rejoin() {
         }
     })
     .await;
-    // The room did not survive the restart: the rejoin attempt is answered with RoomNotFound.
-    wait_for(&mut rx, 10, "RoomNotFound", |e| {
-        matches!(
-            e,
-            Event::Error {
-                kind: ErrorKind::RoomNotFound,
-                ..
-            }
-        )
-    })
+    // Rooms are persistent: the engine is back in the same room after the restart.
+    wait_for(
+        &mut rx,
+        10,
+        "rejoined room",
+        |e| matches!(e, Event::RoomUpdated { room: Some(r), .. } if r.code == code),
+    )
     .await;
 
     // Disconnect stops everything; no further reconnect.

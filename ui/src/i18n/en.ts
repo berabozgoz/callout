@@ -77,6 +77,7 @@ export const en = {
   "lobby.join": "Join a room",
   "lobby.code": "Room code",
   "lobby.joinButton": "Join",
+  "lobby.forget": "Remove from the list",
   "lobby.disconnect": "Disconnect",
 
   // room

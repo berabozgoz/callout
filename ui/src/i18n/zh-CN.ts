@@ -70,6 +70,7 @@ export const zhCN: Messages = {
   "lobby.join": "加入房间",
   "lobby.code": "房间代码",
   "lobby.joinButton": "加入",
+  "lobby.forget": "从列表中移除",
   "lobby.disconnect": "断开连接",
 
   "room.copyCode": "复制代码",
