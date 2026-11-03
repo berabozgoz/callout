@@ -513,7 +513,7 @@ dependencies = [
 
 [[package]]
 name = "callout-app"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "callout-core",
  "serde",
@@ -532,7 +532,7 @@ dependencies = [
 
 [[package]]
 name = "callout-audio"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "callout-proto",
@@ -548,7 +548,7 @@ dependencies = [
 
 [[package]]
 name = "callout-core"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "bytes",
@@ -566,7 +566,7 @@ dependencies = [
 
 [[package]]
 name = "callout-net"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "bytes",
  "callout-proto",
@@ -585,7 +585,7 @@ dependencies = [
 
 [[package]]
 name = "callout-proto"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "postcard",
  "proptest",
@@ -596,7 +596,7 @@ dependencies = [
 
 [[package]]
 name = "callout-server"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "bytes",
