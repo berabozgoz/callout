@@ -73,6 +73,10 @@ pub enum Command {
     SetNoiseSuppression {
         enabled: bool,
     },
+    /// Voice activity sensitivity in dB (0 = default; positive picks up quieter speech).
+    SetVadSensitivity {
+        db: f32,
+    },
 }
 
 /// Core → UI.

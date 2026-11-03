@@ -41,7 +41,8 @@ export type Command =
   | { type: "start_mic_test" }
   | { type: "stop_mic_test" }
   | { type: "play_test_sound" }
-  | { type: "set_noise_suppression"; enabled: boolean };
+  | { type: "set_noise_suppression"; enabled: boolean }
+  | { type: "set_vad_sensitivity"; db: number };
 
 export type Settings = {
   nickname: string;
@@ -51,6 +52,8 @@ export type Settings = {
   push_to_talk: boolean;
   ptt_shortcut: string;
   noise_suppression: boolean;
+  /** Voice activity sensitivity in dB (0 = default, positive = picks up quieter speech). */
+  vad_sensitivity: number;
   /** UI language code, or null to follow the system language. */
   language: string | null;
 };

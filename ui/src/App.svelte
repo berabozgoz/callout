@@ -16,7 +16,7 @@
   const fail = (e: unknown): UiError => ({ key: "error.generic", vars: { detail: String(e) } });
 
   // ---- state ----
-  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9", noise_suppression: true, language: null });
+  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9", noise_suppression: true, vad_sensitivity: 0, language: null });
   let devices = $state<Device[]>([]);
   let version = $state("");
   let conn = $state<ConnectionState>("disconnected");
@@ -207,6 +207,7 @@
       if (savedSettings.input_device !== settings.input_device) send({ type: "set_input_device", name: savedSettings.input_device });
       if (savedSettings.output_device !== settings.output_device) send({ type: "set_output_device", name: savedSettings.output_device });
       if (savedSettings.noise_suppression !== settings.noise_suppression) send({ type: "set_noise_suppression", enabled: savedSettings.noise_suppression });
+      if (savedSettings.vad_sensitivity !== settings.vad_sensitivity) send({ type: "set_vad_sensitivity", db: savedSettings.vad_sensitivity });
       if (savedSettings.language !== settings.language) setLanguage(savedSettings.language);
       settings = savedSettings;
     }
@@ -297,6 +298,16 @@
         <input type="checkbox" bind:checked={settings.push_to_talk} />
         {t("settings.pushToTalk")}
       </label>
+      {#if !settings.push_to_talk}
+        <label>{t("settings.sensitivity")}
+          <div class="sens">
+            <span>{t("settings.sensitivityLow")}</span>
+            <input type="range" min="-12" max="12" step="1" bind:value={settings.vad_sensitivity}
+              oninput={() => send({ type: "set_vad_sensitivity", db: Number(settings.vad_sensitivity) })} />
+            <span>{t("settings.sensitivityHigh")}</span>
+          </div>
+        </label>
+      {/if}
       {#if settings.push_to_talk}
         <label>{t("settings.pttKey")}
           <button type="button" class="capture" class:listening={capturing} onclick={(e) => { if (e.detail === 0) return; /* ignore the click synthesized when Space/Enter is the captured key */ capturing ? stopCapture() : startCapture(); }}>

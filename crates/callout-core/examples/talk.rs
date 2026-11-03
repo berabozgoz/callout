@@ -81,6 +81,7 @@ async fn main() -> Result<()> {
         output_device: args.output.clone(),
         push_to_talk: args.ptt,
         noise_suppression: true,
+        vad_sensitivity_db: 0.0,
         no_audio: false,
     });
     engine.send(Command::Connect {

@@ -22,9 +22,17 @@ const MIN_CLOSE_ABOVE_FLOOR_DB: f32 = 3.0;
 const PROB_OPEN: f32 = 0.85;
 const PROB_HOLD: f32 = 0.5;
 
+/// The user's sensitivity offset can lower the open threshold at most to this far above the noise
+/// floor (adaptive mode), so a very sensitive setting cannot leave the gate open on plain noise.
+const MIN_OPEN_ABOVE_FLOOR_DB: f32 = 4.0;
+
 pub struct Vad {
     /// Open threshold (linear RMS); the close threshold is `HYSTERESIS_DB` below it.
     threshold: f32,
+    /// Threshold before the user's offset (dBFS): fixed, or noise floor + margin in adaptive mode.
+    base_db: f32,
+    /// User sensitivity: added to `base_db` (negative = more sensitive).
+    offset_db: f32,
     hangover_frames: u32,
     preroll_frames: u32,
     remaining: u32,
@@ -40,6 +48,8 @@ impl Vad {
     pub fn new(threshold_db: f32, hangover_ms: u32, preroll_ms: u32) -> Self {
         Self {
             threshold: 10f32.powf(threshold_db / 20.0),
+            base_db: threshold_db,
+            offset_db: 0.0,
             hangover_frames: hangover_ms / 20,
             preroll_frames: preroll_ms / 20,
             remaining: 0,
@@ -52,6 +62,21 @@ impl Vad {
     pub fn set_adaptive(&mut self, floor_db: f32, margin_db: f32) {
         self.adaptive = Some((floor_db, margin_db));
         self.set_threshold_db((floor_db + margin_db).clamp(-60.0, -20.0));
+    }
+
+    /// User sensitivity in dB: positive lowers the open threshold (picks up quieter speech),
+    /// negative raises it. Clamped to ±15 dB.
+    pub fn set_sensitivity_db(&mut self, db: f32) {
+        self.offset_db = -db.clamp(-15.0, 15.0);
+        self.apply_threshold();
+    }
+
+    fn apply_threshold(&mut self) {
+        let mut db = self.base_db + self.offset_db;
+        if let Some((floor, _)) = self.adaptive {
+            db = db.max(floor + MIN_OPEN_ABOVE_FLOOR_DB);
+        }
+        self.threshold = 10f32.powf(db / 20.0);
     }
 
     pub fn noise_floor_db(&self) -> Option<f32> {
@@ -88,7 +113,8 @@ impl Vad {
                 let db = Self::to_db(rms);
                 let alpha = if db < *floor { 0.05 } else { 0.005 };
                 *floor += (db - *floor) * alpha;
-                self.threshold = 10f32.powf((*floor + *margin).clamp(-60.0, -20.0) / 20.0);
+                self.base_db = (*floor + *margin).clamp(-60.0, -20.0);
+                self.apply_threshold();
             }
         }
         let was_speaking = self.speaking;
@@ -112,8 +138,10 @@ impl Vad {
         self.speaking
     }
 
+    /// Sets the threshold before the user's sensitivity offset.
     pub fn set_threshold_db(&mut self, db: f32) {
-        self.threshold = 10f32.powf(db / 20.0);
+        self.base_db = db;
+        self.apply_threshold();
     }
 
     pub fn threshold_db(&self) -> f32 {
@@ -305,5 +333,27 @@ mod sim {
                 );
             }
         }
+    }
+
+    #[test]
+    fn sensitivity_moves_threshold_but_not_below_noise() {
+        let mut vad = Vad::new(-45.0, 0, 0);
+        vad.set_adaptive(-42.0, 6.0); // threshold -36
+        assert!((vad.threshold_db() + 36.0).abs() < 0.01);
+        vad.set_sensitivity_db(1.0);
+        assert!(
+            (vad.threshold_db() + 37.0).abs() < 0.01,
+            "{}",
+            vad.threshold_db()
+        );
+        vad.set_sensitivity_db(-6.0);
+        assert!((vad.threshold_db() + 30.0).abs() < 0.01);
+        // Very sensitive: capped 4 dB above the -42 dB floor.
+        vad.set_sensitivity_db(15.0);
+        assert!(
+            (vad.threshold_db() + 38.0).abs() < 0.01,
+            "{}",
+            vad.threshold_db()
+        );
     }
 }

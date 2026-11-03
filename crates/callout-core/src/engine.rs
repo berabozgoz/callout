@@ -56,6 +56,8 @@ pub struct EngineConfig {
     pub push_to_talk: bool,
     /// Apply noise suppression (RNNoise) to the microphone signal.
     pub noise_suppression: bool,
+    /// Voice activity sensitivity in dB (see `Command::SetVadSensitivity`).
+    pub vad_sensitivity_db: f32,
     /// Never set up the audio pipeline (for test environments without audio devices).
     pub no_audio: bool,
 }
@@ -68,6 +70,7 @@ impl Default for EngineConfig {
             output_device: None,
             push_to_talk: false,
             noise_suppression: true,
+            vad_sensitivity_db: 0.0,
             no_audio: false,
         }
     }
@@ -117,6 +120,8 @@ struct AudioControl {
     ptt_mode: AtomicBool,
     ptt_pressed: AtomicBool,
     noise_suppression: AtomicBool,
+    /// `f32::to_bits` of the VAD sensitivity in dB.
+    vad_sensitivity: AtomicU32,
     /// Set by the cpal stream error callback (device unplugged/lost); the engine rebuilds the audio pipeline.
     stream_error: AtomicBool,
     /// Audio is sent only while in a room (outside a room the server drops it anyway; keep it off the network).
@@ -134,9 +139,10 @@ struct AudioControl {
 }
 
 impl AudioControl {
-    fn new(ptt: bool, noise_suppression: bool) -> Arc<Self> {
+    fn new(ptt: bool, noise_suppression: bool, vad_sensitivity_db: f32) -> Arc<Self> {
         Arc::new(Self {
             noise_suppression: AtomicBool::new(noise_suppression),
+            vad_sensitivity: AtomicU32::new(vad_sensitivity_db.to_bits()),
             stop: AtomicBool::new(false),
             muted: AtomicBool::new(false),
             deafened: AtomicBool::new(false),
@@ -343,6 +349,8 @@ fn audio_thread(
     let mut framer = Framer::new();
     let mut vad = Vad::new(-45.0, VAD_HANGOVER_MS, VAD_PREROLL_MS);
     let mut denoiser = Denoiser::new();
+    let mut sensitivity_bits = ctl.vad_sensitivity.load(Ordering::Relaxed);
+    vad.set_sensitivity_db(f32::from_bits(sensitivity_bits));
     let mut ns_active = ctl.noise_suppression.load(Ordering::Relaxed);
     // Pre-roll buffer: the latest frames (including the current one). When speech starts, the earlier ones are sent too.
     let mut history: VecDeque<[f32; FRAME]> = VecDeque::with_capacity(PREROLL_FRAMES + 1);
@@ -428,6 +436,11 @@ fn audio_thread(
                     calib.clear();
                     denoiser = Denoiser::new();
                     tracing::info!(enabled = ns, "noise suppression");
+                }
+                let bits = ctl.vad_sensitivity.load(Ordering::Relaxed);
+                if bits != sensitivity_bits {
+                    sensitivity_bits = bits;
+                    vad.set_sensitivity_db(f32::from_bits(bits));
                 }
                 let speech_prob = ns_active.then(|| denoiser.process(&mut frame));
                 let rms = Vad::rms(&frame);
@@ -781,7 +794,11 @@ async fn run(
     let emit = |e: Event| {
         let _ = ev.send(e);
     };
-    let ctl = AudioControl::new(cfg.push_to_talk, cfg.noise_suppression);
+    let ctl = AudioControl::new(
+        cfg.push_to_talk,
+        cfg.noise_suppression,
+        cfg.vad_sensitivity_db,
+    );
     // The UI asks for a preview while on the settings screen; it persists after a disconnect too.
     let mut preview_wanted = false;
     // Set after an involuntary disconnect: retry with backoff until it works or the user cancels.
@@ -866,6 +883,9 @@ async fn run(
                 Some(Command::SetMuted { muted }) => ctl.muted.store(muted, Ordering::Relaxed),
                 Some(Command::SetNoiseSuppression { enabled }) => {
                     ctl.noise_suppression.store(enabled, Ordering::Relaxed)
+                }
+                Some(Command::SetVadSensitivity { db }) => {
+                    ctl.vad_sensitivity.store(db.to_bits(), Ordering::Relaxed)
                 }
                 Some(Command::SetDeafened { deafened }) => {
                     ctl.deafened.store(deafened, Ordering::Relaxed)
@@ -1069,6 +1089,7 @@ async fn run(
                         Command::StopMicTest => { ctl.mic_test_stop.store(true, Ordering::Relaxed); Ok(()) }
                         Command::PlayTestSound => { ctl.test_sound.store(true, Ordering::Relaxed); Ok(()) }
                         Command::SetNoiseSuppression { enabled } => { ctl.noise_suppression.store(enabled, Ordering::Relaxed); Ok(()) }
+                        Command::SetVadSensitivity { db } => { ctl.vad_sensitivity.store(db.to_bits(), Ordering::Relaxed); Ok(()) }
                     };
                     if let Err((kind, message)) = r {
                         emit(Event::Error { kind, message });
