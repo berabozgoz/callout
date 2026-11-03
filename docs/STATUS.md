@@ -40,6 +40,8 @@ items marked **before release** pass.
 - [ ] **Listen-only join** (before release; since 53e73f4): Windows Settings → Privacy → Microphone → turn off
       desktop app access, connect. Expected: the microphone error is shown, but you can join a room and hear
       the others; "Listening only" hint in the room and in settings; the mic test reports 0%. Turn access back on.
+- [ ] **Sensitivity slider** (since d16c116): in Settings, moving it moves the threshold line on the meter;
+      "More" picks up quiet speech in the sound test, "Less" cuts it; Cancel restores the saved value.
 - [ ] **Bluetooth mic warning** (since 53e73f4): pick an AirPods/Bluetooth headset mic. Expected: the 16 kHz
       warning in settings and in the room.
 - [ ] **Adaptive jitter in the field** (since v0.1.10): a Wi-Fi player (cocart) on v0.1.10+ plays a session.
