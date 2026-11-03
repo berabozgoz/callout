@@ -44,8 +44,9 @@ items marked **before release** pass.
       desktop app access, connect. Expected: the microphone error is shown, but you can join a room and hear
       the others; "Listening only" hint in the room and in settings; the mic test reports 0%. Turn access back on.
       ✓ 3 Nov: mic access turned off while connected → pipeline rebuilt with has_input=false, listening went on.
-- [ ] **Sensitivity slider** (since d16c116): in Settings, moving it moves the threshold line on the meter;
+- [x] **Sensitivity slider** (since d16c116): in Settings, moving it moves the threshold line on the meter;
       "More" picks up quiet speech in the sound test, "Less" cuts it; Cancel restores the saved value.
+      ✓ 4 Nov (Bera): works as expected.
 - [x] **Bluetooth mic warning** (since 53e73f4): pick an AirPods/Bluetooth headset mic. Expected: the 16 kHz
       warning in settings and in the room.
       ✓ 4 Nov (Bera, AirPods): the warning shows in settings and in the room.
@@ -60,6 +61,8 @@ items marked **before release** pass.
       reopen. The UI and the tray menu use the saved language; Cancel reverts an unsaved pick.
 - [ ] **Installer language selector** (since v0.1.9): run `CallOut_*_x64-setup.exe`; the NSIS language list shows
       the 11 languages and the installer uses the chosen one.
+      Partly seen 4 Nov: on an English Windows the installer came up in English. Still open: does the
+      language list appear, and does picking another language (e.g. Türkçe) switch the installer?
 - [ ] **Mic test is private in a room** (since v0.1.8): run the mic test while in a room; the others must not
       hear the recording.
 - [ ] **Auto-update** (from the first updater-enabled release on): with release N installed, publish N+1. Expected:
