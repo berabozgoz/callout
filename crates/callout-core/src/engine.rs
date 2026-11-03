@@ -936,7 +936,18 @@ async fn run(
                 continue;
             }
         };
-        let mut client = match Client::connect(&invite, &key, &nickname).await {
+        // While reconnecting, give up on an attempt after a few seconds: an unreachable server would
+        // otherwise hold each attempt for the full QUIC idle timeout (10 s) on top of the backoff.
+        let attempt = Client::connect(&invite, &key, &nickname);
+        let connected = if reconnect.is_some() {
+            match tokio::time::timeout(RECONNECT_ATTEMPT_TIMEOUT, attempt).await {
+                Ok(r) => r.map_err(|e| e.to_string()),
+                Err(_) => Err("attempt timed out".into()),
+            }
+        } else {
+            attempt.await.map_err(|e| e.to_string())
+        };
+        let mut client = match connected {
             Ok(c) => c,
             Err(e) => {
                 if let Some(r) = reconnect.as_mut() {
@@ -1253,6 +1264,9 @@ async fn run(
         }
     }
 }
+
+/// Longest a single reconnect attempt may take (a reachable server answers in well under a second).
+const RECONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(4);
 
 /// What to restore after an involuntary disconnect.
 struct Reconnect {

@@ -29,17 +29,19 @@ Things that passed automated checks but still need a person, a real Windows PC o
 Tick and move the result to "Last session" (or `GATE_TEST.md`) when done; release only after the
 items marked **before release** pass.
 
-- [ ] **Automatic reconnect, room survives** (before release; since 0d98bc3): two people in a room, pull one
+- [x] **Automatic reconnect, room survives** (before release; since 0d98bc3): two people in a room, pull one
       PC's ethernet for ~5 s. Expected: "Reconnecting…" card within ~10 s, back in the same room after the
       cable returns; the other side sees leave + join. Log: `reconnect failed` attempts, then
       `reconnected; rejoining room`.
+      ✓ 3 Nov: two cable pulls on the Oracle server, back in room JBRA435A after 2–4 s each.
 - [ ] **Reconnect keeps mute** (before release): same as above while muted; the others still see you muted.
 - [ ] **Reconnect "Stop" button** (before release): pull the cable, press Stop. Back on the connect screen; no
       reconnect when the cable returns.
 - [ ] **Long outage** : cable out ~1 min. Reconnects within ~15 s of the cable returning.
-- [ ] **Listen-only join** (before release; since 53e73f4): Windows Settings → Privacy → Microphone → turn off
+- [x] **Listen-only join** (before release; since 53e73f4): Windows Settings → Privacy → Microphone → turn off
       desktop app access, connect. Expected: the microphone error is shown, but you can join a room and hear
       the others; "Listening only" hint in the room and in settings; the mic test reports 0%. Turn access back on.
+      ✓ 3 Nov: mic access turned off while connected → pipeline rebuilt with has_input=false, listening went on.
 - [ ] **Sensitivity slider** (since d16c116): in Settings, moving it moves the threshold line on the meter;
       "More" picks up quiet speech in the sound test, "Less" cuts it; Cancel restores the saved value.
 - [ ] **Bluetooth mic warning** (since 53e73f4): pick an AirPods/Bluetooth headset mic. Expected: the 16 kHz
@@ -48,8 +50,9 @@ items marked **before release** pass.
       Expected: `stats` jitter_ms around 80–100 ms instead of ~140 (v0.1.6), late/lost up slightly (~1.5%).
 - [ ] **FEC field data** (since v0.1.7): any session with loss; compare `lost` and `fec` in the `sender jitter`
       lines. A large `lost − fec` means burst loss → consider RED.
-- [ ] **Audio device auto-recovery** (since v0.1.6): unplug and replug the headphones while in a room.
+- [x] **Audio device auto-recovery** (since v0.1.6): unplug and replug the headphones while in a room.
       Expected: "Audio device lost; reconnecting…" then audio back; log line `audio pipeline recovered`.
+      ✓ 3 Nov: input lost (privacy toggle) → `audio pipeline recovered attempts=1`.
 - [ ] **Language persists and tray follows it** (since v0.1.9): pick a language, Save, quit from the tray,
       reopen. The UI and the tray menu use the saved language; Cancel reverts an unsaved pick.
 - [ ] **Installer language selector** (since v0.1.9): run `CallOut_*_x64-setup.exe`; the NSIS language list shows
@@ -60,11 +63,13 @@ items marked **before release** pass.
       the banner appears (at start or within 6 h), "Update and restart" downloads, leaves the room cleanly and
       installs; CallOut reopens on N+1 with settings kept. In the portable exe the banner instead says to
       download the new exe and its "Download" button opens the Releases page.
-- [ ] **Persistent rooms** (after the server update): create a room, everyone leaves, rejoin with the same code;
+- [x] **Persistent rooms** (after the server update): create a room, everyone leaves, rejoin with the same code;
       the lobby's recent rooms list joins with one click; after `install.sh` re-runs (server restart) everyone
       reconnects into the same room.
-- [ ] **Close room** (after the server update): the creator sees "Close room" (others don't); a second click
+      ✓ 3 Nov on a local server: rejoin by code and from the recent list; after a server restart the client was back in room KD2R8L42 within 1 s.
+- [x] **Close room** (after the server update): the creator sees "Close room" (others don't); a second click
       closes it for everyone ("closed by its owner"), the code no longer works and it leaves the recent lists.
+      ✓ 3 Nov on a local server: closed for everyone, rooms.tsv emptied. With the old v0.1.9 server the button disappears after a reconnect (old server keeps the creator's first session id) — expected until the server update.
 - [ ] **Push-to-talk in a fullscreen game** (known gap since Phase 1): the global shortcut works while a
       fullscreen game has focus.
 
@@ -216,6 +221,10 @@ items marked **before release** pass.
   a room that gets closed cannot decode `RoomClosed` and drops its connection. UI: "Close room" with a
   click-again confirmation; closed or vanished rooms leave the recent list. E2E test
   `only_the_creator_can_close_a_room`.
+- 4 Nov (manual tests by Bera): reconnect, listen-only, device recovery, persistent rooms and close room
+  passed (see Pending manual tests). Found: while the server is down each reconnect attempt waited for the
+  full 10 s QUIC idle timeout, so attempts ran every ~25 s; attempts are now capped at 4 s
+  (`RECONNECT_ATTEMPT_TIMEOUT`). Still to test before release: reconnect keeps mute, and the Stop button.
 
 ## Previous session
 
