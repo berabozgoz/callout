@@ -142,3 +142,133 @@ async fn engine_connects_creates_room_and_disconnects() {
     server.wait().ok();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Starts the server binary; returns the process and the invite link it prints.
+fn start_server(port: u16, dir: &std::path::Path) -> (std::process::Child, String) {
+    let mut server = Proc::new(env!("CARGO_BIN_EXE_callout-server"))
+        .env("CALLOUT_PORT", port.to_string())
+        .env("CALLOUT_DATA", dir)
+        .env("CALLOUT_PUBLIC_IP", "127.0.0.1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let stdout = server.stdout.take().unwrap();
+    let invite = std::thread::spawn(move || {
+        let mut lines = BufReader::new(stdout).lines().map_while(Result::ok);
+        let invite = lines
+            .by_ref()
+            .find_map(|line| {
+                line.find("callout://")
+                    .map(|i| line[i..].trim().to_string())
+            })
+            .expect("no invite link");
+        // Keep draining stdout so the server never blocks on a full pipe.
+        std::thread::spawn(move || lines.for_each(drop));
+        invite
+    })
+    .join()
+    .unwrap();
+    (server, invite)
+}
+
+/// Waits up to `secs` for an event matching `pred`, skipping others.
+async fn wait_for(
+    rx: &mut tokio::sync::mpsc::UnboundedReceiver<Event>,
+    secs: u64,
+    what: &str,
+    pred: impl Fn(&Event) -> bool,
+) -> Event {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(secs);
+    loop {
+        let ev = tokio::time::timeout_at(deadline, rx.recv())
+            .await
+            .unwrap_or_else(|_| panic!("timed out waiting for {what}"))
+            .expect("engine shut down");
+        if pred(&ev) {
+            return ev;
+        }
+    }
+}
+
+#[tokio::test]
+async fn engine_reconnects_after_server_restart_and_tries_to_rejoin() {
+    let dir = std::env::temp_dir().join(format!("callout-reconnect-{}", std::process::id()));
+    let port = 40000 + ((std::process::id() as usize + 7777) % 20000) as u16;
+    let (mut server, invite) = start_server(port, &dir);
+
+    let (engine, mut rx) = Engine::start(EngineConfig {
+        data_dir: dir.join("client"),
+        no_audio: true,
+        ..Default::default()
+    });
+    engine.send(Command::Connect {
+        invite,
+        nickname: "test".into(),
+    });
+    wait_for(&mut rx, 10, "Connected", |e| {
+        matches!(e, Event::Connected { .. })
+    })
+    .await;
+    engine.send(Command::CreateRoom {
+        name: "team".into(),
+    });
+    wait_for(&mut rx, 10, "room", |e| {
+        matches!(e, Event::RoomUpdated { room: Some(_), .. })
+    })
+    .await;
+
+    // The server dies without closing the connection (crash, reboot, update).
+    server.kill().unwrap();
+    server.wait().unwrap();
+    wait_for(&mut rx, 20, "ConnectionLost", |e| {
+        matches!(
+            e,
+            Event::Error {
+                kind: ErrorKind::ConnectionLost,
+                ..
+            }
+        )
+    })
+    .await;
+    wait_for(&mut rx, 5, "Reconnecting", |e| {
+        *e == Event::ConnectionState {
+            state: ConnectionState::Reconnecting,
+        }
+    })
+    .await;
+
+    // It comes back (same certificate, so the invite still matches): the engine reconnects on its own.
+    let (mut server, _) = start_server(port, &dir);
+    wait_for(&mut rx, 30, "Connected again", |e| {
+        *e == Event::ConnectionState {
+            state: ConnectionState::Connected,
+        }
+    })
+    .await;
+    // The room did not survive the restart: the rejoin attempt is answered with RoomNotFound.
+    wait_for(&mut rx, 10, "RoomNotFound", |e| {
+        matches!(
+            e,
+            Event::Error {
+                kind: ErrorKind::RoomNotFound,
+                ..
+            }
+        )
+    })
+    .await;
+
+    // Disconnect stops everything; no further reconnect.
+    engine.send(Command::Disconnect);
+    wait_for(&mut rx, 10, "Disconnected", |e| {
+        *e == Event::ConnectionState {
+            state: ConnectionState::Disconnected,
+        }
+    })
+    .await;
+
+    drop(engine);
+    server.kill().ok();
+    server.wait().ok();
+    let _ = std::fs::remove_dir_all(&dir);
+}

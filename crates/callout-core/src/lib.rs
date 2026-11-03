@@ -213,6 +213,9 @@ pub enum ConnectionState {
     Disconnected,
     Connecting,
     Connected,
+    /// The connection dropped on its own; the engine retries with backoff and rejoins the room.
+    /// `Command::Disconnect` stops it.
+    Reconnecting,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

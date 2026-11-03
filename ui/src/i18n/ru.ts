@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 export const ru: Messages = {
   "header.connected": "подключено · {ms} ms",
   "header.connecting": "подключение…",
+  "header.reconnecting": "переподключение…",
   "header.settings": "Настройки",
 
   "settings.title": "Настройки",
@@ -48,6 +49,10 @@ export const ru: Messages = {
     "Ссылку-приглашение даст друг, у которого запущен сервер. Сервер выводит ссылку при первом запуске.",
   "connect.nicknameRequired": "Укажите никнейм",
   "connect.inviteInvalid": "Ссылка-приглашение должна начинаться с callout://",
+
+  "reconnect.title": "Переподключение…",
+  "reconnect.hint": "Соединение с сервером потеряно. CallOut продолжает попытки и вернёт вас в вашу комнату.",
+  "reconnect.cancel": "Остановить",
 
   "lobby.create": "Создать комнату",
   "lobby.roomName": "Название комнаты (необязательно)",

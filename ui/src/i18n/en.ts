@@ -4,6 +4,7 @@ export const en = {
   // header
   "header.connected": "connected · {ms} ms",
   "header.connecting": "connecting…",
+  "header.reconnecting": "reconnecting…",
   "header.settings": "Settings",
 
   // settings
@@ -52,6 +53,10 @@ export const en = {
     "Get the invite link from the friend who runs the server. The server prints the link when it first starts.",
   "connect.nicknameRequired": "A nickname is required",
   "connect.inviteInvalid": "The invite link must start with callout://",
+
+  "reconnect.title": "Reconnecting…",
+  "reconnect.hint": "The connection to the server was lost. CallOut keeps trying and puts you back in your room.",
+  "reconnect.cancel": "Stop",
 
   // lobby
   "lobby.create": "Create a room",

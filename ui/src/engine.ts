@@ -4,7 +4,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type RoomInfo = { code: string; name: string; owner: number };
 export type Member = { user_id: number; nickname: string; muted: boolean; deafened: boolean };
-export type ConnectionState = "disconnected" | "connecting" | "connected";
+export type ConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
 export type MicTestState = "calibrating" | "recording" | "playing" | "idle";
 /** `callout_core::ErrorKind`: translated by the UI, `message` is the technical detail. */
 export type ErrorKind =

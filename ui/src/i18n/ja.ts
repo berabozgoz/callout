@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 export const ja: Messages = {
   "header.connected": "接続済み · {ms} ms",
   "header.connecting": "接続中…",
+  "header.reconnecting": "再接続中…",
   "header.settings": "設定",
 
   "settings.title": "設定",
@@ -48,6 +49,10 @@ export const ja: Messages = {
     "招待リンクはサーバーを運用している友だちから受け取ってください。サーバーは初回起動時にリンクを表示します。",
   "connect.nicknameRequired": "ニックネームを入力してください",
   "connect.inviteInvalid": "招待リンクは callout:// で始まる必要があります",
+
+  "reconnect.title": "再接続しています…",
+  "reconnect.hint": "サーバーとの接続が切れました。CallOut は接続を試み続け、元のルームに戻します。",
+  "reconnect.cancel": "停止",
 
   "lobby.create": "ルームを作成",
   "lobby.roomName": "ルーム名（任意）",

@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 export const ar: Messages = {
   "header.connected": "متصل · {ms} ms",
   "header.connecting": "جارٍ الاتصال…",
+  "header.reconnecting": "جارٍ إعادة الاتصال…",
   "header.settings": "الإعدادات",
 
   "settings.title": "الإعدادات",
@@ -48,6 +49,10 @@ export const ar: Messages = {
     "احصل على رابط الدعوة من الصديق الذي يشغّل الخادم. يعرض الخادم الرابط عند تشغيله أول مرة.",
   "connect.nicknameRequired": "الاسم المستعار مطلوب",
   "connect.inviteInvalid": "يجب أن يبدأ رابط الدعوة بـ callout://",
+
+  "reconnect.title": "جارٍ إعادة الاتصال…",
+  "reconnect.hint": "انقطع الاتصال بالخادم. يواصل CallOut المحاولة وسيعيدك إلى غرفتك.",
+  "reconnect.cancel": "إيقاف",
 
   "lobby.create": "إنشاء غرفة",
   "lobby.roomName": "اسم الغرفة (اختياري)",

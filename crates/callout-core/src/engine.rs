@@ -784,11 +784,18 @@ async fn run(
     let ctl = AudioControl::new(cfg.push_to_talk, cfg.noise_suppression);
     // The UI asks for a preview while on the settings screen; it persists after a disconnect too.
     let mut preview_wanted = false;
+    // Set after an involuntary disconnect: retry with backoff until it works or the user cancels.
+    let mut reconnect: Option<Reconnect> = None;
 
     loop {
-        // ---------------- Disconnected ----------------
+        // ---------------- Disconnected / waiting to reconnect ----------------
+        let mut retry_at = reconnect.as_ref().map(|r| Instant::now() + r.backoff());
         emit(Event::ConnectionState {
-            state: ConnectionState::Disconnected,
+            state: if reconnect.is_some() {
+                ConnectionState::Reconnecting
+            } else {
+                ConnectionState::Disconnected
+            },
         });
         let mut preview = if preview_wanted {
             open_preview(&cfg, &ctl, &ev)
@@ -796,9 +803,23 @@ async fn run(
             None
         };
         let (invite, nickname) = loop {
-            match cmd_rx.recv().await {
+            let cmd = match retry_at {
+                Some(at) => tokio::select! {
+                    cmd = cmd_rx.recv() => cmd,
+                    _ = tokio::time::sleep_until(at.into()) => {
+                        let r = reconnect.as_ref().expect("retry without reconnect state");
+                        break (r.invite.clone(), r.nickname.clone());
+                    }
+                },
+                None => cmd_rx.recv().await,
+            };
+            match cmd {
                 None => return,
-                Some(Command::Connect { invite, nickname }) => break (invite, nickname),
+                Some(Command::Connect { invite, nickname }) => {
+                    // A connect from the user starts fresh (no room to rejoin).
+                    reconnect = None;
+                    break (invite, nickname);
+                }
                 Some(Command::SetInputDevice { name }) => {
                     cfg.input_device = name;
                     if preview.take().is_some() {
@@ -849,7 +870,15 @@ async fn run(
                 Some(Command::SetDeafened { deafened }) => {
                     ctl.deafened.store(deafened, Ordering::Relaxed)
                 }
-                Some(Command::Disconnect) => {}
+                Some(Command::Disconnect) => {
+                    // Stop reconnecting.
+                    if reconnect.take().is_some() {
+                        retry_at = None;
+                        emit(Event::ConnectionState {
+                            state: ConnectionState::Disconnected,
+                        });
+                    }
+                }
                 Some(other) => emit(Event::Error {
                     kind: ErrorKind::RequestFailed,
                     message: format!("while disconnected: {other:?}"),
@@ -861,9 +890,12 @@ async fn run(
         drop(preview);
 
         // ---------------- Connecting ----------------
-        emit(Event::ConnectionState {
-            state: ConnectionState::Connecting,
-        });
+        if reconnect.is_none() {
+            emit(Event::ConnectionState {
+                state: ConnectionState::Connecting,
+            });
+        }
+        let invite_link = invite.clone();
         let invite = match Invite::parse(&invite) {
             Ok(i) => i,
             Err(e) => {
@@ -887,10 +919,16 @@ async fn run(
         let mut client = match Client::connect(&invite, &key, &nickname).await {
             Ok(c) => c,
             Err(e) => {
-                emit(Event::Error {
-                    kind: ErrorKind::ConnectFailed,
-                    message: format!("could not connect: {e}"),
-                });
+                if let Some(r) = reconnect.as_mut() {
+                    // Expected while the network or server is down: retry quietly.
+                    r.attempt += 1;
+                    tracing::warn!(attempt = r.attempt, "reconnect failed: {e}");
+                } else {
+                    emit(Event::Error {
+                        kind: ErrorKind::ConnectFailed,
+                        message: format!("could not connect: {e}"),
+                    });
+                }
                 continue;
             }
         };
@@ -911,6 +949,8 @@ async fn run(
                         message: format!("audio pipeline: {e}"),
                     });
                     client.close();
+                    // Not a network problem: retrying would fail the same way.
+                    reconnect = None;
                     continue;
                 }
             }
@@ -949,6 +989,15 @@ async fn run(
             state: ConnectionState::Connected,
         });
         emit(Event::Connected { user_id: my_id });
+        if let Some(code) = reconnect.take().and_then(|r| r.room) {
+            tracing::info!(code, "reconnected; rejoining room");
+            if let Err(e) = client.join_room(&code).await {
+                emit(Event::Error {
+                    kind: ErrorKind::RequestFailed,
+                    message: format!("rejoin room: {e}"),
+                });
+            }
+        }
 
         let mut room: Option<RoomInfo> = None;
         let mut members: Vec<Member> = Vec::new();
@@ -1036,6 +1085,16 @@ async fn run(
                     };
                     match msg {
                         ServerMsg::RoomState { room: r, members: m } => {
+                            if room.is_none() {
+                                // Just joined (or rejoined after a reconnect): the server starts every
+                                // member unmuted, so restate ours.
+                                if ctl.muted.load(Ordering::Relaxed) {
+                                    let _ = client.control().send(&ClientMsg::SetMuted(true)).await;
+                                }
+                                if ctl.deafened.load(Ordering::Relaxed) {
+                                    let _ = client.control().send(&ClientMsg::SetDeafened(true)).await;
+                                }
+                            }
                             room = Some(r);
                             ctl.in_room.store(true, Ordering::Relaxed);
                             members = m;
@@ -1151,10 +1210,33 @@ async fn run(
                 kind: ErrorKind::ConnectionLost,
                 message: reason.clone(),
             });
+            reconnect = Some(Reconnect {
+                invite: invite_link,
+                nickname,
+                room: room.as_ref().map(|r| r.code.clone()),
+                attempt: 0,
+            });
         }
         if reason == "engine shut down" {
             return;
         }
+    }
+}
+
+/// What to restore after an involuntary disconnect.
+struct Reconnect {
+    invite: String,
+    nickname: String,
+    /// Room to rejoin; it is gone if everyone left or the server restarted (the server then
+    /// answers RoomNotFound and the user lands in the lobby).
+    room: Option<String>,
+    attempt: u32,
+}
+
+impl Reconnect {
+    /// 1, 2, 4, 8, 15, 15, … seconds.
+    fn backoff(&self) -> Duration {
+        Duration::from_secs((1u64 << self.attempt.min(4)).min(15))
     }
 }
 

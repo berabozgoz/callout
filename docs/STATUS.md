@@ -57,7 +57,13 @@
       backlog to the target. `tests/jitter_sim.rs` (old → new avg buffering): wired 38 → 37 ms, Wi-Fi 120 → 84 ms,
       Wi-Fi with stalls 127 → 99 ms, for ~1.5% concealed (late) frames. Field check: cocart's `stats` jitter_ms.
    3. AGC: target −20 dBFS, gentle gain.
-   4. Automatic reconnect (exponential backoff, rejoin the same room).
+   4. **Automatic reconnect done (4 Nov, not released or field-tested):** after an involuntary disconnect
+      (QUIC connection lost / ping failed) the engine enters `ConnectionState::Reconnecting`, retries with 1, 2, 4,
+      8, 15 s… backoff (quietly, no error per attempt), rejoins the previous room and restates mute/deafen
+      (also fixed for fresh joins). `Disconnect` stops it; a user `Connect` starts fresh. If the room is gone
+      (everyone left, server restarted) the server answers RoomNotFound and the user lands in the lobby.
+      End-to-end test `engine_reconnects_after_server_restart_and_tries_to_rejoin` kills and restarts the server.
+      Rejoining a room that survived (only this client dropped) is not covered by a test yet.
    5. Fallback for UDP-blocked networks: a mode that carries audio packets over a reliable QUIC stream.
    6. Lossy network simulation test (5% loss, 100 ms jitter) — headless. Jitter part done
       (`tests/jitter_sim.rs`). The loss part is in
@@ -141,6 +147,8 @@
   listen-only mode and about a ≤16 kHz input (Bluetooth hands-free profile) in settings and in the room.
   Panic hook logs panics (app log file and server journal). The "connection lost" banner already exists via
   `error.connection_lost`; automatic reconnect is next. Not tried in the app, not released.
+- 4 Nov (automatic reconnect): see Next → Phase 2 item 4; UI shows a "Reconnecting…" card with a Stop button
+  (11 languages). fmt/clippy (incl. app)/test clean; not tried in the app, not released.
 
 ## Previous session
 

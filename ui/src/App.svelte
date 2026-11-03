@@ -256,6 +256,8 @@
         <span class="pill ok">{t("header.connected", { ms: stats.rtt_ms })}</span>
       {:else if conn === "connecting"}
         <span class="pill">{t("header.connecting")}</span>
+      {:else if conn === "reconnecting"}
+        <span class="pill warn">{t("header.reconnecting")}</span>
       {/if}
       <button class="icon" title={t("header.settings")} onclick={() => (showSettings ? cancelSettings() : openSettings())}>⚙</button>
     </div>
@@ -332,6 +334,13 @@
         <button class="primary" onclick={applySettings}>{t("settings.save")}</button>
         <button onclick={cancelSettings}>{t("settings.cancel")}</button>
       </div>
+    </section>
+  {:else if conn === "reconnecting"}
+    <!-- ---------- Reconnecting ---------- -->
+    <section class="card">
+      <h2>{t("reconnect.title")}</h2>
+      <p class="hint">{t("reconnect.hint")}</p>
+      <div class="actions"><button onclick={disconnect}>{t("reconnect.cancel")}</button></div>
     </section>
   {:else if conn !== "connected"}
     <!-- ---------- Connect ---------- -->

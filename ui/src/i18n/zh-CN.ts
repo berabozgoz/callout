@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 export const zhCN: Messages = {
   "header.connected": "已连接 · {ms} ms",
   "header.connecting": "正在连接…",
+  "header.reconnecting": "正在重新连接…",
   "header.settings": "设置",
 
   "settings.title": "设置",
@@ -47,6 +48,10 @@ export const zhCN: Messages = {
   "connect.hint": "请向运行服务器的朋友获取邀请链接。服务器首次启动时会显示该链接。",
   "connect.nicknameRequired": "请输入昵称",
   "connect.inviteInvalid": "邀请链接必须以 callout:// 开头",
+
+  "reconnect.title": "正在重新连接…",
+  "reconnect.hint": "与服务器的连接已断开。CallOut 会继续尝试，并让你重新回到房间。",
+  "reconnect.cancel": "停止",
 
   "lobby.create": "创建房间",
   "lobby.roomName": "房间名称（可选）",

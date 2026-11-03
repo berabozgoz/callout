@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 export const ptBR: Messages = {
   "header.connected": "conectado · {ms} ms",
   "header.connecting": "conectando…",
+  "header.reconnecting": "reconectando…",
   "header.settings": "Configurações",
 
   "settings.title": "Configurações",
@@ -48,6 +49,10 @@ export const ptBR: Messages = {
     "Peça o link de convite ao amigo que roda o servidor. O servidor mostra o link na primeira vez que é iniciado.",
   "connect.nicknameRequired": "O apelido é obrigatório",
   "connect.inviteInvalid": "O link de convite deve começar com callout://",
+
+  "reconnect.title": "Reconectando…",
+  "reconnect.hint": "A conexão com o servidor caiu. O CallOut continua tentando e vai colocar você de volta na sua sala.",
+  "reconnect.cancel": "Parar",
 
   "lobby.create": "Criar uma sala",
   "lobby.roomName": "Nome da sala (opcional)",

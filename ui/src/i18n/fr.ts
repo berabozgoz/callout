@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 export const fr: Messages = {
   "header.connected": "connecté · {ms} ms",
   "header.connecting": "connexion…",
+  "header.reconnecting": "reconnexion…",
   "header.settings": "Paramètres",
 
   "settings.title": "Paramètres",
@@ -48,6 +49,10 @@ export const fr: Messages = {
     "Demandez le lien d'invitation à la personne qui héberge le serveur. Le serveur affiche le lien lors de son premier démarrage.",
   "connect.nicknameRequired": "Un pseudo est requis",
   "connect.inviteInvalid": "Le lien d'invitation doit commencer par callout://",
+
+  "reconnect.title": "Reconnexion…",
+  "reconnect.hint": "La connexion au serveur a été perdue. CallOut continue d’essayer et vous remettra dans votre salon.",
+  "reconnect.cancel": "Arrêter",
 
   "lobby.create": "Créer un salon",
   "lobby.roomName": "Nom du salon (facultatif)",

@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 export const tr: Messages = {
   "header.connected": "bağlı · {ms} ms",
   "header.connecting": "bağlanıyor…",
+  "header.reconnecting": "yeniden bağlanıyor…",
   "header.settings": "Ayarlar",
 
   "settings.title": "Ayarlar",
@@ -47,6 +48,10 @@ export const tr: Messages = {
   "connect.hint": "Davet linkini sunucuyu çalıştıran arkadaşından al. Sunucu ilk açılışta linki ekrana basar.",
   "connect.nicknameRequired": "Takma ad gerekli",
   "connect.inviteInvalid": "Davet linki callout:// ile başlamalı",
+
+  "reconnect.title": "Yeniden bağlanıyor…",
+  "reconnect.hint": "Sunucuyla bağlantı koptu. CallOut denemeye devam ediyor ve seni odana geri sokacak.",
+  "reconnect.cancel": "Durdur",
 
   "lobby.create": "Oda aç",
   "lobby.roomName": "Oda adı (isteğe bağlı)",

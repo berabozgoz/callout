@@ -42,6 +42,7 @@ button.icon { padding: 6px 9px; font-size: 15px; }
 button.active { background: var(--danger); border-color: var(--danger); color: #fff; }
 .pill { font-size: 12px; color: var(--muted); background: var(--panel2); padding: 4px 8px; border-radius: 999px; }
 .pill.ok { color: var(--ok); }
+.pill.warn { color: var(--danger); }
 button.capture { text-align: start; font-size: 13px; }
 button.capture.listening { border-color: var(--accent); color: var(--accent); }
 .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }

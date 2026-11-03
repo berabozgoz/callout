@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 export const ko: Messages = {
   "header.connected": "연결됨 · {ms} ms",
   "header.connecting": "연결 중…",
+  "header.reconnecting": "다시 연결 중…",
   "header.settings": "설정",
 
   "settings.title": "설정",
@@ -47,6 +48,10 @@ export const ko: Messages = {
   "connect.hint": "서버를 운영하는 친구에게 초대 링크를 받으세요. 서버는 처음 시작할 때 링크를 출력해요.",
   "connect.nicknameRequired": "닉네임을 입력하세요",
   "connect.inviteInvalid": "초대 링크는 callout://로 시작해야 해요",
+
+  "reconnect.title": "다시 연결하는 중…",
+  "reconnect.hint": "서버와의 연결이 끊어졌어요. CallOut이 계속 시도하고 원래 방으로 다시 들여보내 줄게요.",
+  "reconnect.cancel": "중지",
 
   "lobby.create": "방 만들기",
   "lobby.roomName": "방 이름(선택)",
