@@ -59,10 +59,10 @@ items marked **before release** pass.
       ✓ 3 Nov: input lost (privacy toggle) → `audio pipeline recovered attempts=1`.
 - [ ] **Language persists and tray follows it** (since v0.1.9): pick a language, Save, quit from the tray,
       reopen. The UI and the tray menu use the saved language; Cancel reverts an unsaved pick.
-- [ ] **Installer language selector** (since v0.1.9): run `CallOut_*_x64-setup.exe`; the NSIS language list shows
+- [x] **Installer language selector** (since v0.1.9): run `CallOut_*_x64-setup.exe`; the NSIS language list shows
       the 11 languages and the installer uses the chosen one.
-      Partly seen 4 Nov: on an English Windows the installer came up in English. Still open: does the
-      language list appear, and does picking another language (e.g. Türkçe) switch the installer?
+      ✓ 4 Nov (Bera): all 11 languages listed; picking Türkçe ran the installer in Turkish. The app itself
+      still follows its own language setting (system language by default), not the installer's choice.
 - [ ] **Mic test is private in a room** (since v0.1.8): run the mic test while in a room; the others must not
       hear the recording.
 - [ ] **Auto-update** (from the first updater-enabled release on): with release N installed, publish N+1. Expected:
