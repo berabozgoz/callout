@@ -239,7 +239,7 @@ items marked **before release** pass.
   (`rooms loaded`, invite link unchanged). Everyone installs v0.1.12 by hand once; later releases arrive in-app.
   Next field checks: auto-update with v0.1.13, persistent rooms / close room on the real server.
 - 4 Nov (installer language → app): the NSIS installer stores the picked language as an LCID in
-  `HKCU\Softwareerabozgoz\CallOut\Installer Language`; at start the app maps it (1055 → tr, 1033 → en, …) and
+  `HKCU\Software\berabozgoz\CallOut\Installer Language`; at start the app maps it (1055 → tr, 1033 → en, …) and
   sets `Settings.language` once per new choice (`installer_language_seen`), so a later in-app change is kept.
 
 ## Previous session
