@@ -7,6 +7,8 @@ export const ja: Messages = {
   "header.settings": "設定",
 
   "update.available": "CallOut {version} が利用可能です。",
+  "update.availablePortable": "CallOut {version} が利用可能です。新しい callout-app.exe をダウンロードして、このファイルと置き換えてください。",
+  "update.download": "ダウンロード",
   "update.install": "更新して再起動",
   "update.downloading": "アップデートをダウンロードしています… {pct}%",
   "update.failed": "アップデートに失敗しました。Releases ページからダウンロードしてください。",

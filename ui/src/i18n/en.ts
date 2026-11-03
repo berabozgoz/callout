@@ -8,6 +8,8 @@ export const en = {
   "header.settings": "Settings",
 
   "update.available": "CallOut {version} is available.",
+  "update.availablePortable": "CallOut {version} is available. Download the new callout-app.exe and replace this one.",
+  "update.download": "Download",
   "update.install": "Update and restart",
   "update.downloading": "Downloading the update… {pct}%",
   "update.failed": "The update failed. Download it from the Releases page.",

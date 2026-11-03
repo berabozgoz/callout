@@ -7,6 +7,8 @@ export const fr: Messages = {
   "header.settings": "Paramètres",
 
   "update.available": "CallOut {version} est disponible.",
+  "update.availablePortable": "CallOut {version} est disponible. Téléchargez le nouveau callout-app.exe et remplacez celui-ci.",
+  "update.download": "Télécharger",
   "update.install": "Mettre à jour et redémarrer",
   "update.downloading": "Téléchargement de la mise à jour… {pct} %",
   "update.failed": "La mise à jour a échoué. Téléchargez-la depuis la page Releases.",

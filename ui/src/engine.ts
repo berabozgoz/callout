@@ -80,6 +80,9 @@ export const engineSnapshot = () => invoke<Snapshot>("engine_snapshot");
 export const pttCapture = (active: boolean) => invoke<void>("ptt_capture", { active });
 export const listDevices = () => invoke<Device[]>("list_audio_devices");
 export const appVersion = () => invoke<string>("app_version");
+/** Installed (updatable in place) or portable exe. */
+export const isInstalled = () => invoke<boolean>("is_installed");
+export const openReleasesPage = () => invoke<void>("open_releases_page");
 /** Tray menu labels live in the Rust shell; the UI sends them in the current language. */
 export const setTrayLabels = (show: string, quit: string) => invoke<void>("set_tray_labels", { show, quit });
 

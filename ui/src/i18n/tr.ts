@@ -7,6 +7,8 @@ export const tr: Messages = {
   "header.settings": "Ayarlar",
 
   "update.available": "CallOut {version} çıktı.",
+  "update.availablePortable": "CallOut {version} çıktı. Yeni callout-app.exe'yi indirip bununla değiştir.",
+  "update.download": "İndir",
   "update.install": "Güncelle ve yeniden başlat",
   "update.downloading": "Güncelleme indiriliyor… %{pct}",
   "update.failed": "Güncelleme başarısız oldu. Releases sayfasından indirebilirsin.",

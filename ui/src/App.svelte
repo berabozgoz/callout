@@ -3,7 +3,7 @@
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import {
     send, getSettings, saveSettings, listDevices, appVersion, onEngine, onPtt, prettyCode,
-    engineSnapshot, pttCapture, prettyShortcut, setTrayLabels,
+    engineSnapshot, pttCapture, prettyShortcut, setTrayLabels, isInstalled, openReleasesPage,
     type Settings, type Device, type Member, type RoomInfo, type ConnectionState, type MicTestState,
     type ErrorKind,
   } from "./engine";
@@ -57,6 +57,8 @@
   let update = $state.raw<Update | null>(null);
   let updating = $state<"idle" | "downloading" | "failed">("idle");
   let updatePct = $state(0);
+  // Portable exe: the updater would install a second copy instead of replacing this one.
+  let installed = $state(true);
   async function checkForUpdate() {
     try {
       const u = await check();
@@ -110,6 +112,7 @@
     settings = await getSettings();
     setLanguage(settings.language);
     if (import.meta.env.PROD) {
+      try { installed = await isInstalled(); } catch { installed = true; }
       checkForUpdate();
       setInterval(checkForUpdate, 6 * 60 * 60 * 1000);
     }
@@ -310,13 +313,18 @@
 
   {#if update}
     <div class="update">
-      <span>
-        {updating === "downloading" ? t("update.downloading", { pct: updatePct })
-          : updating === "failed" ? t("update.failed")
-          : t("update.available", { version: update.version })}
-      </span>
-      {#if updating !== "downloading"}
-        <button class="primary" onclick={installUpdate}>{t("update.install")}</button>
+      {#if !installed}
+        <span>{t("update.availablePortable", { version: update.version })}</span>
+        <button class="primary" onclick={() => openReleasesPage().catch(() => {})}>{t("update.download")}</button>
+      {:else}
+        <span>
+          {updating === "downloading" ? t("update.downloading", { pct: updatePct })
+            : updating === "failed" ? t("update.failed")
+            : t("update.available", { version: update.version })}
+        </span>
+        {#if updating !== "downloading"}
+          <button class="primary" onclick={installUpdate}>{t("update.install")}</button>
+        {/if}
       {/if}
     </div>
   {/if}

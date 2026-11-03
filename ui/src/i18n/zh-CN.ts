@@ -7,6 +7,8 @@ export const zhCN: Messages = {
   "header.settings": "设置",
 
   "update.available": "CallOut {version} 已发布。",
+  "update.availablePortable": "CallOut {version} 已发布。请下载新的 callout-app.exe 并替换当前文件。",
+  "update.download": "下载",
   "update.install": "更新并重启",
   "update.downloading": "正在下载更新…… {pct}%",
   "update.failed": "更新失败。请从 Releases 页面下载。",

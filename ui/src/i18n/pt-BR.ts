@@ -7,6 +7,8 @@ export const ptBR: Messages = {
   "header.settings": "Configurações",
 
   "update.available": "CallOut {version} está disponível.",
+  "update.availablePortable": "CallOut {version} está disponível. Baixe o novo callout-app.exe e substitua este.",
+  "update.download": "Baixar",
   "update.install": "Atualizar e reiniciar",
   "update.downloading": "Baixando a atualização… {pct}%",
   "update.failed": "A atualização falhou. Baixe-a na página Releases.",

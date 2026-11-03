@@ -7,6 +7,8 @@ export const ar: Messages = {
   "header.settings": "الإعدادات",
 
   "update.available": "يتوفر CallOut {version}.",
+  "update.availablePortable": "يتوفر CallOut {version}. نزّل ملف callout-app.exe الجديد واستبدل به هذا الملف.",
+  "update.download": "تنزيل",
   "update.install": "التحديث وإعادة التشغيل",
   "update.downloading": "جارٍ تنزيل التحديث… {pct}%",
   "update.failed": "فشل التحديث. نزّله من صفحة Releases.",

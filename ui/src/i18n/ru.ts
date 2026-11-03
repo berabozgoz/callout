@@ -7,6 +7,8 @@ export const ru: Messages = {
   "header.settings": "Настройки",
 
   "update.available": "Доступна версия CallOut {version}.",
+  "update.availablePortable": "Доступна версия CallOut {version}. Скачайте новый callout-app.exe и замените этот файл.",
+  "update.download": "Скачать",
   "update.install": "Обновить и перезапустить",
   "update.downloading": "Загрузка обновления… {pct} %",
   "update.failed": "Не удалось обновить. Скачайте новую версию на странице Releases.",

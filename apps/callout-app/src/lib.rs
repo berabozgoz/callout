@@ -281,6 +281,29 @@ fn set_tray_labels(app: AppHandle, show: String, quit: String) -> Result<(), Str
     items.quit.set_text(quit).map_err(|e| e.to_string())
 }
 
+/// `true` when running from an installation (the NSIS installer puts `uninstall.exe` next to the
+/// app), `false` for the portable exe. The updater replaces only installed copies; a portable exe
+/// would just get a second, installed copy, so the UI offers a download link instead.
+#[tauri::command]
+fn is_installed() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join("uninstall.exe").exists()))
+        .unwrap_or(false)
+}
+
+/// Opens the GitHub Releases page in the default browser (portable users update by hand).
+#[tauri::command]
+fn open_releases_page(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(
+            "https://github.com/berabozgoz/callout/releases/latest",
+            None::<&str>,
+        )
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn app_version(app: AppHandle) -> String {
     // Packaged version (same source as the installer's: Cargo.toml, written from the tag).
@@ -379,6 +402,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         // Updates come from GitHub Releases (latest.json), signed with the key in the release workflow.
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
@@ -510,7 +534,9 @@ pub fn run() {
             engine_snapshot,
             ptt_capture,
             app_version,
-            set_tray_labels
+            set_tray_labels,
+            is_installed,
+            open_releases_page
         ])
         .run(tauri::generate_context!())
         .expect("failed to start tauri");
