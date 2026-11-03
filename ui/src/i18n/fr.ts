@@ -76,6 +76,9 @@ export const fr: Messages = {
 
   "room.copyCode": "Copier le code",
   "room.leave": "Quitter",
+  "room.close": "Fermer le salon",
+  "room.closeConfirm": "Cliquez à nouveau pour fermer",
+  "room.closeHint": "Ferme le salon pour tout le monde et le supprime du serveur",
   "room.you": "(vous)",
   "room.volume": "Volume : {pct} %",
   "room.mute": "Couper le micro",
@@ -112,4 +115,6 @@ export const fr: Messages = {
   "error.not_in_room": "Vous n'êtes dans aucun salon.",
   "error.rate_limited": "Trop de requêtes ; patientez un instant et réessayez.",
   "error.server_error": "Erreur du serveur ({detail}).",
+  "error.not_owner": "Seule la personne qui a créé le salon peut le fermer.",
+  "error.room_closed": "Le salon a été fermé par son créateur.",
 };

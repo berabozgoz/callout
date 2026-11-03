@@ -76,6 +76,9 @@ export const ptBR: Messages = {
 
   "room.copyCode": "Copiar código",
   "room.leave": "Sair",
+  "room.close": "Fechar sala",
+  "room.closeConfirm": "Clique de novo para fechar",
+  "room.closeHint": "Fecha a sala para todos e a remove do servidor",
   "room.you": "(você)",
   "room.volume": "Volume: {pct}%",
   "room.mute": "Silenciar microfone",
@@ -110,4 +113,6 @@ export const ptBR: Messages = {
   "error.not_in_room": "Você não está em uma sala.",
   "error.rate_limited": "Muitas solicitações; aguarde um momento e tente novamente.",
   "error.server_error": "Erro do servidor ({detail}).",
+  "error.not_owner": "Só quem criou a sala pode fechá-la.",
+  "error.room_closed": "A sala foi fechada por quem a criou.",
 };

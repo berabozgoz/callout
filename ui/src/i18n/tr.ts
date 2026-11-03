@@ -75,6 +75,9 @@ export const tr: Messages = {
 
   "room.copyCode": "Kodu kopyala",
   "room.leave": "Ayrıl",
+  "room.close": "Odayı kapat",
+  "room.closeConfirm": "Kapatmak için tekrar tıkla",
+  "room.closeHint": "Odayı herkes için kapatır ve sunucudan siler",
   "room.you": "(sen)",
   "room.volume": "Ses: %{pct}",
   "room.mute": "Mikrofonu sustur",
@@ -109,4 +112,6 @@ export const tr: Messages = {
   "error.not_in_room": "Bir odada değilsin.",
   "error.rate_limited": "Çok fazla istek; biraz bekleyip tekrar dene.",
   "error.server_error": "Sunucu hatası ({detail}).",
+  "error.not_owner": "Odayı yalnızca onu açan kişi kapatabilir.",
+  "error.room_closed": "Oda, sahibi tarafından kapatıldı.",
 };

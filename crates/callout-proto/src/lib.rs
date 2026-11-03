@@ -71,6 +71,9 @@ pub enum ClientMsg {
     SetDeafened(bool),
     /// RTT measurement; the server echoes the same value in `Pong`.
     Ping(u64),
+    /// Close the current room for everyone and delete it from the server. Only the device that
+    /// created the room may do this (`ErrorCode::NotOwner` otherwise).
+    CloseRoom,
 }
 
 /// Server → client.
@@ -102,12 +105,18 @@ pub enum ServerMsg {
         message: String,
     },
     Pong(u64),
+    /// The room was closed by its owner; every member is now outside any room.
+    RoomClosed {
+        code: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoomInfo {
     pub code: String,
     pub name: String,
+    /// Session id of the room's creator if they are in the room when this is sent, else 0.
+    /// Ownership itself belongs to the creator's device key, so it survives reconnects and restarts.
     pub owner: UserId,
 }
 
@@ -131,6 +140,8 @@ pub enum ErrorCode {
     NotInRoom = 7,
     RateLimited = 8,
     Internal = 100,
+    // Appended after `Internal`: serde/postcard encode the variant index, not the number.
+    NotOwner = 9,
 }
 
 // ---------------------------------------------------------------------------

@@ -63,6 +63,8 @@ items marked **before release** pass.
 - [ ] **Persistent rooms** (after the server update): create a room, everyone leaves, rejoin with the same code;
       the lobby's recent rooms list joins with one click; after `install.sh` re-runs (server restart) everyone
       reconnects into the same room.
+- [ ] **Close room** (after the server update): the creator sees "Close room" (others don't); a second click
+      closes it for everyone ("closed by its owner"), the code no longer works and it leaves the recent lists.
 - [ ] **Push-to-talk in a fullscreen game** (known gap since Phase 1): the global shortcut works while a
       fullscreen game has focus.
 
@@ -206,6 +208,14 @@ items marked **before release** pass.
   check), at most 1000 rooms. After a server restart reconnecting clients land back in their room (the
   reconnect end-to-end test now asserts this). The lobby lists the last 5 rooms (`Settings.recent_rooms`) for
   one-click rejoin. Needs a server update to take effect; protocol unchanged.
+- 4 Nov (close room): the room's creator can close it for everyone and delete it from the server. Ownership
+  is the creator's device key (kept in `rooms.tsv` as a 3rd column, so it survives reconnects and restarts);
+  `RoomInfo.owner` carries the owner's current session id (0 if away), which is how the UI shows the button.
+  Protocol: `ClientMsg::CloseRoom`, `ServerMsg::RoomClosed { code }`, `ErrorCode::NotOwner` appended (after
+  `Internal`, since postcard encodes variant indices); `PROTOCOL_VERSION` stays 1, but a pre-v0.1.12 client in
+  a room that gets closed cannot decode `RoomClosed` and drops its connection. UI: "Close room" with a
+  click-again confirmation; closed or vanished rooms leave the recent list. E2E test
+  `only_the_creator_can_close_a_room`.
 
 ## Previous session
 

@@ -83,6 +83,9 @@ export const en = {
   // room
   "room.copyCode": "Copy code",
   "room.leave": "Leave",
+  "room.close": "Close room",
+  "room.closeConfirm": "Click again to close",
+  "room.closeHint": "Closes the room for everyone and deletes it from the server",
   "room.you": "(you)",
   "room.volume": "Volume: {pct}%",
   "room.mute": "Mute microphone",
@@ -119,6 +122,8 @@ export const en = {
   "error.not_in_room": "You are not in a room.",
   "error.rate_limited": "Too many requests; wait a moment and try again.",
   "error.server_error": "Server error ({detail}).",
+  "error.not_owner": "Only the person who created the room can close it.",
+  "error.room_closed": "The room was closed by its owner.",
 };
 
 export type MessageKey = keyof typeof en;

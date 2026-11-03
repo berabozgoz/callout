@@ -27,6 +27,8 @@ pub type ControlTx = mpsc::UnboundedSender<ServerMsg>;
 
 struct Peer {
     member: Member,
+    /// The member's device public key (ownership check).
+    key: [u8; 32],
     control: ControlTx,
     conn: quinn::Connection,
     speaking: bool,
@@ -36,6 +38,8 @@ struct Peer {
 pub struct Room {
     info: RoomInfo,
     peers: HashMap<UserId, Peer>,
+    /// Device key of the creator; `None` for rooms loaded from an older room file.
+    owner_key: Option<[u8; 32]>,
 }
 
 #[derive(Clone)]
@@ -62,6 +66,17 @@ pub fn normalize_code(input: &str) -> String {
         .collect()
 }
 
+fn parse_key(hex: &str) -> Option<[u8; 32]> {
+    if hex.len() != 64 {
+        return None;
+    }
+    let mut key = [0u8; 32];
+    for (i, b) in key.iter_mut().enumerate() {
+        *b = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).ok()?;
+    }
+    Some(key)
+}
+
 /// An empty room is forgotten after this long without anyone in it.
 pub const ROOM_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 /// Upper bound on stored rooms; creating more drops the longest-unused empty room.
@@ -79,7 +94,8 @@ struct Rooms {
     rooms: HashMap<String, SharedRoom>,
     /// When each room was last in use (unix seconds): creation, or when the last member left.
     last_used: HashMap<String, u64>,
-    /// `rooms.tsv` (`code<TAB>last_used<TAB>name` per line); `None` keeps rooms in memory only.
+    /// `rooms.tsv` (`code<TAB>last_used<TAB>owner key hex or -<TAB>name` per line); `None` keeps
+    /// rooms in memory only.
     path: Option<PathBuf>,
 }
 
@@ -90,7 +106,11 @@ impl Rooms {
         for (code, room) in &self.rooms {
             let name: String = room.name().chars().filter(|c| !c.is_control()).collect();
             let used = self.last_used.get(code).copied().unwrap_or_else(unix_now);
-            out.push_str(&format!("{code}\t{used}\t{name}\n"));
+            let owner = room
+                .owner_key()
+                .map(|k| k.iter().map(|b| format!("{b:02x}")).collect::<String>())
+                .unwrap_or_else(|| "-".into());
+            out.push_str(&format!("{code}\t{used}\t{owner}\t{name}\n"));
         }
         // Write-then-rename so a crash never leaves a half-written file.
         let tmp = path.with_extension("tsv.tmp");
@@ -134,11 +154,13 @@ impl Registry {
         };
         let text = std::fs::read_to_string(&path).unwrap_or_default();
         for line in text.lines() {
-            let mut parts = line.splitn(3, '\t');
-            let (Some(code), Some(used), Some(name)) = (parts.next(), parts.next(), parts.next())
+            let mut parts = line.splitn(4, '\t');
+            let (Some(code), Some(used), Some(owner), Some(name)) =
+                (parts.next(), parts.next(), parts.next(), parts.next())
             else {
                 continue;
             };
+            let owner_key = parse_key(owner);
             let Ok(used) = used.parse::<u64>() else {
                 continue;
             };
@@ -147,11 +169,14 @@ impl Registry {
                 continue;
             }
             // Owners are per-connection ids; they mean nothing after a restart.
-            let room = SharedRoom::new(RoomInfo {
-                code: code.clone(),
-                name: name.to_string(),
-                owner: 0,
-            });
+            let room = SharedRoom::new(
+                RoomInfo {
+                    code: code.clone(),
+                    name: name.to_string(),
+                    owner: 0,
+                },
+                owner_key,
+            );
             rooms.rooms.insert(code.clone(), room);
             rooms.last_used.insert(code, used);
         }
@@ -164,7 +189,7 @@ impl Registry {
     }
 
     /// Creates and registers a new room; the code is guaranteed unique.
-    pub fn create(&self, name: String, owner: UserId) -> SharedRoom {
+    pub fn create(&self, name: String, owner: UserId, owner_key: [u8; 32]) -> SharedRoom {
         let mut map = self.0.lock().unwrap();
         if map.rooms.len() >= MAX_ROOMS {
             // Make room by dropping the longest-unused empty room.
@@ -185,11 +210,14 @@ impl Registry {
                 break c;
             }
         };
-        let room = SharedRoom::new(RoomInfo {
-            code: code.clone(),
-            name,
-            owner,
-        });
+        let room = SharedRoom::new(
+            RoomInfo {
+                code: code.clone(),
+                name,
+                owner,
+            },
+            Some(owner_key),
+        );
         map.rooms.insert(code.clone(), room.clone());
         map.last_used.insert(code, unix_now());
         map.save();
@@ -216,6 +244,15 @@ impl Registry {
         }
     }
 
+    /// Removes a room for good (owner closed it); members are not touched here.
+    pub fn delete(&self, room: &SharedRoom) {
+        let code = room.code();
+        let mut map = self.0.lock().unwrap();
+        map.rooms.remove(&code);
+        map.last_used.remove(&code);
+        map.save();
+    }
+
     /// Drops rooms unused for longer than [`ROOM_TTL`]; call periodically.
     pub fn expire(&self) {
         let mut map = self.0.lock().unwrap();
@@ -239,11 +276,32 @@ impl Registry {
 }
 
 impl SharedRoom {
-    pub fn new(info: RoomInfo) -> Self {
+    pub fn new(info: RoomInfo, owner_key: Option<[u8; 32]>) -> Self {
         Self(Arc::new(Mutex::new(Room {
             info,
             peers: HashMap::new(),
+            owner_key,
         })))
+    }
+
+    pub fn owner_key(&self) -> Option<[u8; 32]> {
+        self.0.lock().unwrap().owner_key
+    }
+
+    pub fn is_owner(&self, key: &[u8; 32]) -> bool {
+        self.0.lock().unwrap().owner_key.as_ref() == Some(key)
+    }
+
+    /// Closes the room for everyone: each member gets `RoomClosed` and is removed.
+    pub fn close(&self) {
+        let mut room = self.0.lock().unwrap();
+        let msg = ServerMsg::RoomClosed {
+            code: room.info.code.clone(),
+        };
+        for p in room.peers.values() {
+            let _ = p.control.send(msg.clone());
+        }
+        room.peers.clear();
     }
 
     pub fn name(&self) -> String {
@@ -256,11 +314,28 @@ impl SharedRoom {
 
     /// Adds a member; `None` if the room is full. Broadcasts `MemberJoined` to existing
     /// members and sends `RoomState` to the new member.
-    pub fn join(&self, member: Member, control: ControlTx, conn: quinn::Connection) -> Option<()> {
+    pub fn join(
+        &self,
+        member: Member,
+        key: [u8; 32],
+        control: ControlTx,
+        conn: quinn::Connection,
+    ) -> Option<()> {
         let mut room = self.0.lock().unwrap();
         if room.peers.len() >= MAX_ROOM_MEMBERS {
             return None;
         }
+        // Tell the joiner who owns the room in this session's ids (0 if the owner is away).
+        let owner_key = room.owner_key;
+        room.info.owner = if owner_key == Some(key) {
+            member.user_id
+        } else {
+            room.peers
+                .values()
+                .find(|p| Some(p.key) == owner_key)
+                .map(|p| p.member.user_id)
+                .unwrap_or(0)
+        };
         for p in room.peers.values() {
             let _ = p.control.send(ServerMsg::MemberJoined(member.clone()));
         }
@@ -278,6 +353,7 @@ impl SharedRoom {
             member.user_id,
             Peer {
                 member,
+                key,
                 control,
                 conn,
                 speaking: false,
@@ -400,7 +476,7 @@ mod tests {
         let path = temp_file("restart");
         let _ = std::fs::remove_file(&path);
         let reg = Registry::load(path.clone());
-        let room = reg.create("team\twith tab".into(), 7);
+        let room = reg.create("team\twith tab".into(), 7, [9; 32]);
         let code = room.code();
         reg.member_left(&room); // empty: kept
         assert!(reg.get(&code).is_some());
@@ -408,6 +484,8 @@ mod tests {
         let reloaded = Registry::load(path.clone());
         let again = reloaded.get(&code).expect("room lost on restart");
         assert_eq!(again.name(), "teamwith tab");
+        assert!(again.is_owner(&[9; 32]), "owner lost on restart");
+        assert!(!again.is_owner(&[8; 32]));
         assert_eq!(reloaded.len(), 1);
         let _ = std::fs::remove_file(&path);
     }
@@ -419,7 +497,7 @@ mod tests {
         let fresh = unix_now() - 60;
         std::fs::write(
             &path,
-            format!("AAAAAAAA\t{old}\told\nBBBBBBBB\t{fresh}\tfresh\nbad line\n"),
+            format!("AAAAAAAA\t{old}\t-\told\nBBBBBBBB\t{fresh}\t-\tfresh\nbad line\n"),
         )
         .unwrap();
         let reg = Registry::load(path.clone());

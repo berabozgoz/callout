@@ -76,6 +76,9 @@ export const es: Messages = {
 
   "room.copyCode": "Copiar código",
   "room.leave": "Salir",
+  "room.close": "Cerrar sala",
+  "room.closeConfirm": "Haz clic otra vez para cerrar",
+  "room.closeHint": "Cierra la sala para todos y la elimina del servidor",
   "room.you": "(tú)",
   "room.volume": "Volumen: {pct} %",
   "room.mute": "Silenciar micrófono",
@@ -111,4 +114,6 @@ export const es: Messages = {
   "error.not_in_room": "No estás en ninguna sala.",
   "error.rate_limited": "Demasiadas solicitudes; espera un momento y vuelve a intentarlo.",
   "error.server_error": "Error del servidor ({detail}).",
+  "error.not_owner": "Solo quien creó la sala puede cerrarla.",
+  "error.room_closed": "La sala fue cerrada por su creador.",
 };

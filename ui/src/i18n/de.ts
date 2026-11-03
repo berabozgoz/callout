@@ -76,6 +76,9 @@ export const de: Messages = {
 
   "room.copyCode": "Code kopieren",
   "room.leave": "Verlassen",
+  "room.close": "Raum schließen",
+  "room.closeConfirm": "Zum Schließen erneut klicken",
+  "room.closeHint": "Schließt den Raum für alle und löscht ihn vom Server",
   "room.you": "(du)",
   "room.volume": "Lautstärke: {pct} %",
   "room.mute": "Mikrofon stummschalten",
@@ -111,4 +114,6 @@ export const de: Messages = {
   "error.not_in_room": "Du bist in keinem Raum.",
   "error.rate_limited": "Zu viele Anfragen; warte kurz und versuche es erneut.",
   "error.server_error": "Serverfehler ({detail}).",
+  "error.not_owner": "Nur wer den Raum erstellt hat, kann ihn schließen.",
+  "error.room_closed": "Der Raum wurde von seinem Ersteller geschlossen.",
 };

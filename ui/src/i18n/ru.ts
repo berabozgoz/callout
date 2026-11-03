@@ -76,6 +76,9 @@ export const ru: Messages = {
 
   "room.copyCode": "Копировать код",
   "room.leave": "Выйти",
+  "room.close": "Закрыть комнату",
+  "room.closeConfirm": "Нажмите ещё раз, чтобы закрыть",
+  "room.closeHint": "Закрывает комнату для всех и удаляет её с сервера",
   "room.you": "(вы)",
   "room.volume": "Громкость: {pct} %",
   "room.mute": "Выключить микрофон",
@@ -110,4 +113,6 @@ export const ru: Messages = {
   "error.not_in_room": "Вы не в комнате.",
   "error.rate_limited": "Слишком много запросов; подождите немного и повторите.",
   "error.server_error": "Ошибка сервера ({detail}).",
+  "error.not_owner": "Закрыть комнату может только её создатель.",
+  "error.room_closed": "Комната закрыта её создателем.",
 };

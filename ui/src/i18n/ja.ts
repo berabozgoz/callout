@@ -76,6 +76,9 @@ export const ja: Messages = {
 
   "room.copyCode": "コードをコピー",
   "room.leave": "退出",
+  "room.close": "ルームを閉じる",
+  "room.closeConfirm": "もう一度クリックで閉じる",
+  "room.closeHint": "全員のルームを閉じてサーバーから削除します",
   "room.you": "（自分）",
   "room.volume": "音量：{pct}%",
   "room.mute": "マイクをミュート",
@@ -112,4 +115,6 @@ export const ja: Messages = {
   "error.not_in_room": "ルームに参加していません。",
   "error.rate_limited": "リクエストが多すぎます。しばらく待ってから、もう一度お試しください。",
   "error.server_error": "サーバーエラー（{detail}）。",
+  "error.not_owner": "ルームを閉じられるのは作成した人だけです。",
+  "error.room_closed": "ルームは作成者によって閉じられました。",
 };

@@ -145,6 +145,11 @@ impl Client {
         Ok(self.control.send(&ClientMsg::LeaveRoom).await?)
     }
 
+    /// Closes and deletes the current room (owner only).
+    pub async fn close_room(&mut self) -> Result<(), ClientError> {
+        Ok(self.control.send(&ClientMsg::CloseRoom).await?)
+    }
+
     pub fn rtt(&self) -> std::time::Duration {
         self.conn.rtt()
     }

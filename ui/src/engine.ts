@@ -10,7 +10,8 @@ export type MicTestState = "calibrating" | "recording" | "playing" | "idle";
 export type ErrorKind =
   | "invalid_invite" | "device_key" | "connect_failed" | "audio_failed" | "mic_access_denied"
   | "audio_device_lost" | "connection_lost" | "request_failed" | "version_mismatch"
-  | "room_not_found" | "room_full" | "already_in_room" | "not_in_room" | "rate_limited" | "server_error";
+  | "room_not_found" | "room_full" | "already_in_room" | "not_in_room" | "rate_limited" | "server_error"
+  | "not_owner" | "room_closed";
 
 export type EngineEvent =
   | { type: "connection_state"; state: ConnectionState }
@@ -42,7 +43,8 @@ export type Command =
   | { type: "stop_mic_test" }
   | { type: "play_test_sound" }
   | { type: "set_noise_suppression"; enabled: boolean }
-  | { type: "set_vad_sensitivity"; db: number };
+  | { type: "set_vad_sensitivity"; db: number }
+  | { type: "close_room" };
 
 export type Settings = {
   nickname: string;

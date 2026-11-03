@@ -75,6 +75,9 @@ export const ko: Messages = {
 
   "room.copyCode": "코드 복사",
   "room.leave": "나가기",
+  "room.close": "방 닫기",
+  "room.closeConfirm": "닫으려면 한 번 더 클릭",
+  "room.closeHint": "모두에게서 방을 닫고 서버에서 삭제해요",
   "room.you": "(나)",
   "room.volume": "볼륨: {pct}%",
   "room.mute": "마이크 음소거",
@@ -109,4 +112,6 @@ export const ko: Messages = {
   "error.not_in_room": "방에 들어가 있지 않아요.",
   "error.rate_limited": "요청이 너무 많아요. 잠시 후 다시 시도하세요.",
   "error.server_error": "서버 오류({detail}).",
+  "error.not_owner": "방은 만든 사람만 닫을 수 있어요.",
+  "error.room_closed": "방을 만든 사람이 방을 닫았어요.",
 };

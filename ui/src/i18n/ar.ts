@@ -76,6 +76,9 @@ export const ar: Messages = {
 
   "room.copyCode": "نسخ الرمز",
   "room.leave": "مغادرة",
+  "room.close": "إغلاق الغرفة",
+  "room.closeConfirm": "انقر مرة أخرى للإغلاق",
+  "room.closeHint": "يغلق الغرفة للجميع ويحذفها من الخادم",
   "room.you": "(أنت)",
   "room.volume": "مستوى الصوت: {pct}%",
   "room.mute": "كتم الميكروفون",
@@ -110,4 +113,6 @@ export const ar: Messages = {
   "error.not_in_room": "أنت لست في غرفة.",
   "error.rate_limited": "طلبات كثيرة جدًا؛ انتظر قليلًا ثم حاول مجددًا.",
   "error.server_error": "خطأ في الخادم ({detail}).",
+  "error.not_owner": "لا يمكن إغلاق الغرفة إلا لمن أنشأها.",
+  "error.room_closed": "أغلق منشئ الغرفة الغرفة.",
 };

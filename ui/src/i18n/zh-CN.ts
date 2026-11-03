@@ -75,6 +75,9 @@ export const zhCN: Messages = {
 
   "room.copyCode": "复制代码",
   "room.leave": "离开",
+  "room.close": "关闭房间",
+  "room.closeConfirm": "再次点击以关闭",
+  "room.closeHint": "为所有人关闭房间并从服务器删除",
   "room.you": "（你）",
   "room.volume": "音量：{pct}%",
   "room.mute": "麦克风静音",
@@ -109,4 +112,6 @@ export const zhCN: Messages = {
   "error.not_in_room": "你不在任何房间中。",
   "error.rate_limited": "请求过于频繁，请稍后再试。",
   "error.server_error": "服务器错误（{detail}）。",
+  "error.not_owner": "只有房间的创建者才能关闭它。",
+  "error.room_closed": "房间已被创建者关闭。",
 };

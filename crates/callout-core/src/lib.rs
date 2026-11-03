@@ -77,6 +77,8 @@ pub enum Command {
     SetVadSensitivity {
         db: f32,
     },
+    /// Close the current room for everyone and delete it (only its creator's device may).
+    CloseRoom,
 }
 
 /// Core → UI.
@@ -168,6 +170,10 @@ pub enum ErrorKind {
     NotInRoom,
     RateLimited,
     ServerError,
+    /// Only the room's creator can close it.
+    NotOwner,
+    /// The room was closed by its owner (shown to every member; not really an error).
+    RoomClosed,
 }
 
 impl ErrorKind {
@@ -190,6 +196,7 @@ impl ErrorKind {
             C::AlreadyInRoom => ErrorKind::AlreadyInRoom,
             C::NotInRoom => ErrorKind::NotInRoom,
             C::RateLimited => ErrorKind::RateLimited,
+            C::NotOwner => ErrorKind::NotOwner,
             C::NotAuthenticated | C::BadSignature | C::Internal => ErrorKind::ServerError,
         }
     }

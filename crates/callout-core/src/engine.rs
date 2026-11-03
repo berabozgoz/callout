@@ -1049,6 +1049,7 @@ async fn run(
                         }
                         Command::CreateRoom { name } => client.create_room(&name).await.map_err(request_err),
                         Command::JoinRoom { code } => client.join_room(&code).await.map_err(request_err),
+                        Command::CloseRoom => client.close_room().await.map_err(request_err),
                         Command::LeaveRoom => {
                             // The server sends no confirmation to the leaver; clear local state right away.
                             let r = client.leave_room().await.map_err(request_err);
@@ -1141,6 +1142,15 @@ async fn run(
                         ServerMsg::Error { code, message } => {
                             // Leaving a room is not confirmed by the server; errors other than NotInRoom go to the user.
                             emit(Event::Error { kind: ErrorKind::from_server(code), message: format!("{code:?}: {message}") });
+                        }
+                        ServerMsg::RoomClosed { code } => {
+                            if room.as_ref().is_some_and(|r| r.code == code) {
+                                room = None;
+                                ctl.in_room.store(false, Ordering::Relaxed);
+                                members.clear();
+                                emit(Event::RoomUpdated { room: None, members: Vec::new() });
+                                emit(Event::Error { kind: ErrorKind::RoomClosed, message: format!("room {code} closed by its owner") });
+                            }
                         }
                         ServerMsg::Pong(_) | ServerMsg::Welcome { .. } | ServerMsg::Authed => {}
                     }

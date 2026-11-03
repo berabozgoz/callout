@@ -21,6 +21,7 @@ Status: **Phase 2 (audio quality) in progress.** Rooms for 5–10 people, Window
 2. Get an invite link (`callout://…`) from whoever runs the server, enter a nickname and connect.
 3. Create a room and share its code, or join a room with a code. Rooms are permanent: the same code
    works next time (rooms unused for 30 days are removed), and the lobby lists your recent rooms.
+   Whoever created a room can close it for good ("Close room").
 
 Before your first session, open **Settings (⚙)**:
 

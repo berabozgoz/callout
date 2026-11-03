@@ -218,3 +218,68 @@ async fn rooms_sfu_and_speaking() {
     b.close();
     c.close();
 }
+
+#[tokio::test]
+async fn only_the_creator_can_close_a_room() {
+    let server = Server::start("close-room");
+    let invite = &server.invite;
+    let owner_key = DeviceKey::generate();
+    let mut a = Client::connect(invite, &owner_key, "alice")
+        .await
+        .expect("A");
+    let mut b = Client::connect(invite, &DeviceKey::generate(), "bob")
+        .await
+        .expect("B");
+
+    a.create_room("team").await.unwrap();
+    let code = match recv(&mut a).await {
+        ServerMsg::RoomState { room, .. } => room.code,
+        other => panic!("unexpected: {other:?}"),
+    };
+    b.join_room(&code).await.unwrap();
+    match recv(&mut b).await {
+        // B learns who the owner is (A's id in this session).
+        ServerMsg::RoomState { room, .. } => assert_eq!(room.owner, a.user_id()),
+        other => panic!("unexpected: {other:?}"),
+    }
+    assert!(matches!(recv(&mut a).await, ServerMsg::MemberJoined(_)));
+
+    // A member who did not create the room cannot close it.
+    b.close_room().await.unwrap();
+    match recv(&mut b).await {
+        ServerMsg::Error { code, .. } => assert_eq!(code, ErrorCode::NotOwner),
+        other => panic!("unexpected: {other:?}"),
+    }
+
+    // Ownership follows the device key: A reconnects (new session id) and can still close it.
+    a.close();
+    assert!(matches!(recv(&mut b).await, ServerMsg::MemberLeft(_)));
+    let mut a = Client::connect(invite, &owner_key, "alice")
+        .await
+        .expect("A again");
+    a.join_room(&code).await.unwrap();
+    match recv(&mut a).await {
+        ServerMsg::RoomState { room, .. } => assert_eq!(room.owner, a.user_id()),
+        other => panic!("unexpected: {other:?}"),
+    }
+    assert!(matches!(recv(&mut b).await, ServerMsg::MemberJoined(_)));
+    a.close_room().await.unwrap();
+    for c in [&mut a, &mut b] {
+        match recv(c).await {
+            ServerMsg::RoomClosed { code: closed } => assert_eq!(closed, code),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    // The room is gone; both are outside any room and can create or join another.
+    b.join_room(&code).await.unwrap();
+    match recv(&mut b).await {
+        ServerMsg::Error { code, .. } => assert_eq!(code, ErrorCode::RoomNotFound),
+        other => panic!("unexpected: {other:?}"),
+    }
+    b.create_room("another").await.unwrap();
+    assert!(matches!(recv(&mut b).await, ServerMsg::RoomState { .. }));
+
+    a.close();
+    b.close();
+}

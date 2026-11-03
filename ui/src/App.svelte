@@ -127,6 +127,8 @@
         case "connected": myId = e.user_id; error = null; break;
         case "room_updated":
           if (e.room && e.room.code !== room?.code) rememberRoom(e.room);
+          if (!e.room && room) closedCode = room.code;
+          if (e.room) joiningCode = null;
           room = e.room; members = e.members;
           if (!e.room) speaking = new Set();
           break;
@@ -151,6 +153,10 @@
           break;
         case "error":
           error = { key: `error.${e.kind}` as MessageKey, vars: { detail: e.message }, kind: e.kind };
+          // A closed room, or a remembered one that no longer exists, leaves the recent list.
+          if (e.kind === "room_closed" && closedCode) { forgetRoom(closedCode); closedCode = null; }
+          if (e.kind === "room_not_found" && joiningCode) forgetRoom(joiningCode);
+          joiningCode = null;
           break;
       }
     });
@@ -228,7 +234,27 @@
     settings.recent_rooms = settings.recent_rooms.filter((x) => x.code !== code);
     saveSettings(settings).catch((e) => (error = fail(e)));
   }
-  const joinRecent = (code: string) => send({ type: "join_room", code });
+  // Code of a recent room being joined / of the room just left, to clean the list up on errors.
+  let joiningCode: string | null = null;
+  let closedCode: string | null = null;
+  function joinRecent(code: string) {
+    joiningCode = code;
+    send({ type: "join_room", code });
+  }
+
+  // Closing deletes the room for everyone: the first click arms, a second click within 4 s confirms.
+  let confirmClose = $state(false);
+  let confirmTimer: ReturnType<typeof setTimeout> | undefined;
+  function closeRoom() {
+    if (!confirmClose) {
+      confirmClose = true;
+      confirmTimer = setTimeout(() => (confirmClose = false), 4000);
+      return;
+    }
+    clearTimeout(confirmTimer);
+    confirmClose = false;
+    send({ type: "close_room" });
+  }
   function toggleMute() { muted = !muted; send({ type: "set_muted", muted }); }
   function toggleDeafen() { deafened = !deafened; send({ type: "set_deafened", deafened }); }
   function setVolume(user_id: number, gain: number) {
@@ -491,7 +517,14 @@
             {prettyCode(room.code)} {copied ? "✓" : "⧉"}
           </button>
         </div>
-        <button onclick={leaveRoom}>{t("room.leave")}</button>
+        <div class="roomactions">
+          {#if room.owner !== 0 && room.owner === myId}
+            <button class="danger" class:armed={confirmClose} onclick={closeRoom} title={t("room.closeHint")}>
+              {confirmClose ? t("room.closeConfirm") : t("room.close")}
+            </button>
+          {/if}
+          <button onclick={leaveRoom}>{t("room.leave")}</button>
+        </div>
       </div>
 
       <ul class="members">

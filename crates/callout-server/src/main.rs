@@ -226,8 +226,8 @@ async fn handle_connection(
                             continue;
                         }
                         let name = if name.trim().is_empty() { format!("{nickname}'s room") } else { name.trim().chars().take(32).collect() };
-                        let room = registry.create(name, user_id);
-                        room.join(member.clone(), tx.clone(), conn.clone());
+                        let room = registry.create(name, user_id, pubkey);
+                        room.join(member.clone(), pubkey, tx.clone(), conn.clone());
                         tracing::info!(user_id, code = room.code(), "room created");
                         *current.write().unwrap() = Some(room);
                     }
@@ -239,7 +239,7 @@ async fn handle_connection(
                         match registry.get(&code) {
                             None => control.send(&ServerMsg::Error { code: ErrorCode::RoomNotFound, message: format!("room not found: {code}") }).await?,
                             Some(room) => {
-                                if room.join(member.clone(), tx.clone(), conn.clone()).is_none() {
+                                if room.join(member.clone(), pubkey, tx.clone(), conn.clone()).is_none() {
                                     control.send(&ServerMsg::Error { code: ErrorCode::RoomFull, message: "room is full".into() }).await?;
                                 } else {
                                     tracing::info!(user_id, code = room.code(), members = room.len(), "joined room");
@@ -263,10 +263,32 @@ async fn handle_connection(
                         tracing::info!(user_id, deafened = d, "headphone state");
                         if let Some(r) = current.read().unwrap().as_ref() { r.set_flags(user_id, None, Some(d)); }
                     }
+                    ClientMsg::CloseRoom => {
+                        let room = current.read().unwrap().clone();
+                        match room {
+                            None => control.send(&ServerMsg::Error { code: ErrorCode::NotInRoom, message: "you are not in a room".into() }).await?,
+                            Some(room) if !room.is_owner(&pubkey) => {
+                                control.send(&ServerMsg::Error { code: ErrorCode::NotOwner, message: "only the room's creator can close it".into() }).await?
+                            }
+                            Some(room) => {
+                                let code = room.code();
+                                registry.delete(&room);
+                                // Every member (this one too) gets RoomClosed and drops the room below.
+                                room.close();
+                                tracing::info!(user_id, code, "room closed by owner");
+                            }
+                        }
+                    }
                     ClientMsg::Hello { .. } | ClientMsg::Auth { .. } => {}
                 },
                 out = rx.recv() => match out {
-                    Some(m) => control.send(&m).await?,
+                    Some(m) => {
+                        if matches!(m, ServerMsg::RoomClosed { .. }) {
+                            // The owner closed our room: we are in no room now.
+                            current.write().unwrap().take();
+                        }
+                        control.send(&m).await?
+                    }
                     None => break,
                 },
             }
