@@ -76,6 +76,8 @@ items marked **before release** pass.
 - [x] **Close room** (after the server update): the creator sees "Close room" (others don't); a second click
       closes it for everyone ("closed by its owner"), the code no longer works and it leaves the recent lists.
       ✓ 3 Nov on a local server: closed for everyone, rooms.tsv emptied. With the old v0.1.9 server the button disappears after a reconnect (old server keeps the creator's first session id) — expected until the server update.
+- [ ] **Installer language becomes the app language** (next release): install picking Türkçe on an English
+      Windows → the app and the tray open in Turkish; change the language in Settings, reopen → the change is kept.
 - [ ] **Push-to-talk in a fullscreen game** (known gap since Phase 1): the global shortcut works while a
       fullscreen game has focus.
 
@@ -236,6 +238,9 @@ items marked **before release** pass.
   with `windows-x86_64` entries; the updater endpoint resolves) and the server updated to v0.1.12
   (`rooms loaded`, invite link unchanged). Everyone installs v0.1.12 by hand once; later releases arrive in-app.
   Next field checks: auto-update with v0.1.13, persistent rooms / close room on the real server.
+- 4 Nov (installer language → app): the NSIS installer stores the picked language as an LCID in
+  `HKCU\Softwareerabozgoz\CallOut\Installer Language`; at start the app maps it (1055 → tr, 1033 → en, …) and
+  sets `Settings.language` once per new choice (`installer_language_seen`), so a later in-app change is kept.
 
 ## Previous session
 

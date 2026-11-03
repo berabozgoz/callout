@@ -34,6 +34,9 @@ pub struct Settings {
     pub language: Option<String>,
     /// Rooms joined lately (newest first), for one-click rejoin. Rooms are persistent on the server.
     pub recent_rooms: Vec<RecentRoom>,
+    /// Installer language (Windows LCID) already applied to `language`; a new install with a
+    /// different choice applies it again, the same one does not override a later in-app change.
+    pub installer_language_seen: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -55,6 +58,7 @@ impl Default for Settings {
             vad_sensitivity: 0.0,
             language: None,
             recent_rooms: Vec::new(),
+            installer_language_seen: None,
         }
     }
 }
@@ -377,6 +381,41 @@ fn open_log_file() -> Option<std::fs::File> {
         .ok()
 }
 
+/// The language picked in the NSIS installer (stored by the installer as a Windows LCID under
+/// `HKCU\Software\berabozgoz\CallOut`, value "Installer Language"), mapped to a UI language code.
+#[cfg(windows)]
+fn installer_language() -> Option<(u32, &'static str)> {
+    let key = windows_registry::CURRENT_USER
+        .open(r"Software\berabozgoz\CallOut")
+        .ok()?;
+    let lcid: u32 = key
+        .get_string("Installer Language")
+        .ok()?
+        .trim()
+        .parse()
+        .ok()?;
+    let code = match lcid {
+        1033 => "en",
+        1055 => "tr",
+        1031 => "de",
+        1034 | 3082 => "es",
+        1036 => "fr",
+        1046 => "pt-BR",
+        1049 => "ru",
+        1025 => "ar",
+        2052 => "zh-CN",
+        1041 => "ja",
+        1042 => "ko",
+        _ => return None,
+    };
+    Some((lcid, code))
+}
+
+#[cfg(not(windows))]
+fn installer_language() -> Option<(u32, &'static str)> {
+    None
+}
+
 /// Panics go to the log as well, so a crash can be told apart from a forced close (and a panic on
 /// the audio thread, which does not take the app down, still leaves a trace).
 fn log_panics() {
@@ -430,7 +469,16 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .unwrap_or_else(|_| PathBuf::from("callout-data"));
-            let settings = load_settings(&data_dir);
+            let mut settings = load_settings(&data_dir);
+            let mut save_now = false;
+            if let Some((lcid, code)) = installer_language() {
+                if settings.installer_language_seen != Some(lcid) {
+                    // The user picked this language in the installer: start the app in it.
+                    settings.language = Some(code.to_string());
+                    settings.installer_language_seen = Some(lcid);
+                    save_now = true;
+                }
+            }
 
             let (engine, mut events) = Engine::start(EngineConfig {
                 data_dir: data_dir.clone(),
@@ -479,6 +527,11 @@ pub fn run() {
                 snapshot: Mutex::new(Snapshot::new()),
                 ptt_capture: AtomicBool::new(false),
             });
+            if save_now {
+                if let Err(e) = app.state::<AppState>().save_settings() {
+                    tracing::warn!("could not save settings: {e}");
+                }
+            }
 
             // System tray: show / quit.
             let show = MenuItem::with_id(app, "show", "Show CallOut", true, None::<&str>)?;
@@ -582,5 +635,14 @@ mod tests {
         ] {
             assert!(s.parse::<Shortcut>().is_ok(), "failed to parse: {s}");
         }
+    }
+}
+
+#[cfg(all(test, windows))]
+mod installer_language_tests {
+    #[test]
+    #[ignore = "reads this machine's registry"]
+    fn print_installer_language() {
+        println!("installer language: {:?}", super::installer_language());
     }
 }
