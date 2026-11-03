@@ -47,7 +47,13 @@ jobs:
             "More info → Run anyway"). If you'd rather not install, you can run `callout-app.exe` directly.
             When the app opens, enter a nickname and the `callout://` invite link you were sent.
 
-            **For whoever hosts the server:** run `callout-server.exe` and share the invite link it prints.
+            **For whoever hosts the server:**
+            - Linux VPS (x64, e.g. Ubuntu 24.04), as root:
+              `curl -fsSL https://raw.githubusercontent.com/berabozgoz/callout/main/deploy/install.sh | sudo bash`
+              It installs `callout-server-linux-x64` as the `callout` systemd service, opens 4433/udp in the local
+              firewall and prints the invite link. Also allow UDP 4433 in your provider's firewall. Run the same
+              command again to update; logs: `journalctl -u callout -f`.
+            - Windows: run `callout-server.exe` and share the invite link it prints (UDP 4433 must be reachable).
           releaseDraft: false
           prerelease: false
       - name: Server and portable exe

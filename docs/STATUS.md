@@ -129,9 +129,7 @@ items marked **before release** pass.
    the backoff does not reset until it has been stable for 30 s), per-sender jitter log (every 30 s,
    `sender jitter sender=… target_ms late lost underflow`), the actual QUIC error in the disconnect reason,
    the client `lost` counter no longer drops back. Not yet tried in the field by unplugging a device.
-7. Known gaps: PTT in games (fullscreen) not verified; no mouse button PTT;
-   `LICENSE-APACHE` full text missing; the CI "Libraries (Linux)" job once exited with 1
-   (all steps pass locally, waiting for the log).
+7. Known gaps: PTT in games (fullscreen) not verified; no mouse button PTT.
 
 ## Workflow
 
@@ -183,6 +181,10 @@ items marked **before release** pass.
   `error.connection_lost`; automatic reconnect is next. Not tried in the app, not released.
 - 4 Nov (automatic reconnect): see Next → Phase 2 item 4; UI shows a "Reconnecting…" card with a Stop button
   (11 languages). fmt/clippy (incl. app)/test clean; not tried in the app, not released.
+- 4 Nov (housekeeping): voice activity sensitivity slider (d16c116); `deny.toml` + CI job `cargo deny check
+  licenses sources` (MPL-2.0 allowed only for five transitive Tauri crates: cssparser, cssparser-macros,
+  dtoa-short, selectors, option-ext); full Apache-2.0 text in `LICENSE-APACHE`; README rewritten for players,
+  server hosts and developers; release notes template now covers the Linux server (`install.sh`).
 
 ## Previous session
 

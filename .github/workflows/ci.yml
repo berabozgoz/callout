@@ -25,6 +25,16 @@ jobs:
       - run: cargo clippy --workspace --exclude callout-app --all-targets
       - run: cargo test --workspace --exclude callout-app
 
+  # Dependency policy (deny.toml): permissive licenses only, crates.io only.
+  deny:
+    name: Licenses (cargo deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check licenses sources
+
   # Main target: the Tauri app is built on Windows (not packaged; packaging is Phase 4).
   app-windows:
     name: Tauri app (Windows)
