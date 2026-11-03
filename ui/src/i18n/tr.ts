@@ -72,6 +72,9 @@ export const tr: Messages = {
   "tray.quit": "Çık",
 
   "audio.fallback": "Seçili ses cihazı bulunamadı; varsayılan cihaza geçildi.",
+  "audio.listenOnly": "Yalnızca dinliyorsun: kullanılabilir bir mikrofon yok, diğerleri seni duyamaz.",
+  "audio.bluetoothMic":
+    "Mikrofonun {khz} kHz'de çalışıyor. Bu genelde Bluetooth kulaklığın “eller serbest” moduna geçtiği anlamına gelir: ses kalitesi düşer ve paketler düzensiz gider. Kablolu ya da USB bir mikrofon çok daha iyi duyulur; Bluetooth kulaklığı dinlemek için kullanmaya devam edebilirsin.",
 
   "error.generic": "{detail}",
   "error.invalid_invite": "Davet linki geçersiz. Tamamını kopyaladığından emin ol.",

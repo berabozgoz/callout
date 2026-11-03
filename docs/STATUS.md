@@ -62,7 +62,8 @@
    6. Lossy network simulation test (5% loss, 100 ms jitter) — headless. Jitter part done
       (`tests/jitter_sim.rs`). The loss part is in
       `callout-audio/tests/loss_sim.rs`; the jitter (delay variation) part remains.
-   7. UI polish: VAD threshold margin setting, warning when the connection drops. **Mic test done (2 Nov,
+   7. UI polish: VAD threshold margin setting. (Listen-only join, Bluetooth mic warning and panic logging
+      done 4 Nov.) **Mic test done (2 Nov,
       v0.1.8, tried in the app):** a "Mic test" section in settings — 5 s recording, played back the way
       others in the room would hear it (VAD/push-to-talk gate + Opus) along with the sent share; "Play test sound"
       (a chime); a speech-detection threshold line on the level meter (also on the in-room meter). When not connected
@@ -134,6 +135,12 @@
   (wired / Wi-Fi / Wi-Fi with stalls). fmt/clippy (incl. app)/test clean; released as v0.1.10, not field-tested yet.
 - 3 Nov: mute/deafen emoji (🔇 looked like "sound off", 🙉 for deafen) replaced with Tabler outline SVG icons
   (MIT, `ui/src/Icon.svelte`): microphone(-off), headphones(-off) on the buttons and member flags. Released as v0.1.11.
+- 4 Nov (small robustness items): the microphone is optional — if it cannot be opened (missing device,
+  Windows privacy `0x80070005`) the error is shown but the pipeline runs output-only, so the user can join and
+  listen (mic test reports 0%). New `Event::AudioStarted { input_rate, input_channels }`; the UI warns about
+  listen-only mode and about a ≤16 kHz input (Bluetooth hands-free profile) in settings and in the room.
+  Panic hook logs panics (app log file and server journal). The "connection lost" banner already exists via
+  `error.connection_lost`; automatic reconnect is next. Not tried in the app, not released.
 
 ## Previous session
 

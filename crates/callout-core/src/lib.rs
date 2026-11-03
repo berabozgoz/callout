@@ -121,6 +121,12 @@ pub enum Event {
         state: MicTestState,
         transmitted_pct: Option<u8>,
     },
+    /// The audio pipeline (re)started. Input fields are `None` without a microphone (listening
+    /// only). A 16 kHz mono input usually means a Bluetooth headset in its hands-free profile.
+    AudioStarted {
+        input_rate: Option<u32>,
+        input_channels: Option<u16>,
+    },
     /// `kind` is what the UI translates; `message` is the technical detail (English, for logs
     /// and as a fallback).
     Error {

@@ -72,6 +72,9 @@ export const zhCN: Messages = {
   "tray.quit": "退出",
 
   "audio.fallback": "未找到所选音频设备，已切换到默认设备。",
+  "audio.listenOnly": "仅收听：没有可用的麦克风，其他人听不到你。",
+  "audio.bluetoothMic":
+    "你的麦克风以 {khz} kHz 运行，这通常表示蓝牙耳机处于免提模式：音质较差且发送不稳定。有线或 USB 麦克风效果好得多；蓝牙耳机可以继续用于收听。",
 
   "error.generic": "{detail}",
   "error.invalid_invite": "邀请链接无效。请确认已完整复制。",

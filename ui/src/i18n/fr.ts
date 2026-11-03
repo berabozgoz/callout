@@ -73,6 +73,9 @@ export const fr: Messages = {
   "tray.quit": "Quitter",
 
   "audio.fallback": "Le périphérique audio sélectionné est introuvable ; le périphérique par défaut est utilisé.",
+  "audio.listenOnly": "Écoute seule : aucun micro disponible, les autres ne vous entendent pas.",
+  "audio.bluetoothMic":
+    "Votre micro fonctionne à {khz} kHz. Cela indique généralement un casque Bluetooth en mode mains libres : qualité réduite et envoi irrégulier. Un micro filaire ou USB sonne bien mieux ; le casque Bluetooth peut rester pour l’écoute.",
 
   "error.generic": "{detail}",
   "error.invalid_invite": "Le lien d'invitation n'est pas valide. Vérifiez que vous l'avez copié en entier.",

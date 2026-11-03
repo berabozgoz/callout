@@ -73,6 +73,9 @@ export const ja: Messages = {
   "tray.quit": "終了",
 
   "audio.fallback": "選択したオーディオデバイスが見つからないため、既定のデバイスに切り替えました。",
+  "audio.listenOnly": "聞くだけ：使用できるマイクがないため、他の人にはあなたの声が聞こえません。",
+  "audio.bluetoothMic":
+    "マイクが {khz} kHz で動作しています。これは通常、Bluetooth ヘッドセットがハンズフリー モードになっていることを意味し、音質が下がり送信も不安定になります。有線または USB マイクのほうがずっと良く聞こえます。Bluetooth ヘッドセットは聞く用途に使い続けられます。",
 
   "error.generic": "{detail}",
   "error.invalid_invite": "招待リンクが無効です。すべてコピーされているか確認してください。",

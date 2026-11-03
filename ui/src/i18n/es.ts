@@ -73,6 +73,9 @@ export const es: Messages = {
   "tray.quit": "Salir",
 
   "audio.fallback": "No se encontró el dispositivo de audio seleccionado; se usa el dispositivo predeterminado.",
+  "audio.listenOnly": "Solo escuchando: no hay ningún micrófono disponible, así que los demás no te oyen.",
+  "audio.bluetoothMic":
+    "Tu micrófono funciona a {khz} kHz. Eso suele indicar unos auriculares Bluetooth en modo manos libres: menos calidad y envío irregular. Un micrófono con cable o USB suena mucho mejor; puedes seguir usando los auriculares Bluetooth para escuchar.",
 
   "error.generic": "{detail}",
   "error.invalid_invite": "El enlace de invitación no es válido. Asegúrate de haberlo copiado completo.",

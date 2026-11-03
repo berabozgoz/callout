@@ -227,48 +227,43 @@ fn audio_thread(
     ev: mpsc::UnboundedSender<Event>,
     ready: std::sync::mpsc::Sender<Result<(), String>>,
 ) {
-    let setup = (|| -> Result<_, String> {
-        let input = find_device(Direction::Input, input_name.as_deref())
-            .map_err(|e| format!("input device: {e}"))?;
-        let output = find_device(Direction::Output, output_name.as_deref())
-            .map_err(|e| format!("output device: {e}"))?;
-        let in_cfg = input.default_input_config().map_err(|e| e.to_string())?;
-        let out_cfg = output.default_output_config().map_err(|e| e.to_string())?;
-        Ok((input, output, in_cfg, out_cfg))
-    })();
-    let (input, output, in_cfg, out_cfg) = match setup {
+    // The output is required; the input is optional: without a microphone (missing device, Windows
+    // privacy setting denying access, …) the user can still join and listen.
+    let output = match find_device(Direction::Output, output_name.as_deref())
+        .map_err(|e| format!("output device: {e}"))
+        .and_then(|d| {
+            let cfg = d.default_output_config().map_err(|e| e.to_string())?;
+            Ok((d, cfg))
+        }) {
         Ok(v) => v,
         Err(e) => {
             let _ = ready.send(Err(e));
             return;
         }
     };
-    let (in_rate, out_rate) = (in_cfg.sample_rate().0, out_cfg.sample_rate().0);
-    let (in_ch, out_ch) = (in_cfg.channels() as usize, out_cfg.channels() as usize);
+    let (output, out_cfg) = output;
+    let input = find_device(Direction::Input, input_name.as_deref())
+        .map_err(|e| format!("input device: {e}"))
+        .and_then(|d| {
+            let cfg = d
+                .default_input_config()
+                .map_err(|e| format!("input device: {e}"))?;
+            Ok((d, cfg))
+        });
+    let out_rate = out_cfg.sample_rate().0;
+    let out_ch = out_cfg.channels() as usize;
+    // Without an input the resampler still needs a rate; nothing is ever pushed through it.
+    let (in_rate, in_ch) = match &input {
+        Ok((_, cfg)) => (cfg.sample_rate().0, cfg.channels() as usize),
+        Err(_) => (SAMPLE_RATE_HZ, 1),
+    };
 
     let (mut in_prod, mut in_cons) = HeapRb::<f32>::new(in_rate as usize / 5).split();
     let (mut out_prod, mut out_cons) = HeapRb::<f32>::new(out_rate as usize / 5).split();
 
     // Error callbacks only set the flag (logging the first error); the engine handles recovery.
     let (err_in, err_out) = (ctl.clone(), ctl.clone());
-    let streams = (|| -> Result<_, String> {
-        let in_stream = input
-            .build_input_stream(
-                &in_cfg.clone().into(),
-                move |data: &[f32], _| {
-                    for frame in data.chunks(in_ch) {
-                        let mono = frame.iter().sum::<f32>() / in_ch as f32;
-                        let _ = in_prod.try_push(mono);
-                    }
-                },
-                move |e| {
-                    if !err_in.stream_error.swap(true, Ordering::Relaxed) {
-                        tracing::error!("input error: {e}");
-                    }
-                },
-                None,
-            )
-            .map_err(|e| format!("input stream: {e}"))?;
+    let out_stream = (|| -> Result<_, String> {
         let out_stream = output
             .build_output_stream(
                 &out_cfg.clone().into(),
@@ -286,19 +281,62 @@ fn audio_thread(
                 None,
             )
             .map_err(|e| format!("output stream: {e}"))?;
-        in_stream.play().map_err(|e| e.to_string())?;
         out_stream.play().map_err(|e| e.to_string())?;
-        Ok((in_stream, out_stream))
+        Ok(out_stream)
     })();
-    let _streams = match streams {
+    let _out_stream = match out_stream {
         Ok(s) => s,
         Err(e) => {
             let _ = ready.send(Err(e));
             return;
         }
     };
+    let in_stream = input.and_then(|(device, cfg)| {
+        let stream = device
+            .build_input_stream(
+                &cfg.into(),
+                move |data: &[f32], _| {
+                    for frame in data.chunks(in_ch) {
+                        let mono = frame.iter().sum::<f32>() / in_ch as f32;
+                        let _ = in_prod.try_push(mono);
+                    }
+                },
+                move |e| {
+                    if !err_in.stream_error.swap(true, Ordering::Relaxed) {
+                        tracing::error!("input error: {e}");
+                    }
+                },
+                None,
+            )
+            .map_err(|e| format!("input stream: {e}"))?;
+        stream.play().map_err(|e| format!("input stream: {e}"))?;
+        Ok(stream)
+    });
+    let has_input = in_stream.is_ok();
+    let _in_stream = match in_stream {
+        Ok(s) => Some(s),
+        Err(e) => {
+            tracing::warn!("no microphone, listening only: {e}");
+            let _ = ev.send(Event::Error {
+                kind: ErrorKind::from_audio_error(&e),
+                message: format!("audio pipeline: {e}"),
+            });
+            None
+        }
+    };
     let _ = ready.send(Ok(()));
-    tracing::info!(in_rate, out_rate, in_ch, out_ch, "audio pipeline started");
+    tracing::info!(
+        in_rate,
+        out_rate,
+        in_ch,
+        out_ch,
+        has_input,
+        "audio pipeline started"
+    );
+    let _ = ev.send(Event::AudioStarted {
+        input_rate: has_input.then_some(in_rate),
+        input_channels: has_input.then_some(in_ch as u16),
+    });
 
     let mut up = Resampler::new(in_rate, SAMPLE_RATE_HZ).expect("resampler");
     let mut down = Resampler::new(SAMPLE_RATE_HZ, out_rate).expect("resampler");
@@ -353,7 +391,9 @@ fn audio_thread(
             emit_test(MicTestState::Idle, None);
         }
         if ctl.mic_test_start.swap(false, Ordering::Relaxed) {
-            if calib.len() < 75 {
+            if !has_input {
+                emit_test(MicTestState::Idle, Some(0));
+            } else if calib.len() < 75 {
                 mic_test = MicTest::Waiting;
                 emit_test(MicTestState::Calibrating, None);
             } else {

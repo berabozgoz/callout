@@ -73,6 +73,9 @@ export const de: Messages = {
   "tray.quit": "Beenden",
 
   "audio.fallback": "Das ausgewählte Audiogerät wurde nicht gefunden; stattdessen wird das Standardgerät verwendet.",
+  "audio.listenOnly": "Nur zuhören: Kein Mikrofon verfügbar, die anderen hören dich nicht.",
+  "audio.bluetoothMic":
+    "Dein Mikrofon läuft mit {khz} kHz. Das bedeutet meist ein Bluetooth-Headset im Freisprechmodus: schlechtere Qualität und unregelmäßiges Timing. Ein kabelgebundenes oder USB-Mikrofon klingt deutlich besser; das Bluetooth-Headset kannst du weiter zum Hören nutzen.",
 
   "error.generic": "{detail}",
   "error.invalid_invite": "Der Einladungslink ist ungültig. Achte darauf, dass du ihn vollständig kopiert hast.",

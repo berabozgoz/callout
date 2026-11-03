@@ -57,6 +57,8 @@ struct Snapshot {
     members: Vec<Member>,
     muted: bool,
     deafened: bool,
+    /// Last audio pipeline start: `None` before any, `Some(None)` without a microphone.
+    input_rate: Option<Option<u32>>,
 }
 
 impl Snapshot {
@@ -68,6 +70,7 @@ impl Snapshot {
             members: Vec::new(),
             muted: false,
             deafened: false,
+            input_rate: None,
         }
     }
 
@@ -86,6 +89,7 @@ impl Snapshot {
                 self.room = room.clone();
                 self.members = members.clone();
             }
+            Event::AudioStarted { input_rate, .. } => self.input_rate = Some(*input_rate),
             _ => {}
         }
     }
@@ -326,6 +330,17 @@ fn open_log_file() -> Option<std::fs::File> {
         .ok()
 }
 
+/// Panics go to the log as well, so a crash can be told apart from a forced close (and a panic on
+/// the audio thread, which does not take the app down, still leaves a trace).
+fn log_panics() {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let thread = std::thread::current();
+        tracing::error!(thread = thread.name().unwrap_or("?"), "panic: {info}");
+        default(info);
+    }));
+}
+
 pub fn run() {
     let filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
     match open_log_file() {
@@ -336,6 +351,7 @@ pub fn run() {
             .init(),
         None => tracing_subscriber::fmt().with_env_filter(filter).init(),
     }
+    log_panics();
     tracing::info!(version = env!("CARGO_PKG_VERSION"), "CallOut started");
 
     tauri::Builder::default()

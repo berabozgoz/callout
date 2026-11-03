@@ -20,11 +20,23 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
 
+/// Panics go to the log as well, so a crash can be told apart from a forced close (and a panic on
+/// the audio thread, which does not take the app down, still leaves a trace).
+fn log_panics() {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let thread = std::thread::current();
+        tracing::error!(thread = thread.name().unwrap_or("?"), "panic: {info}");
+        default(info);
+    }));
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()))
         .init();
+    log_panics();
 
     let port: u16 = std::env::var("CALLOUT_PORT")
         .ok()

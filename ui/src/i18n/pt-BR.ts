@@ -73,6 +73,9 @@ export const ptBR: Messages = {
   "tray.quit": "Sair",
 
   "audio.fallback": "O dispositivo de áudio selecionado não foi encontrado; mudamos para o dispositivo padrão.",
+  "audio.listenOnly": "Só ouvindo: nenhum microfone disponível, então os outros não ouvem você.",
+  "audio.bluetoothMic":
+    "Seu microfone está em {khz} kHz. Isso geralmente indica um fone Bluetooth no modo viva-voz: qualidade menor e envio irregular. Um microfone com fio ou USB soa muito melhor; o fone Bluetooth pode continuar para ouvir.",
 
   "error.generic": "{detail}",
   "error.invalid_invite": "O link de convite é inválido. Verifique se você copiou o link inteiro.",

@@ -81,6 +81,9 @@ export const en = {
   "tray.quit": "Quit",
 
   "audio.fallback": "The selected audio device was not found; switched to the default device.",
+  "audio.listenOnly": "Listening only: no microphone is available, so others can't hear you.",
+  "audio.bluetoothMic":
+    "Your microphone runs at {khz} kHz. That usually means a Bluetooth headset in hands-free mode: lower quality and uneven timing. A wired or USB mic sounds much better; the Bluetooth headset can stay for listening.",
 
   // engine / server errors (Event::Error kind → text; {detail} is the technical cause)
   "error.generic": "{detail}",

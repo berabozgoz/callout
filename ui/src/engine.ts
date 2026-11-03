@@ -20,6 +20,7 @@ export type EngineEvent =
   | { type: "input_level"; level: number; transmitting: boolean; threshold: number }
   | { type: "stats"; rtt_ms: number; jitter_ms: number; lost: number; sent: number; received: number }
   | { type: "audio_restored"; fallback_to_default: boolean }
+  | { type: "audio_started"; input_rate: number | null; input_channels: number | null }
   | { type: "mic_test"; state: MicTestState; transmitted_pct: number | null }
   | { type: "error"; kind: ErrorKind; message: string };
 
@@ -62,6 +63,8 @@ export type Snapshot = {
   members: Member[];
   muted: boolean;
   deafened: boolean;
+  /** Last audio pipeline start: undefined/null before any; the inner null means no microphone. */
+  input_rate: number | null | undefined;
 };
 
 export type Device = { name: string; direction: "input" | "output"; is_default: boolean };

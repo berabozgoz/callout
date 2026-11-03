@@ -28,6 +28,9 @@
   let level = $state(0);
   let transmitting = $state(false);
   let threshold = $state(0);
+  // Microphone sample rate from the last audio pipeline start; null = no microphone (listening only),
+  // undefined = no pipeline yet.
+  let inputRate = $state<number | null | undefined>(undefined);
   let muted = $state(false);
   let deafened = $state(false);
   let stats = $state({ rtt_ms: 0, jitter_ms: 0, lost: 0 });
@@ -92,6 +95,7 @@
             ? { key: "audio.fallback" }
             : error?.kind === "audio_device_lost" ? null : error;
           break;
+        case "audio_started": inputRate = e.input_rate; break;
         case "mic_test":
           micTest = e.state;
           if (e.state === "recording") { recStart = now = Date.now(); micResult = null; }
@@ -110,6 +114,7 @@
       const s = await engineSnapshot();
       conn = s.connection; myId = s.user_id; room = s.room; members = s.members;
       muted = s.muted; deafened = s.deafened;
+      if (s.input_rate !== undefined) inputRate = s.input_rate;
     } catch (e) { error = fail(e); }
   });
 
@@ -226,6 +231,14 @@
 
 <svelte:window onkeydowncapture={onWindowKey} oncontextmenu={onContextMenu} />
 
+{#snippet inputHint()}
+  {#if inputRate === null}
+    <p class="hint warn">{t("audio.listenOnly")}</p>
+  {:else if inputRate !== undefined && inputRate <= 16000}
+    <p class="hint warn">{t("audio.bluetoothMic", { khz: inputRate / 1000 })}</p>
+  {/if}
+{/snippet}
+
 {#snippet meter()}
   <div class="meter" class:tx={transmitting}>
     <div class="fill" style="width: {Math.round(level * 100)}%"></div>
@@ -294,6 +307,7 @@
       <div class="soundtest">
         <h3>{t("test.title")}</h3>
         {@render meter()}
+        {@render inputHint()}
         <div class="actions">
           <button class:recording={micTest === "recording"} onclick={toggleMicTest}>
             {#if micTest === "calibrating"}{t("test.calibrating")}
@@ -398,6 +412,7 @@
       </button>
       <span class="stats">{t("room.stats", { rtt: stats.rtt_ms, jitter: stats.jitter_ms })}{stats.lost ? ` · ${t("room.lost", { n: stats.lost })}` : ""}</span>
     </section>
+    {@render inputHint()}
     {#if settings.push_to_talk}
       <p class="hint">{t("room.pttHint", { key: prettyShortcut(settings.ptt_shortcut) })}</p>
     {/if}

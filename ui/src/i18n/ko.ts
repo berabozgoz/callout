@@ -72,6 +72,9 @@ export const ko: Messages = {
   "tray.quit": "종료",
 
   "audio.fallback": "선택한 오디오 장치를 찾을 수 없어 기본 장치로 전환했어요.",
+  "audio.listenOnly": "듣기 전용: 사용할 수 있는 마이크가 없어 다른 사람이 내 목소리를 들을 수 없어요.",
+  "audio.bluetoothMic":
+    "마이크가 {khz}kHz로 동작하고 있어요. 보통 블루투스 헤드셋이 핸즈프리 모드로 바뀌었다는 뜻이며, 음질이 떨어지고 전송이 고르지 않아요. 유선 또는 USB 마이크가 훨씬 좋게 들려요. 블루투스 헤드셋은 듣는 용도로 계속 쓸 수 있어요.",
 
   "error.generic": "{detail}",
   "error.invalid_invite": "초대 링크가 올바르지 않아요. 전체를 복사했는지 확인하세요.",
