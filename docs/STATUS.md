@@ -228,6 +228,10 @@ items marked **before release** pass.
   full 10 s QUIC idle timeout, so attempts ran every ~25 s; attempts are now capped at 4 s
   (`RECONNECT_ATTEMPT_TIMEOUT`). Reconnect keeping mute and the Stop button also passed: all
   "before release" tests are done.
+- 4 Nov: **v0.1.12 released** (first signed release: `CallOut_0.1.12_x64-setup.exe.sig` and `latest.json`
+  with `windows-x86_64` entries; the updater endpoint resolves) and the server updated to v0.1.12
+  (`rooms loaded`, invite link unchanged). Everyone installs v0.1.12 by hand once; later releases arrive in-app.
+  Next field checks: auto-update with v0.1.13, persistent rooms / close room on the real server.
 
 ## Previous session
 
