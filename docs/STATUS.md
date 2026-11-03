@@ -34,9 +34,11 @@ items marked **before release** pass.
       cable returns; the other side sees leave + join. Log: `reconnect failed` attempts, then
       `reconnected; rejoining room`.
       ✓ 3 Nov: two cable pulls on the Oracle server, back in room JBRA435A after 2–4 s each.
-- [ ] **Reconnect keeps mute** (before release): same as above while muted; the others still see you muted.
-- [ ] **Reconnect "Stop" button** (before release): pull the cable, press Stop. Back on the connect screen; no
+- [x] **Reconnect keeps mute** (before release): same as above while muted; the others still see you muted.
+      ✓ 3 Nov (Bera): the others still saw him muted after the reconnect.
+- [x] **Reconnect "Stop" button** (before release): pull the cable, press Stop. Back on the connect screen; no
       reconnect when the cable returns.
+      ✓ 3 Nov (Bera): Stop returned to the connect screen; no automatic reconnect afterwards.
 - [ ] **Long outage** : cable out ~1 min. Reconnects within ~15 s of the cable returning.
 - [x] **Listen-only join** (before release; since 53e73f4): Windows Settings → Privacy → Microphone → turn off
       desktop app access, connect. Expected: the microphone error is shown, but you can join a room and hear
@@ -224,7 +226,8 @@ items marked **before release** pass.
 - 4 Nov (manual tests by Bera): reconnect, listen-only, device recovery, persistent rooms and close room
   passed (see Pending manual tests). Found: while the server is down each reconnect attempt waited for the
   full 10 s QUIC idle timeout, so attempts ran every ~25 s; attempts are now capped at 4 s
-  (`RECONNECT_ATTEMPT_TIMEOUT`). Still to test before release: reconnect keeps mute, and the Stop button.
+  (`RECONNECT_ATTEMPT_TIMEOUT`). Reconnect keeping mute and the Stop button also passed: all
+  "before release" tests are done.
 
 ## Previous session
 
