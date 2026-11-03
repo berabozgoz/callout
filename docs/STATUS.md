@@ -46,8 +46,9 @@ items marked **before release** pass.
       ✓ 3 Nov: mic access turned off while connected → pipeline rebuilt with has_input=false, listening went on.
 - [ ] **Sensitivity slider** (since d16c116): in Settings, moving it moves the threshold line on the meter;
       "More" picks up quiet speech in the sound test, "Less" cuts it; Cancel restores the saved value.
-- [ ] **Bluetooth mic warning** (since 53e73f4): pick an AirPods/Bluetooth headset mic. Expected: the 16 kHz
+- [x] **Bluetooth mic warning** (since 53e73f4): pick an AirPods/Bluetooth headset mic. Expected: the 16 kHz
       warning in settings and in the room.
+      ✓ 4 Nov (Bera, AirPods): the warning shows in settings and in the room.
 - [ ] **Adaptive jitter in the field** (since v0.1.10): a Wi-Fi player (cocart) on v0.1.10+ plays a session.
       Expected: `stats` jitter_ms around 80–100 ms instead of ~140 (v0.1.6), late/lost up slightly (~1.5%).
 - [ ] **FEC field data** (since v0.1.7): any session with loss; compare `lost` and `fec` in the `sender jitter`
