@@ -6,6 +6,11 @@ export const de: Messages = {
   "header.reconnecting": "verbinde neu…",
   "header.settings": "Einstellungen",
 
+  "update.available": "CallOut {version} ist verfügbar.",
+  "update.install": "Aktualisieren und neu starten",
+  "update.downloading": "Update wird heruntergeladen… {pct} %",
+  "update.failed": "Das Update ist fehlgeschlagen. Lade es von der Releases-Seite herunter.",
+
   "settings.title": "Einstellungen",
   "settings.language": "Sprache",
   "settings.languageAuto": "Systemsprache",

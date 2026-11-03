@@ -6,6 +6,11 @@ export const zhCN: Messages = {
   "header.reconnecting": "正在重新连接…",
   "header.settings": "设置",
 
+  "update.available": "CallOut {version} 已发布。",
+  "update.install": "更新并重启",
+  "update.downloading": "正在下载更新…… {pct}%",
+  "update.failed": "更新失败。请从 Releases 页面下载。",
+
   "settings.title": "设置",
   "settings.language": "语言",
   "settings.languageAuto": "跟随系统",

@@ -7,6 +7,11 @@ export const en = {
   "header.reconnecting": "reconnecting…",
   "header.settings": "Settings",
 
+  "update.available": "CallOut {version} is available.",
+  "update.install": "Update and restart",
+  "update.downloading": "Downloading the update… {pct}%",
+  "update.failed": "The update failed. Download it from the Releases page.",
+
   // settings
   "settings.title": "Settings",
   "settings.language": "Language",

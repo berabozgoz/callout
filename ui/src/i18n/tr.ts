@@ -6,6 +6,11 @@ export const tr: Messages = {
   "header.reconnecting": "yeniden bağlanıyor…",
   "header.settings": "Ayarlar",
 
+  "update.available": "CallOut {version} çıktı.",
+  "update.install": "Güncelle ve yeniden başlat",
+  "update.downloading": "Güncelleme indiriliyor… %{pct}",
+  "update.failed": "Güncelleme başarısız oldu. Releases sayfasından indirebilirsin.",
+
   "settings.title": "Ayarlar",
   "settings.language": "Dil",
   "settings.languageAuto": "Sistem dili",

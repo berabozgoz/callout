@@ -6,6 +6,11 @@ export const ja: Messages = {
   "header.reconnecting": "再接続中…",
   "header.settings": "設定",
 
+  "update.available": "CallOut {version} が利用可能です。",
+  "update.install": "更新して再起動",
+  "update.downloading": "アップデートをダウンロードしています… {pct}%",
+  "update.failed": "アップデートに失敗しました。Releases ページからダウンロードしてください。",
+
   "settings.title": "設定",
   "settings.language": "言語",
   "settings.languageAuto": "システムの言語",

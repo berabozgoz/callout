@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
-    "@tauri-apps/plugin-clipboard-manager": "^2.0.0"
+    "@tauri-apps/plugin-clipboard-manager": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.14.1"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.0",

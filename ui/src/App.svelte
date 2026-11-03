@@ -9,6 +9,7 @@
   } from "./engine";
   import { t, i18n, setLanguage, LANGUAGES } from "./i18n/index.svelte";
   import Icon from "./Icon.svelte";
+  import { check, type Update } from "@tauri-apps/plugin-updater";
   import type { MessageKey } from "./i18n/en";
 
   /** Errors are stored untranslated so they follow a language change. */
@@ -52,6 +53,45 @@
   const me = $derived(members.find((m) => m.user_id === myId));
   const remaining = $derived(Math.max(1, 5 - Math.floor((now - recStart) / 1000)));
 
+  // ---- updates (GitHub Releases, signed) ----
+  let update = $state.raw<Update | null>(null);
+  let updating = $state<"idle" | "downloading" | "failed">("idle");
+  let updatePct = $state(0);
+  async function checkForUpdate() {
+    try {
+      const u = await check();
+      if (u) update = u;
+    } catch (e) {
+      // Offline, no release yet, dev build: not worth bothering the user.
+      console.warn("update check failed", e);
+    }
+  }
+  async function installUpdate() {
+    if (!update) return;
+    updating = "downloading";
+    updatePct = 0;
+    let total = 0;
+    let got = 0;
+    try {
+      await update.download((ev) => {
+        if (ev.event === "Started") total = ev.data.contentLength ?? 0;
+        else if (ev.event === "Progress") {
+          got += ev.data.chunkLength;
+          updatePct = total ? Math.round((got * 100) / total) : 0;
+        }
+      });
+      // The installer closes the app: leave the server cleanly first instead of timing out.
+      if (conn !== "disconnected") {
+        await send({ type: "disconnect" });
+        await new Promise((r) => setTimeout(r, 700));
+      }
+      await update.install();
+    } catch (e) {
+      console.error("update failed", e);
+      updating = "failed";
+    }
+  }
+
   // Tray menu follows the UI language.
   $effect(() => {
     void i18n.lang;
@@ -69,6 +109,10 @@
     version = await appVersion();
     settings = await getSettings();
     setLanguage(settings.language);
+    if (import.meta.env.PROD) {
+      checkForUpdate();
+      setInterval(checkForUpdate, 6 * 60 * 60 * 1000);
+    }
     try { devices = await listDevices(); } catch (e) { error = fail(e); }
 
     await onEngine((e) => {
@@ -263,6 +307,19 @@
       <button class="icon" title={t("header.settings")} onclick={() => (showSettings ? cancelSettings() : openSettings())}>⚙</button>
     </div>
   </header>
+
+  {#if update}
+    <div class="update">
+      <span>
+        {updating === "downloading" ? t("update.downloading", { pct: updatePct })
+          : updating === "failed" ? t("update.failed")
+          : t("update.available", { version: update.version })}
+      </span>
+      {#if updating !== "downloading"}
+        <button class="primary" onclick={installUpdate}>{t("update.install")}</button>
+      {/if}
+    </div>
+  {/if}
 
   {#if error}
     <button class="error" type="button" onclick={() => (error = null)}>{t(error.key, error.vars)}</button>

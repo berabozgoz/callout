@@ -38,8 +38,13 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing key (minisign). Lose it and installed apps can no longer update.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/callout-app
+          # latest.json on the release: the in-app updater's endpoint.
+          includeUpdaterJson: true
           tagName: ${{ github.ref_name }}
           releaseName: "CallOut ${{ github.ref_name }}"
           releaseBody: |

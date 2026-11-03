@@ -6,6 +6,11 @@ export const ko: Messages = {
   "header.reconnecting": "다시 연결 중…",
   "header.settings": "설정",
 
+  "update.available": "CallOut {version} 버전이 나왔어요.",
+  "update.install": "업데이트 후 다시 시작",
+  "update.downloading": "업데이트 다운로드 중… {pct}%",
+  "update.failed": "업데이트에 실패했어요. Releases 페이지에서 내려받아 주세요.",
+
   "settings.title": "설정",
   "settings.language": "언어",
   "settings.languageAuto": "시스템 언어",

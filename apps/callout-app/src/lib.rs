@@ -377,6 +377,8 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_clipboard_manager::init())
+        // Updates come from GitHub Releases (latest.json), signed with the key in the release workflow.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {

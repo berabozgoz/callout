@@ -6,6 +6,11 @@ export const ru: Messages = {
   "header.reconnecting": "переподключение…",
   "header.settings": "Настройки",
 
+  "update.available": "Доступна версия CallOut {version}.",
+  "update.install": "Обновить и перезапустить",
+  "update.downloading": "Загрузка обновления… {pct} %",
+  "update.failed": "Не удалось обновить. Скачайте новую версию на странице Releases.",
+
   "settings.title": "Настройки",
   "settings.language": "Язык",
   "settings.languageAuto": "Как в системе",

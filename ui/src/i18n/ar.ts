@@ -6,6 +6,11 @@ export const ar: Messages = {
   "header.reconnecting": "جارٍ إعادة الاتصال…",
   "header.settings": "الإعدادات",
 
+  "update.available": "يتوفر CallOut {version}.",
+  "update.install": "التحديث وإعادة التشغيل",
+  "update.downloading": "جارٍ تنزيل التحديث… {pct}%",
+  "update.failed": "فشل التحديث. نزّله من صفحة Releases.",
+
   "settings.title": "الإعدادات",
   "settings.language": "اللغة",
   "settings.languageAuto": "لغة النظام",

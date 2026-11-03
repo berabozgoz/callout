@@ -56,6 +56,9 @@ items marked **before release** pass.
       the 11 languages and the installer uses the chosen one.
 - [ ] **Mic test is private in a room** (since v0.1.8): run the mic test while in a room; the others must not
       hear the recording.
+- [ ] **Auto-update** (from the first updater-enabled release on): with release N installed, publish N+1. Expected:
+      the banner appears (at start or within 6 h), "Update and restart" downloads, leaves the room cleanly and
+      installs; CallOut reopens on N+1 with settings kept. A portable exe user gets the installed version.
 - [ ] **Push-to-talk in a fullscreen game** (known gap since Phase 1): the global shortcut works while a
       fullscreen game has focus.
 
@@ -187,6 +190,12 @@ items marked **before release** pass.
   licenses sources` (MPL-2.0 allowed only for five transitive Tauri crates: cssparser, cssparser-macros,
   dtoa-short, selectors, option-ext); full Apache-2.0 text in `LICENSE-APACHE`; README rewritten for players,
   server hosts and developers; release notes template now covers the Linux server (`install.sh`).
+- 4 Nov (auto-update): `tauri-plugin-updater` (MIT/Apache) with `createUpdaterArtifacts`; endpoint
+  `releases/latest/download/latest.json` (tauri-action `includeUpdaterJson`); minisign public key in
+  `tauri.conf.json`, private key + password outside the repo (location in `CLAUDE.local.md`) and as GitHub
+  secrets `TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)`. The app checks at start and every 6 h (release builds only)
+  and shows a banner; "Update and restart" downloads, disconnects cleanly, then runs the NSIS installer in
+  passive mode. The first updater-enabled release has to be installed by hand once.
 
 ## Previous session
 

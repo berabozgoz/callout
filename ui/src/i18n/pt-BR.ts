@@ -6,6 +6,11 @@ export const ptBR: Messages = {
   "header.reconnecting": "reconectando…",
   "header.settings": "Configurações",
 
+  "update.available": "CallOut {version} está disponível.",
+  "update.install": "Atualizar e reiniciar",
+  "update.downloading": "Baixando a atualização… {pct}%",
+  "update.failed": "A atualização falhou. Baixe-a na página Releases.",
+
   "settings.title": "Configurações",
   "settings.language": "Idioma",
   "settings.languageAuto": "Idioma do sistema",
