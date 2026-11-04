@@ -9,13 +9,12 @@
   adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (4 Nov, v0.1.14, checked on Bera's mic,
   not yet tested with other players). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
-- **Released:** v0.1.15 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
+- **Released:** v0.1.16 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
 - **Server:** Oracle Always Free (Frankfurt) runs **v0.1.12** (persistent rooms in `/var/lib/callout/rooms.tsv`,
   owner-only room closing). v0.1.13–v0.1.15 changed only the app, so no server update was needed. Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main`:** consent-based log upload (app + server); the next release needs the server update
-  for it to work (check `git log v0.1.15..`).
+- **Unreleased on `main`:** nothing (check `git log v0.1.16..`).
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -119,10 +118,9 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- **Log upload** is done and checked locally: release it (v0.1.16) together with a server update, then ask
-  friends to press "Send log" after a session; read them over SSH in `/var/lib/callout/logs/`. That is the
-  way to get the field data below without asking for files.
-- Field data from friends on v0.1.15: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
+- **Log upload** is out in v0.1.16 (server updated): ask friends to press "Send log" after a session and read
+  the logs over SSH in `/var/lib/callout/logs/`. That is the way to get the field data below.
+- Field data from friends on v0.1.16: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
   FEC (`lost` vs `fec` in `sender jitter`), persistent rooms / close room on the real server.
 - **AGC** is released in v0.1.14 (checked on Bera's webcam mic). Field: a loud and a quiet player in one room
   (AGC (a), (b) in "Pending manual tests"); then decide whether Phase 2 can be closed. Open: with noise
@@ -368,7 +366,7 @@ items marked **before release** pass.
   holds, 30 days) → Send; after a reconnect or an audio/connection error the strip offers itself once per
   run. 11 languages; README (players + hosts), ARCHITECTURE, CLAUDE.md rule 9 note. Tests: proto
   roundtrip, server store/rate limit/cleanup/file names, scrubbing, end-to-end `engine_uploads_a_log_once_per_interval`.
-  Checked by Bera in the release exe (old Oracle server and a local one). Unreleased; needs the server update.
+  Checked by Bera in the release exe (old Oracle server and a local one). Released as **v0.1.16**.
 - 4 Nov: **v0.1.14 released** (AGC, sensitivity dB readout, settings without scrolling, close-room strip,
   no default push-to-talk key, dropout counters in the log). App only; the server stays on v0.1.12.
 - 4 Nov (AGC): see Next → Phase 2 item 3. `VadDecision` gained `active`; seven unit tests in `agc.rs`
