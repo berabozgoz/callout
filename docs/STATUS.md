@@ -122,9 +122,15 @@ items marked **before release** pass.
 - [x] **Log upload on the real server** (after the next release + server update): a friend sends a log; it shows
       up in `/var/lib/callout/logs/` (SSH) under their nickname.
       ✓ 4 Nov (CS2 test): kuzen sent two logs, Bera one; all stored under their nicknames.
-- [ ] **Push-to-talk in Apex Legends, app in the tray** (v0.1.16, alone on the Oracle server): hold/release
+- [x] **Push-to-talk in Apex Legends, app in the tray** (v0.1.16, alone on the Oracle server): hold/release
       pattern in the Firing Range while speaking; the server's `connection stats` `dgram_rx` for that user
       rises only during the holds (~50/s), nothing sticks after release, the key still does its in-game action.
+      4 Nov 2026 22:46–22:53 (TR): server and client logs agree. Packets went out only in hold bursts
+      (three ~5 s holds at 22:47–22:48, a long stretch at 22:49–22:50, one at 22:52). Between and after the
+      holds the count stayed at the ~3/10 s idle baseline, so nothing stuck; 0 lost packets, RTT 38–50 ms,
+      no capture overruns. The silent 22:50–22:52 gap was Bera alt-tabbing out to move the binding from T
+      (Apex: voice chat) to 4 (Apex: heal); both keys kept their in-game action while talking. Apex in
+      exclusive fullscreen.
 
 ## Next
 
