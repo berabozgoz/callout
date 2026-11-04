@@ -17,7 +17,7 @@ export const ja: Messages = {
   "settings.language": "言語",
   "settings.languageAuto": "システムの言語",
   "settings.microphone": "マイク",
-  "settings.speaker": "スピーカー",
+  "settings.speaker": "音声出力",
   "settings.default": "既定",
   "settings.noiseSuppression": "ノイズ抑制（ファン、ハム音、室内の雑音）",
   "settings.pushToTalk": "プッシュトゥトーク（オフ時は音声検出）",

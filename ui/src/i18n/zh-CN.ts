@@ -17,7 +17,7 @@ export const zhCN: Messages = {
   "settings.language": "语言",
   "settings.languageAuto": "跟随系统",
   "settings.microphone": "麦克风",
-  "settings.speaker": "扬声器",
+  "settings.speaker": "音频输出",
   "settings.default": "默认",
   "settings.noiseSuppression": "噪音抑制（风扇、嗡嗡声、环境噪音）",
   "settings.pushToTalk": "按键说话（关闭时为语音激活）",

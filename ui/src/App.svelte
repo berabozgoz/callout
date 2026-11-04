@@ -382,13 +382,13 @@
           {#each LANGUAGES as l (l.code)}<option value={l.code}>{l.name}</option>{/each}
         </select>
       </label>
-      <label>{t("settings.microphone")}
+      <label><span class="lbl"><Icon name="microphone" size={14} />{t("settings.microphone")}</span>
         <select bind:value={settings.input_device} onchange={pickInput}>
           <option value={null}>{t("settings.default")}</option>
           {#each inputs as d (d.name)}<option value={d.name}>{d.name}</option>{/each}
         </select>
       </label>
-      <label>{t("settings.speaker")}
+      <label><span class="lbl"><Icon name="headphones" size={14} />{t("settings.speaker")}</span>
         <select bind:value={settings.output_device} onchange={pickOutput}>
           <option value={null}>{t("settings.default")}</option>
           {#each outputs as d (d.name)}<option value={d.name}>{d.name}</option>{/each}

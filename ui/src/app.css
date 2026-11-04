@@ -23,6 +23,7 @@ h2 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spa
 
 .card { background: var(--panel); border-radius: 10px; padding: 14px; }
 label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
+label .lbl { display: inline-flex; align-items: center; gap: 6px; }
 label.row { flex-direction: row; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
 input[type="text"], select {
   background: var(--panel2); color: var(--text); border: 1px solid #343941; border-radius: 6px;

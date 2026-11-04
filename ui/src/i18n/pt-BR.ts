@@ -17,7 +17,7 @@ export const ptBR: Messages = {
   "settings.language": "Idioma",
   "settings.languageAuto": "Idioma do sistema",
   "settings.microphone": "Microfone",
-  "settings.speaker": "Alto-falante",
+  "settings.speaker": "Saída de áudio",
   "settings.default": "Padrão",
   "settings.noiseSuppression": "Supressão de ruído (ventoinhas, zumbido, barulho do ambiente)",
   "settings.pushToTalk": "Pressione para falar (senão, detecção de voz)",

@@ -17,7 +17,7 @@ export const ru: Messages = {
   "settings.language": "Язык",
   "settings.languageAuto": "Как в системе",
   "settings.microphone": "Микрофон",
-  "settings.speaker": "Динамики",
+  "settings.speaker": "Вывод звука",
   "settings.default": "По умолчанию",
   "settings.noiseSuppression": "Шумоподавление (вентиляторы, гул, шум комнаты)",
   "settings.pushToTalk": "Режим рации (иначе активация по голосу)",

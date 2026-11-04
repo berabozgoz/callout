@@ -17,7 +17,7 @@ export const ko: Messages = {
   "settings.language": "언어",
   "settings.languageAuto": "시스템 언어",
   "settings.microphone": "마이크",
-  "settings.speaker": "스피커",
+  "settings.speaker": "오디오 출력",
   "settings.default": "기본값",
   "settings.noiseSuppression": "소음 억제(팬, 웅웅거림, 실내 소음)",
   "settings.pushToTalk": "눌러서 말하기(끄면 음성 감지)",

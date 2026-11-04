@@ -19,7 +19,7 @@ export const en = {
   "settings.language": "Language",
   "settings.languageAuto": "System default",
   "settings.microphone": "Microphone",
-  "settings.speaker": "Speaker",
+  "settings.speaker": "Audio output",
   "settings.default": "Default",
   "settings.noiseSuppression": "Noise suppression (fans, hum, room noise)",
   "settings.pushToTalk": "Push-to-talk (otherwise voice activity)",

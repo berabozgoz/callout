@@ -17,7 +17,7 @@ export const ar: Messages = {
   "settings.language": "اللغة",
   "settings.languageAuto": "لغة النظام",
   "settings.microphone": "الميكروفون",
-  "settings.speaker": "مكبر الصوت",
+  "settings.speaker": "إخراج الصوت",
   "settings.default": "الافتراضي",
   "settings.noiseSuppression": "كتم الضوضاء (المراوح، الطنين، ضجيج الغرفة)",
   "settings.pushToTalk": "الضغط للتحدث (وإلا فاكتشاف الصوت)",

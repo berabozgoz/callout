@@ -17,7 +17,7 @@ export const tr: Messages = {
   "settings.language": "Dil",
   "settings.languageAuto": "Sistem dili",
   "settings.microphone": "Mikrofon",
-  "settings.speaker": "Hoparlör",
+  "settings.speaker": "Ses çıkışı",
   "settings.default": "Varsayılan",
   "settings.noiseSuppression": "Gürültü bastırma (fan, uğultu, oda sesi)",
   "settings.pushToTalk": "Bas-konuş (kapalıysa ses algılama)",

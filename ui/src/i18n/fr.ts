@@ -17,7 +17,7 @@ export const fr: Messages = {
   "settings.language": "Langue",
   "settings.languageAuto": "Langue du système",
   "settings.microphone": "Microphone",
-  "settings.speaker": "Haut-parleur",
+  "settings.speaker": "Sortie audio",
   "settings.default": "Par défaut",
   "settings.noiseSuppression": "Suppression du bruit (ventilateurs, bourdonnement, bruit ambiant)",
   "settings.pushToTalk": "Appuyer pour parler (sinon détection de la voix)",
