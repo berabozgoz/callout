@@ -3,16 +3,23 @@
 //! Run: `cargo run -p callout-server` → prints a `callout://IP:port#fingerprint`
 //! invite link. Environment variables: `CALLOUT_PORT` (4433), `CALLOUT_DATA`
 //! (certificate directory, default `./callout-data`), `CALLOUT_PUBLIC_IP` (address to
-//! show in the invite link; if unset, local addresses are listed), `RUST_LOG`.
+//! show in the invite link; if unset, local addresses are listed), `CALLOUT_LOG_UPLOADS`
+//! (`0` refuses diagnostic logs from users; see `logs.rs`), `RUST_LOG`.
 
+mod logs;
 mod room;
 
 use anyhow::{Context, Result};
 use bytes::BytesMut;
 use callout_net::cert::{Invite, ServerIdentity};
 use callout_net::control::ControlStream;
+use callout_net::{frame_control, unframe_control};
 use callout_net::{identity, transport_config, ALPN, DEFAULT_PORT};
-use callout_proto::{ClientMsg, ErrorCode, Member, ServerMsg, UserId, PROTOCOL_VERSION};
+use callout_proto::{
+    ClientMsg, ErrorCode, LogUpload, LogUploadReply, Member, PublicKey, ServerMsg, UserId,
+    MAX_LOG_UPLOAD, PROTOCOL_VERSION,
+};
+use logs::LogStore;
 use room::{Registry, SharedRoom};
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
@@ -71,13 +78,20 @@ async fn main() -> Result<()> {
     }
 
     let registry = Registry::load(data_dir.join("rooms.tsv"));
-    // Forget rooms nobody has used for a long time (checked hourly).
+    let log_store = Arc::new(LogStore::new(
+        data_dir.join("logs"),
+        std::env::var("CALLOUT_LOG_UPLOADS").map_or(true, |v| v != "0"),
+    ));
+    tracing::info!(enabled = log_store.enabled(), "log uploads");
+    // Forget rooms nobody has used for a long time, and old uploaded logs (checked hourly).
     let expiry_reg = registry.clone();
+    let expiry_logs = log_store.clone();
     tokio::spawn(async move {
         let mut t = tokio::time::interval(std::time::Duration::from_secs(3600));
         loop {
             t.tick().await;
             expiry_reg.expire();
+            expiry_logs.cleanup();
         }
     });
     let next_id = Arc::new(AtomicU32::new(1));
@@ -95,11 +109,12 @@ async fn main() -> Result<()> {
     while let Some(incoming) = endpoint.accept().await {
         let registry = registry.clone();
         let next_id = next_id.clone();
+        let log_store = log_store.clone();
         tokio::spawn(async move {
             let remote = incoming.remote_address();
             match incoming.await {
                 Ok(conn) => {
-                    if let Err(e) = handle_connection(conn, registry, next_id).await {
+                    if let Err(e) = handle_connection(conn, registry, next_id, log_store).await {
                         tracing::info!(%remote, "connection ended: {e}");
                     }
                 }
@@ -114,6 +129,7 @@ async fn handle_connection(
     conn: quinn::Connection,
     registry: Registry,
     next_id: Arc<AtomicU32>,
+    log_store: Arc<LogStore>,
 ) -> Result<()> {
     let (send, recv) = conn.accept_bi().await?;
     let mut control: ControlStream<ServerMsg, ClientMsg> = ControlStream::new(send, recv);
@@ -202,6 +218,20 @@ async fn handle_connection(
         }
     });
     let connected_at = std::time::Instant::now();
+
+    // --- Log uploads: every further bidirectional stream is one (see `LogUpload`) ---
+    let upload_conn = conn.clone();
+    let upload_nick = nickname.clone();
+    let upload_task = tokio::spawn(async move {
+        while let Ok((send, recv)) = upload_conn.accept_bi().await {
+            let (store, nick) = (log_store.clone(), upload_nick.clone());
+            tokio::spawn(async move {
+                if let Err(e) = receive_log(send, recv, &store, &pubkey, &nick).await {
+                    tracing::info!(user_id, "log upload failed: {e}");
+                }
+            });
+        }
+    });
 
     // Removes the user from the room; returns the left room's code (`None` if not in a room).
     let leave = |current: &Arc<RwLock<Option<SharedRoom>>>, registry: &Registry| {
@@ -299,6 +329,7 @@ async fn handle_connection(
 
     audio_task.abort();
     stats_task.abort();
+    upload_task.abort();
     if let Some(code) = leave(&current, &registry) {
         tracing::info!(user_id, code, "removed from room on disconnect");
     }
@@ -314,6 +345,36 @@ async fn handle_connection(
         "connection closed"
     );
     result
+}
+
+/// Reads one log upload (header + text, up to `MAX_LOG_UPLOAD`), stores it and answers.
+async fn receive_log(
+    mut send: quinn::SendStream,
+    mut recv: quinn::RecvStream,
+    store: &LogStore,
+    pubkey: &PublicKey,
+    nickname: &str,
+) -> Result<()> {
+    // Header + log; a longer stream is cut off by `read_to_end` and rejected.
+    let reply = match recv.read_to_end(MAX_LOG_UPLOAD + 1024).await {
+        Err(quinn::ReadToEndError::TooLong) => LogUploadReply::Rejected,
+        Err(e) => return Err(e.into()),
+        Ok(buf) => match unframe_control::<LogUpload>(&buf) {
+            Ok((head, used)) if buf.len() - used == head.bytes as usize => {
+                let log = &buf[used..];
+                let app_version: String = head.app_version.chars().take(32).collect();
+                store.store(pubkey, nickname, &app_version, log)
+            }
+            _ => LogUploadReply::Rejected,
+        },
+    };
+    let mut out = Vec::new();
+    frame_control(&reply, &mut out)?;
+    send.write_all(&out).await?;
+    send.finish()?;
+    // Give the reply time to leave before the stream handles are dropped.
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(5), send.stopped()).await;
+    Ok(())
 }
 
 /// Addresses to show in the invite link: `CALLOUT_PUBLIC_IP` if set,

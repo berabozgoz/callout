@@ -43,8 +43,11 @@ If the connection drops, CallOut reconnects on its own and puts you back in your
 - **Bluetooth headset warning:** when a Bluetooth headset's microphone is in use, Windows switches it to
   a low-quality hands-free mode. A wired or USB mic sounds much better; keep the headset for listening.
 - **Choppy or late audio on Wi-Fi:** use a cable or 5 GHz Wi-Fi if you can.
-- **Logs:** `%APPDATA%\io.github.berabozgoz.callout\logs\callout.log`. Quit from the tray menu before
-  sending it to someone.
+- **Logs:** `%APPDATA%\io.github.berabozgoz.callout\logs\callout.log`. While connected, **Send log**
+  (bottom left) sends it to the operator of your server, only after you agree: connection quality, audio
+  levels and errors, no audio or conversations; your Windows user name and the invite fingerprint are
+  removed first, and the server keeps it for 30 days. After a dropped connection or an audio device
+  problem CallOut offers this once.
 
 ## For server hosts
 
@@ -64,8 +67,11 @@ group. Run the same command again to update.
 - Windows: run `callout-server.exe` from the Releases page; it prints the invite link.
 - From home: forward **UDP 4433** on the router and set `CALLOUT_PUBLIC_IP=<your external IP>`. This
   does not work behind CGNAT (the router's WAN address differs from your public IP); use a VPS then.
+- Logs from players: when a player agrees, their app's diagnostic log lands in `<data>/logs/`
+  (`<UTC time>_<nickname>_<device>.log`, at most 1 MiB each, one per device every 10 minutes; deleted after
+  30 days, the oldest first above 200 MB). `CALLOUT_LOG_UPLOADS=0` refuses them.
 - Environment variables: `CALLOUT_PORT` (4433), `CALLOUT_DATA` (data directory), `CALLOUT_PUBLIC_IP`,
-  `RUST_LOG`.
+  `CALLOUT_LOG_UPLOADS` (`0` = off), `RUST_LOG`.
 
 ## For developers
 

@@ -7,11 +7,16 @@
 use crate::cert::{Invite, PinnedVerifier};
 use crate::control::{ControlError, ControlStream};
 use crate::identity::DeviceKey;
-use crate::{transport_config, ALPN};
+use crate::{frame_control, transport_config, unframe_control, NetError, ALPN, MAX_CONTROL_FRAME};
 use bytes::Bytes;
-use callout_proto::{ClientMsg, ErrorCode, ServerMsg, UserId, PROTOCOL_VERSION};
+use callout_proto::{
+    ClientMsg, ErrorCode, LogUpload, LogUploadReply, ServerMsg, UserId, PROTOCOL_VERSION,
+};
 use std::net::SocketAddr;
 use std::sync::Arc;
+
+/// The QUIC connection handle [`Client::connection`] returns, for crates that do not depend on quinn.
+pub use quinn::Connection;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -33,6 +38,20 @@ pub enum ClientError {
     Unexpected(ServerMsg),
     #[error("failed to send datagram: {0}")]
     Datagram(#[from] quinn::SendDatagramError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum UploadError {
+    #[error("connection: {0}")]
+    Connection(#[from] quinn::ConnectionError),
+    #[error("stream write: {0}")]
+    Write(#[from] quinn::WriteError),
+    #[error("stream read: {0}")]
+    Read(#[from] quinn::ReadToEndError),
+    #[error("stream closed")]
+    Closed,
+    #[error(transparent)]
+    Net(#[from] NetError),
 }
 
 pub struct Client {
@@ -171,6 +190,31 @@ impl Client {
 
     pub fn close(&self) {
         self.conn.close(0u32.into(), b"bye");
+    }
+
+    /// Sends a diagnostic log on a stream of its own (see [`callout_proto::LogUpload`]) and
+    /// waits for the server's reply. A server without upload support never answers, so the
+    /// caller puts a timeout around this. Takes the connection (from [`Client::connection`]) so
+    /// it can run in a task of its own while the control loop goes on.
+    pub async fn upload_log(
+        conn: &quinn::Connection,
+        app_version: &str,
+        log: &[u8],
+    ) -> Result<LogUploadReply, UploadError> {
+        let (mut send, mut recv) = conn.open_bi().await?;
+        let mut head = Vec::new();
+        frame_control(
+            &LogUpload {
+                app_version: app_version.to_string(),
+                bytes: log.len() as u32,
+            },
+            &mut head,
+        )?;
+        send.write_all(&head).await?;
+        send.write_all(log).await?;
+        send.finish().map_err(|_| UploadError::Closed)?;
+        let reply = recv.read_to_end(MAX_CONTROL_FRAME).await?;
+        Ok(unframe_control::<LogUploadReply>(&reply)?.0)
     }
 
     /// Closes the connection and waits (at most `wait`) for the close frame to be sent.

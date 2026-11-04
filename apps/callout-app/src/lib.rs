@@ -429,9 +429,7 @@ fn start_ptt_listener(app: &AppHandle) -> Option<callout_input::Listener> {
 /// Log file: `%APPDATA%/io.github.berabozgoz.callout/logs/callout.log`.
 /// Moved to `callout.old.log` when it exceeds 2 MB. Falls back to stderr if it cannot be opened.
 fn open_log_file() -> Option<std::fs::File> {
-    let dir = PathBuf::from(std::env::var_os("APPDATA")?)
-        .join("io.github.berabozgoz.callout")
-        .join("logs");
+    let dir = log_dir()?;
     std::fs::create_dir_all(&dir).ok()?;
     let path = dir.join("callout.log");
     if std::fs::metadata(&path)
@@ -445,6 +443,113 @@ fn open_log_file() -> Option<std::fs::File> {
         .append(true)
         .open(path)
         .ok()
+}
+
+fn log_dir() -> Option<PathBuf> {
+    Some(
+        PathBuf::from(std::env::var_os("APPDATA")?)
+            .join("io.github.berabozgoz.callout")
+            .join("logs"),
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Sending the log to the server's operator
+// ---------------------------------------------------------------------------
+
+/// How much of the end of the log goes out (the server takes up to 1 MiB).
+const LOG_UPLOAD_BYTES: usize = 1_000_000;
+
+/// Sends the end of this app's log, cleaned (`scrub_log`), to the operator of the server we
+/// are connected to. Only on the user's click after the consent text in the UI; the answer
+/// arrives as `Event::LogUpload`.
+#[tauri::command]
+fn send_log(app: AppHandle, state: State<AppState>) -> Result<(), String> {
+    let path = log_dir().ok_or("no log folder")?.join("callout.log");
+    let bytes = std::fs::read(&path).map_err(|e| format!("read log: {e}"))?;
+    let text = scrub_log(&String::from_utf8_lossy(&bytes));
+    state.engine.send(Command::UploadLog {
+        app_version: app.package_info().version.to_string(),
+        log: tail_lines(&text, LOG_UPLOAD_BYTES).to_string(),
+    });
+    Ok(())
+}
+
+/// The last `max` bytes of `text`, starting at a line.
+fn tail_lines(text: &str, max: usize) -> &str {
+    if text.len() <= max {
+        return text;
+    }
+    let mut start = text.len() - max;
+    while !text.is_char_boundary(start) {
+        start += 1;
+    }
+    match text[start..].find('\n') {
+        Some(nl) => &text[start + nl + 1..],
+        None => &text[start..],
+    }
+}
+
+/// Removes what the log could reveal beyond CallOut itself: the Windows user name in paths
+/// (`C:\Users\<name>\…`, also with doubled or forward slashes, as in panic messages) and long
+/// hex strings (the server's certificate fingerprint in an invite link).
+fn scrub_log(text: &str) -> String {
+    mask_hex_runs(&mask_user_dirs(text))
+}
+
+fn mask_user_dirs(text: &str) -> String {
+    let is_sep = |c: u8| c == b'\\' || c == b'/';
+    // ASCII lowercasing keeps every byte offset, so positions carry over to `text`.
+    let lower = text.to_ascii_lowercase();
+    let b = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let (mut copied, mut from) = (0, 0);
+    while let Some(pos) = lower[from..].find("users").map(|p| p + from) {
+        from = pos + 5;
+        let mut j = from;
+        while j < b.len() && is_sep(b[j]) {
+            j += 1;
+        }
+        if pos == 0 || !is_sep(b[pos - 1]) || j == from {
+            continue;
+        }
+        let name = j;
+        while j < b.len() && !is_sep(b[j]) && !b"\t\r\n\"':".contains(&b[j]) {
+            j += 1;
+        }
+        if j > name {
+            out.push_str(&text[copied..name]);
+            out.push_str("<user>");
+            copied = j;
+            from = j;
+        }
+    }
+    out.push_str(&text[copied..]);
+    out
+}
+
+/// Hex runs of 32+ digits become `<fingerprint>`; shorter ones (sequence numbers…) stay.
+fn mask_hex_runs(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut run = String::new();
+    let flush = |run: &mut String, out: &mut String| {
+        if run.len() >= 32 {
+            out.push_str("<fingerprint>");
+        } else {
+            out.push_str(run);
+        }
+        run.clear();
+    };
+    for c in text.chars() {
+        if c.is_ascii_hexdigit() {
+            run.push(c);
+        } else {
+            flush(&mut run, &mut out);
+            out.push(c);
+        }
+    }
+    flush(&mut run, &mut out);
+    out
 }
 
 /// The language picked in the NSIS installer (stored by the installer as a Windows LCID under
@@ -660,7 +765,8 @@ pub fn run() {
             app_version,
             set_tray_labels,
             is_installed,
-            open_releases_page
+            open_releases_page,
+            send_log
         ])
         .run(tauri::generate_context!())
         .expect("failed to start tauri");
@@ -673,7 +779,33 @@ fn _assert_event_serializable(e: &Event) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{forget_old_default_ptt_key, Settings};
+    use super::{forget_old_default_ptt_key, scrub_log, tail_lines, Settings};
+
+    #[test]
+    fn user_names_and_fingerprints_are_masked() {
+        let log = concat!(
+            "panic at C:\\Users\\Bera Bozgöz\\AppData\\x.rs:1\n",
+            "path=\"C:\\\\Users\\\\bera\\\\AppData\" also c:/users/bera/Desktop\n",
+            "invite callout://1.2.3.4:4433#b759212b66bd0a423dbed978e0bde842b4ca0d65a5b96fea746063848e8424a4\n",
+            "users=3 rtt_ms=40 seq=deadbeef\n",
+        );
+        let s = scrub_log(log);
+        assert!(!s.contains("Bozgöz") && !s.contains("bera"), "{s}");
+        assert!(s.contains(r"C:\Users\<user>\AppData\x.rs"), "{s}");
+        assert!(s.contains(r#"path="C:\\Users\\<user>\\AppData""#), "{s}");
+        assert!(s.contains("c:/users/<user>/Desktop"), "{s}");
+        assert!(s.contains("callout://1.2.3.4:4433#<fingerprint>"), "{s}");
+        // Words and short hex values stay as they are.
+        assert!(s.contains("users=3 rtt_ms=40 seq=deadbeef"), "{s}");
+    }
+
+    #[test]
+    fn tail_starts_at_a_line() {
+        let text = "line one\nline two\nline three\n";
+        assert_eq!(tail_lines(text, 100), text);
+        assert_eq!(tail_lines(text, 14), "line three\n");
+        assert_eq!(tail_lines("ççç\nabc", 5), "abc");
+    }
 
     #[test]
     fn old_default_ptt_key_is_forgotten_only_when_unused() {

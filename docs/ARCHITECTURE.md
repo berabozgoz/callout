@@ -55,6 +55,9 @@ packets from muted members are not forwarded), `rooms`, `auth` (challenge → Ed
 
 Control: `[u32 LE length][postcard(ClientMsg|ServerMsg)]`, rejected on `PROTOCOL_VERSION` mismatch.
 Handshake: `Hello` → `Welcome{challenge}` → `Auth{signature}` → `Authed`.
+Diagnostic log upload (user consent each time): a second bidirectional stream after authentication,
+`[u32 LE length][postcard(LogUpload)]` + log text, answered by one `LogUploadReply`. Control messages are
+untouched: an older server never accepts the stream (the client gives up after 20 s), older clients never open one.
 Audio packet: `sender_id(4) seq(2) timestamp(4) flags(1) opus(≤400)`; ~52 kbps/speaker, 0 during silence with DTX.
 Encryption: in the MVP, QUIC/TLS transport encryption; the `flags::E2E` bit is reserved for end-to-end.
 

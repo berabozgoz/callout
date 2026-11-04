@@ -47,7 +47,9 @@ ui/                    Svelte 5 (runes) + TypeScript + Vite
    microphone audio to disk), not even as a debug tool or behind a feature flag; the shipped app never
    records (the mic test keeps its 5 s in memory only). Such diagnostics are welcome but stay local:
    patches/scripts outside the repo (location in `CLAUDE.local.md`), applied for a local build and
-   reverted right after; a local pre-commit hook guards against committing them.
+   reverted right after; a local pre-commit hook guards against committing them. Allowed in the app:
+   the diagnostic log upload (text log, scrubbed, sent only on the user's click after the consent text,
+   kept 30 days on the server).
 
 ## Commands
 

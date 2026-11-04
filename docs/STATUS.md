@@ -14,7 +14,8 @@
 - **Server:** Oracle Always Free (Frankfurt) runs **v0.1.12** (persistent rooms in `/var/lib/callout/rooms.tsv`,
   owner-only room closing). v0.1.13–v0.1.15 changed only the app, so no server update was needed. Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main`:** nothing (check `git log v0.1.15..`).
+- **Unreleased on `main`:** consent-based log upload (app + server); the next release needs the server update
+  for it to work (check `git log v0.1.15..`).
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -105,10 +106,22 @@ items marked **before release** pass.
 - [x] **Push-to-talk in a fullscreen game** (known gap since Phase 1): push-to-talk works while a
       fullscreen game has focus.
       ✓ 4 Nov (Bera): with the Raw Input listener, in a game.
+- [x] **Log upload** (since this session): (a) an older server: "Send log" answers "This server can't receive
+      logs" after ~20 s and the connection carries on; (b) a server with uploads: stored as
+      `<data>/logs/<time>_<nick>_<device>.log`; (c) after a reconnect the "Something went wrong" strip shows
+      once; (d) the stored log has no Windows user name or fingerprint.
+      ✓ 4 Nov (Bera, release exe): (a) against the Oracle v0.1.12 server; (b)(c) against a local server
+      (restarted to force a reconnect); (d) checked on the two stored logs: the name only in the header's
+      nickname line, one path masked as `C:\\Users\\<user>\\…`.
+- [ ] **Log upload on the real server** (after the next release + server update): a friend sends a log; it shows
+      up in `/var/lib/callout/logs/` (SSH) under their nickname.
 
 ## Next
 
 **Start here next session** (pick with the owner):
+- **Log upload** is done and checked locally: release it (v0.1.16) together with a server update, then ask
+  friends to press "Send log" after a session; read them over SSH in `/var/lib/callout/logs/`. That is the
+  way to get the field data below without asking for files.
 - Field data from friends on v0.1.15: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
   FEC (`lost` vs `fec` in `sender jitter`), persistent rooms / close room on the real server.
 - **AGC** is released in v0.1.14 (checked on Bera's webcam mic). Field: a loud and a quiet player in one room
@@ -342,6 +355,20 @@ items marked **before release** pass.
   buttons; hint/capture texts in 11 languages; README. 10 unit tests (parser, press/release logic).
   fmt/clippy (incl. app)/test/svelte-check/cargo deny clean; checked in the release exe and in a game by
   Bera; released as v0.1.15 (release notes tell push-to-talk users that the key now also reaches the game).
+- 4 Nov (log upload, Bera's idea): a player who agrees sends the app's diagnostic log to the server's
+  operator, so field data no longer needs files passed around. Protocol: a **second bidirectional QUIC
+  stream** after authentication carries `LogUpload` + the log text, answered by `LogUploadReply`
+  (`callout-proto`); control messages are untouched, so an older server never accepts the stream (the
+  engine gives up after 20 s → "this server can't receive logs") and older clients never open one; no
+  `PROTOCOL_VERSION` change. Server (`logs.rs`): `<data>/logs/<UTC>_<nickname>_<device8>.log` with a header,
+  ≤ 1 MiB, one per device per 10 min (in memory: a restart resets it), 30-day retention and a 200 MB cap
+  (hourly), `CALLOUT_LOG_UPLOADS=0` turns it off. App: `send_log` reads the end (~1 MB) of `callout.log`,
+  masks `\Users\<name>` in paths and 32+-digit hex runs, sends `Command::UploadLog`; answer
+  `Event::LogUpload`. UI: "Send log" link bottom left while connected → consent strip (who gets it, what it
+  holds, 30 days) → Send; after a reconnect or an audio/connection error the strip offers itself once per
+  run. 11 languages; README (players + hosts), ARCHITECTURE, CLAUDE.md rule 9 note. Tests: proto
+  roundtrip, server store/rate limit/cleanup/file names, scrubbing, end-to-end `engine_uploads_a_log_once_per_interval`.
+  Checked by Bera in the release exe (old Oracle server and a local one). Unreleased; needs the server update.
 - 4 Nov: **v0.1.14 released** (AGC, sensitivity dB readout, settings without scrolling, close-room strip,
   no default push-to-talk key, dropout counters in the log). App only; the server stays on v0.1.12.
 - 4 Nov (AGC): see Next → Phase 2 item 3. `VadDecision` gained `active`; seven unit tests in `agc.rs`

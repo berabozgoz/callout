@@ -100,4 +100,9 @@ button.linkbtn:hover { text-decoration: underline; }
 button.recording { border-color: var(--danger); color: var(--danger); }
 .hint.warn { color: var(--danger); }
 .stats { color: var(--muted); font-size: 12px; white-space: nowrap; }
-footer { margin-top: auto; color: var(--muted); font-size: 11px; text-align: end; }
+footer { margin-top: auto; color: var(--muted); font-size: 11px; display: flex; align-items: center; gap: 8px; }
+footer .ver { margin-inline-start: auto; }
+footer .linkbtn { font-size: 11px; color: var(--muted); margin-inline-start: 0; }
+.update.logask { flex-direction: column; align-items: stretch; }
+.update.logask .actions { margin-top: 0; }
+.update .warn { color: var(--danger); }

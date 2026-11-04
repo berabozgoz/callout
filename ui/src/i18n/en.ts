@@ -97,6 +97,17 @@ export const en = {
   "room.pttHint": "Push-to-talk: sending while {key} is held.",
   "room.pttNoKey": "Push-to-talk is on but no key is set; pick one in Settings.",
   "footer.muted": "muted",
+  "logs.link": "Send log",
+  "logs.ask": "Send CallOut's diagnostic log to the operator of this server? It holds connection quality, audio levels and errors (no audio, no conversations) and is kept for 30 days.",
+  "logs.askProblem": "Something went wrong. Send CallOut's diagnostic log to the operator of this server so it can be looked into? It holds connection quality, audio levels and errors (no audio, no conversations) and is kept for 30 days.",
+  "logs.send": "Send",
+  "logs.notNow": "Not now",
+  "logs.sending": "Sending…",
+  "logs.stored": "Log sent. Thank you!",
+  "logs.unsupported": "This server can't receive logs.",
+  "logs.rateLimited": "A log was sent a few minutes ago; try again later.",
+  "logs.failed": "Could not send the log: {detail}",
+  "logs.close": "Close",
 
   // tray menu (sent to the app shell)
   "tray.show": "Show CallOut",

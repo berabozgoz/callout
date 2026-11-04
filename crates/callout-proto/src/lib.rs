@@ -145,6 +145,38 @@ pub enum ErrorCode {
 }
 
 // ---------------------------------------------------------------------------
+// Diagnostic log upload (a stream of its own)
+// ---------------------------------------------------------------------------
+
+/// Upper limit of an uploaded log (the client sends the end of its log file).
+pub const MAX_LOG_UPLOAD: usize = 1024 * 1024;
+
+/// Header of a log upload. A user who agrees sends the app's diagnostic log to the server's
+/// operator on a **second bidirectional stream**, opened after authentication (the control stream
+/// stays the first one): one length-prefixed [`LogUpload`], then `bytes` bytes of log text, then
+/// the client finishes the stream; the server answers with one length-prefixed
+/// [`LogUploadReply`]. The control messages are untouched: a server without upload support never
+/// accepts the stream (the client gives up after a timeout) and older clients never open one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogUpload {
+    pub app_version: String,
+    pub bytes: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LogUploadReply {
+    Stored,
+    /// More than [`MAX_LOG_UPLOAD`], or fewer bytes than announced.
+    Rejected,
+    /// This device uploaded a log a short while ago.
+    RateLimited,
+    /// The operator turned uploads off.
+    Disabled,
+    /// The server could not store it (disk full, I/O error).
+    Failed,
+}
+
+// ---------------------------------------------------------------------------
 // Framing and serialization (control stream)
 // ---------------------------------------------------------------------------
 
@@ -289,6 +321,24 @@ mod tests {
         let bytes = encode(&s).unwrap();
         let back: ServerMsg = decode(&bytes).unwrap();
         assert_eq!(s, back);
+    }
+
+    #[test]
+    fn log_upload_roundtrip() {
+        let h = LogUpload {
+            app_version: "0.1.16".into(),
+            bytes: 1234,
+        };
+        assert_eq!(decode::<LogUpload>(&encode(&h).unwrap()).unwrap(), h);
+        for r in [
+            LogUploadReply::Stored,
+            LogUploadReply::Rejected,
+            LogUploadReply::RateLimited,
+            LogUploadReply::Disabled,
+            LogUploadReply::Failed,
+        ] {
+            assert_eq!(decode::<LogUploadReply>(&encode(&r).unwrap()).unwrap(), r);
+        }
     }
 
     #[test]

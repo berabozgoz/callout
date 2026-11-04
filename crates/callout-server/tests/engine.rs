@@ -1,6 +1,8 @@
 //! Engine (callout-core) against the server: connect without an audio device, create a room, leave.
 
-use callout_core::{Command, ConnectionState, Engine, EngineConfig, ErrorKind, Event};
+use callout_core::{
+    Command, ConnectionState, Engine, EngineConfig, ErrorKind, Event, LogUploadOutcome,
+};
 use std::io::{BufRead, BufReader};
 use std::process::{Command as Proc, Stdio};
 use std::time::Duration;
@@ -269,6 +271,108 @@ async fn engine_reconnects_after_server_restart_and_rejoins_its_room() {
         }
     })
     .await;
+
+    drop(engine);
+    server.kill().ok();
+    server.wait().ok();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn engine_uploads_a_log_once_per_interval() {
+    let dir = std::env::temp_dir().join(format!("callout-logupload-{}", std::process::id()));
+    let port = 40000 + ((std::process::id() as usize + 4242) % 20000) as u16;
+    let (mut server, invite) = start_server(port, &dir);
+
+    let (engine, mut rx) = Engine::start(EngineConfig {
+        data_dir: dir.join("client"),
+        no_audio: true,
+        ..Default::default()
+    });
+    // Not connected yet: refused locally.
+    engine.send(Command::UploadLog {
+        app_version: "test".into(),
+        log: "x".into(),
+    });
+    wait_for(&mut rx, 5, "upload refused while disconnected", |e| {
+        matches!(
+            e,
+            Event::LogUpload {
+                outcome: LogUploadOutcome::Failed,
+                ..
+            }
+        )
+    })
+    .await;
+
+    engine.send(Command::Connect {
+        invite,
+        nickname: "log tester".into(),
+    });
+    wait_for(&mut rx, 10, "Connected", |e| {
+        *e == Event::ConnectionState {
+            state: ConnectionState::Connected,
+        }
+    })
+    .await;
+
+    let log = "2026-11-04T05:00:00Z INFO stats rtt_ms=40\n".repeat(2000);
+    engine.send(Command::UploadLog {
+        app_version: "0.1.16".into(),
+        log: log.clone(),
+    });
+    let ev = wait_for(&mut rx, 10, "upload result", |e| {
+        matches!(e, Event::LogUpload { .. })
+    })
+    .await;
+    assert_eq!(
+        ev,
+        Event::LogUpload {
+            outcome: LogUploadOutcome::Stored,
+            detail: String::new()
+        }
+    );
+    // The connection (control stream) is unaffected: a room can still be created.
+    engine.send(Command::CreateRoom {
+        name: "after upload".into(),
+    });
+    wait_for(&mut rx, 5, "room", |e| {
+        matches!(e, Event::RoomUpdated { room: Some(_), .. })
+    })
+    .await;
+
+    // A second upload right away is rate limited.
+    engine.send(Command::UploadLog {
+        app_version: "0.1.16".into(),
+        log: "again".into(),
+    });
+    let ev = wait_for(&mut rx, 10, "second result", |e| {
+        matches!(e, Event::LogUpload { .. })
+    })
+    .await;
+    assert!(
+        matches!(
+            ev,
+            Event::LogUpload {
+                outcome: LogUploadOutcome::RateLimited,
+                ..
+            }
+        ),
+        "{ev:?}"
+    );
+
+    let files: Vec<_> = std::fs::read_dir(dir.join("logs"))
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .collect();
+    assert_eq!(files.len(), 1, "{files:?}");
+    let name = files[0].file_name().unwrap().to_string_lossy().into_owned();
+    assert!(name.contains("_log_tester_"), "{name}");
+    let text = std::fs::read_to_string(&files[0]).unwrap();
+    assert!(text.contains("# nickname: log tester\n"), "{text:.200}");
+    assert!(text.contains("# app version: 0.1.16\n"));
+    assert!(text.ends_with(&log));
 
     drop(engine);
     server.kill().ok();

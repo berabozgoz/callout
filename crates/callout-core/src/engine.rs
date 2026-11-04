@@ -10,7 +10,7 @@
 //! The audio thread lives while connected; while disconnected it only runs when settings are
 //! open (preview: for the level meter and the sound test). It is rebuilt when the device changes.
 
-use crate::{Command, ConnectionState, ErrorKind, Event, MicTestState};
+use crate::{Command, ConnectionState, ErrorKind, Event, LogUploadOutcome, MicTestState};
 use bytes::Bytes;
 use callout_audio::agc::{self, Agc};
 use callout_audio::codec::{Decoder, Encoder, EncoderConfig, FRAME};
@@ -859,6 +859,37 @@ fn open_preview(
     }
 }
 
+/// How long to wait for the server's answer to a log upload; a server without upload support
+/// never answers.
+const LOG_UPLOAD_TIMEOUT: Duration = Duration::from_secs(20);
+
+async fn upload_log(
+    conn: &callout_net::client::Connection,
+    app_version: &str,
+    log: &[u8],
+) -> (LogUploadOutcome, String) {
+    use callout_proto::LogUploadReply as R;
+    match tokio::time::timeout(
+        LOG_UPLOAD_TIMEOUT,
+        Client::upload_log(conn, app_version, log),
+    )
+    .await
+    {
+        Err(_) => (
+            LogUploadOutcome::Unsupported,
+            "no answer from the server".into(),
+        ),
+        Ok(Err(e)) => (LogUploadOutcome::Failed, e.to_string()),
+        Ok(Ok(R::Stored)) => (LogUploadOutcome::Stored, String::new()),
+        Ok(Ok(R::Disabled)) => (
+            LogUploadOutcome::Unsupported,
+            "turned off on the server".into(),
+        ),
+        Ok(Ok(R::RateLimited)) => (LogUploadOutcome::RateLimited, String::new()),
+        Ok(Ok(r @ (R::Rejected | R::Failed))) => (LogUploadOutcome::Failed, format!("{r:?}")),
+    }
+}
+
 async fn run(
     mut cfg: EngineConfig,
     mut cmd_rx: mpsc::UnboundedReceiver<Command>,
@@ -974,6 +1005,10 @@ async fn run(
                         });
                     }
                 }
+                Some(Command::UploadLog { .. }) => emit(Event::LogUpload {
+                    outcome: LogUploadOutcome::Failed,
+                    detail: "not connected".into(),
+                }),
                 Some(other) => emit(Event::Error {
                     kind: ErrorKind::RequestFailed,
                     message: format!("while disconnected: {other:?}"),
@@ -1178,6 +1213,18 @@ async fn run(
                         Command::SetNoiseSuppression { enabled } => { ctl.noise_suppression.store(enabled, Ordering::Relaxed); Ok(()) }
                         Command::SetVadSensitivity { db } => { ctl.vad_sensitivity.store(db.to_bits(), Ordering::Relaxed); Ok(()) }
                         Command::SetAgc { enabled } => { ctl.agc.store(enabled, Ordering::Relaxed); Ok(()) }
+                        Command::UploadLog { app_version, log } => {
+                            // In a task of its own: the upload may take a while (and an older server
+                            // never answers), the control loop must go on.
+                            let conn = client.connection();
+                            let ev = ev.clone();
+                            tokio::spawn(async move {
+                                let (outcome, detail) = upload_log(&conn, &app_version, log.as_bytes()).await;
+                                tracing::info!(?outcome, detail, bytes = log.len(), "log upload");
+                                let _ = ev.send(Event::LogUpload { outcome, detail });
+                            });
+                            Ok(())
+                        }
                     };
                     if let Err((kind, message)) = r {
                         emit(Event::Error { kind, message });

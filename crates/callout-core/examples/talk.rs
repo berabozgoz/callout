@@ -156,7 +156,7 @@ async fn main() -> Result<()> {
                     Event::AudioRestored { fallback_to_default } => {
                         tracing::info!(fallback_to_default, "audio pipeline recovered");
                     }
-                    Event::MicTest { .. } => {}
+                    Event::MicTest { .. } | Event::LogUpload { .. } => {}
                     Event::AudioStarted {
                         input_rate,
                         input_channels,

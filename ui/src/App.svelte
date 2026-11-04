@@ -3,9 +3,9 @@
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import {
     send, getSettings, saveSettings, listDevices, appVersion, onEngine, onPtt, prettyCode,
-    engineSnapshot, pttCapture, prettyShortcut, setTrayLabels, isInstalled, openReleasesPage,
+    engineSnapshot, pttCapture, prettyShortcut, setTrayLabels, isInstalled, openReleasesPage, sendLog,
     type Settings, type Device, type Member, type RoomInfo, type ConnectionState, type MicTestState,
-    type ErrorKind,
+    type ErrorKind, type LogUploadOutcome,
   } from "./engine";
   import { t, i18n, setLanguage, LANGUAGES } from "./i18n/index.svelte";
   import Icon from "./Icon.svelte";
@@ -52,6 +52,30 @@
   const outputs = $derived(devices.filter((d) => d.direction === "output"));
   const me = $derived(members.find((m) => m.user_id === myId));
   const remaining = $derived(Math.max(1, 5 - Math.floor((now - recStart) / 1000)));
+
+  // ---- sending the log to the server's operator (only after the user agrees) ----
+  // "manual": from the footer link; "problem": offered once per run after something went wrong.
+  let logAsk = $state<"manual" | "problem" | null>(null);
+  let logState = $state<"idle" | "sending" | LogUploadOutcome>("idle");
+  let logDetail = $state("");
+  let hadProblem = false;
+  let problemOffered = false;
+  const PROBLEM_KINDS: ErrorKind[] = ["audio_device_lost", "audio_failed", "connection_lost", "connect_failed"];
+  function askLog(kind: "manual" | "problem") {
+    logAsk = kind;
+    logState = "idle";
+  }
+  async function doSendLog() {
+    logState = "sending";
+    try { await sendLog(); } catch (e) { logState = "failed"; logDetail = String(e); }
+  }
+  // Offer it once, when we are connected again after a problem (the log goes over the connection).
+  $effect(() => {
+    if (conn === "connected" && hadProblem && !problemOffered && logAsk === null) {
+      problemOffered = true;
+      askLog("problem");
+    }
+  });
 
   // ---- updates (GitHub Releases, signed) ----
   let update = $state.raw<Update | null>(null);
@@ -121,6 +145,7 @@
     await onEngine((e) => {
       switch (e.type) {
         case "connection_state":
+          if (e.state === "reconnecting") hadProblem = true;
           conn = e.state;
           if (e.state === "disconnected") { room = null; members = []; myId = null; speaking = new Set(); }
           break;
@@ -152,7 +177,9 @@
           if (e.state === "recording") { recStart = now = Date.now(); micResult = null; }
           if (e.state === "idle" && e.transmitted_pct !== null) micResult = e.transmitted_pct;
           break;
+        case "log_upload": logState = e.outcome; logDetail = e.detail; break;
         case "error":
+          if (PROBLEM_KINDS.includes(e.kind)) hadProblem = true;
           error = { key: `error.${e.kind}` as MessageKey, vars: { detail: e.message }, kind: e.kind };
           // A closed room, or a remembered one that no longer exists, leaves the recent list.
           if (e.kind === "room_closed" && closedCode) { forgetRoom(closedCode); closedCode = null; }
@@ -402,6 +429,28 @@
     <button class="error" type="button" onclick={() => (error = null)}>{t(error.key, error.vars)}</button>
   {/if}
 
+  {#if logAsk}
+    <div class="update logask">
+      {#if logState === "idle" || logState === "sending"}
+        <span>{t(logAsk === "problem" ? "logs.askProblem" : "logs.ask")}</span>
+        <div class="actions">
+          <button class="primary" disabled={logState === "sending" || conn !== "connected"} onclick={doSendLog}>
+            {logState === "sending" ? t("logs.sending") : t("logs.send")}
+          </button>
+          <button onclick={() => (logAsk = null)}>{t("logs.notNow")}</button>
+        </div>
+      {:else}
+        <span class:warn={logState !== "stored"}>
+          {logState === "stored" ? t("logs.stored")
+            : logState === "unsupported" ? t("logs.unsupported")
+            : logState === "rate_limited" ? t("logs.rateLimited")
+            : t("logs.failed", { detail: logDetail })}
+        </span>
+        <div class="actions"><button onclick={() => (logAsk = null)}>{t("logs.close")}</button></div>
+      {/if}
+    </div>
+  {/if}
+
   {#if showSettings}
     <section class="card">
       <h2>{t("settings.title")}</h2>
@@ -621,5 +670,10 @@
     {/if}
   {/if}
 
-  <footer>v{version}{me?.muted ? ` · ${t("footer.muted")}` : ""}</footer>
+  <footer>
+    {#if conn === "connected" && !logAsk}
+      <button type="button" class="linkbtn" onclick={() => askLog("manual")}>{t("logs.link")}</button>
+    {/if}
+    <span class="ver">v{version}{me?.muted ? ` · ${t("footer.muted")}` : ""}</span>
+  </footer>
 </main>

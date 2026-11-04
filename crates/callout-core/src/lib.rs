@@ -84,6 +84,12 @@ pub enum Command {
     },
     /// Close the current room for everyone and delete it (only its creator's device may).
     CloseRoom,
+    /// Send a diagnostic log to the server's operator (the user agreed in the UI). The app reads
+    /// and cleans the log; the engine only carries it. Answered with [`Event::LogUpload`].
+    UploadLog {
+        app_version: String,
+        log: String,
+    },
 }
 
 /// Core → UI.
@@ -144,6 +150,23 @@ pub enum Event {
         kind: ErrorKind,
         message: String,
     },
+    /// Result of [`Command::UploadLog`]; `detail` is the technical reason when it failed.
+    LogUpload {
+        outcome: LogUploadOutcome,
+        detail: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LogUploadOutcome {
+    Stored,
+    /// The server does not take logs (an older server, or its operator turned them off).
+    Unsupported,
+    /// This device sent one a few minutes ago.
+    RateLimited,
+    /// Not connected, a network error, or the server could not store it.
+    Failed,
 }
 
 /// Machine-readable error category for [`Event::Error`], so the UI can show it in the user's

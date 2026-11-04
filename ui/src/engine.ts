@@ -23,7 +23,11 @@ export type EngineEvent =
   | { type: "audio_restored"; fallback_to_default: boolean }
   | { type: "audio_started"; input_rate: number | null; input_channels: number | null }
   | { type: "mic_test"; state: MicTestState; transmitted_pct: number | null }
-  | { type: "error"; kind: ErrorKind; message: string };
+  | { type: "error"; kind: ErrorKind; message: string }
+  | { type: "log_upload"; outcome: LogUploadOutcome; detail: string };
+
+/** `callout_core::LogUploadOutcome` */
+export type LogUploadOutcome = "stored" | "unsupported" | "rate_limited" | "failed";
 
 export type Command =
   | { type: "connect"; invite: string; nickname: string }
@@ -86,6 +90,8 @@ export const engineSnapshot = () => invoke<Snapshot>("engine_snapshot");
 /** Pauses push-to-talk during key capture (pressing the old key there must not transmit). */
 export const pttCapture = (active: boolean) => invoke<void>("ptt_capture", { active });
 export const listDevices = () => invoke<Device[]>("list_audio_devices");
+/** Sends the end of the app's log (cleaned) to the server's operator; only after the user agreed. */
+export const sendLog = () => invoke<void>("send_log");
 export const appVersion = () => invoke<string>("app_version");
 /** Installed (updatable in place) or portable exe. */
 export const isInstalled = () => invoke<boolean>("is_installed");
