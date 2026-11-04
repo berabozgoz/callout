@@ -282,6 +282,11 @@ fn audio_thread(
 
     let (mut in_prod, mut in_cons) = HeapRb::<f32>::new(in_rate as usize / 5).split();
     let (mut out_prod, mut out_cons) = HeapRb::<f32>::new(out_rate as usize / 5).split();
+    // Samples the callbacks could not move (input ring full / output ring empty): dropouts
+    // that are heard as clicks. Logged every 30 s when not zero.
+    let in_overrun = Arc::new(AtomicU32::new(0));
+    let out_underrun = Arc::new(AtomicU32::new(0));
+    let (in_overrun_cb, out_underrun_cb) = (in_overrun.clone(), out_underrun.clone());
 
     // Error callbacks only set the flag (logging the first error); the engine handles recovery.
     let (err_in, err_out) = (ctl.clone(), ctl.clone());
@@ -291,7 +296,10 @@ fn audio_thread(
                 &out_cfg.clone().into(),
                 move |data: &mut [f32], _| {
                     for frame in data.chunks_mut(out_ch) {
-                        let s = out_cons.try_pop().unwrap_or(0.0);
+                        let s = out_cons.try_pop().unwrap_or_else(|| {
+                            out_underrun_cb.fetch_add(1, Ordering::Relaxed);
+                            0.0
+                        });
                         frame.fill(s);
                     }
                 },
@@ -320,7 +328,9 @@ fn audio_thread(
                 move |data: &[f32], _| {
                     for frame in data.chunks(in_ch) {
                         let mono = frame.iter().sum::<f32>() / in_ch as f32;
-                        let _ = in_prod.try_push(mono);
+                        if in_prod.try_push(mono).is_err() {
+                            in_overrun_cb.fetch_add(1, Ordering::Relaxed);
+                        }
                     }
                 },
                 move |e| {
@@ -398,6 +408,7 @@ fn audio_thread(
     // Losses of senders removed from the table after going silent (so the total counter never goes down).
     let mut lost_retired = 0u32;
     let mut last_level = Instant::now();
+    let mut xrun_log = Instant::now();
     let mut level_peak = 0f32;
     let mut was_transmitting = false;
     let mut mic_test = MicTest::Off;
@@ -498,8 +509,15 @@ fn audio_thread(
                     agc.process(&mut frame, d.active);
                     agc_spoke |= d.active;
                     if agc_log.elapsed() >= Duration::from_secs(30) {
+                        let stats = agc.take_stats();
                         if agc_spoke {
-                            tracing::info!(gain_db = agc.gain_db(), "agc");
+                            tracing::info!(
+                                gain_db = agc.gain_db(),
+                                limited_frames = stats.limited_frames,
+                                frames = stats.frames,
+                                peak_out = stats.peak_out,
+                                "agc"
+                            );
                         }
                         agc_log = Instant::now();
                         agc_spoke = false;
@@ -734,6 +752,19 @@ fn audio_thread(
             }
         } else {
             std::thread::sleep(Duration::from_millis(2));
+        }
+
+        if xrun_log.elapsed() >= Duration::from_secs(30) {
+            xrun_log = Instant::now();
+            let lost_in = in_overrun.swap(0, Ordering::Relaxed);
+            let lost_out = out_underrun.swap(0, Ordering::Relaxed);
+            if lost_in > 0 || lost_out > 0 {
+                tracing::warn!(
+                    in_overrun = lost_in,
+                    out_underrun = lost_out,
+                    "audio dropouts (samples)"
+                );
+            }
         }
 
         // 4) Level event (~100 ms)

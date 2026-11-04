@@ -6,22 +6,29 @@
 //! frame goes into the pre-roll history and the encoder. The VAD and the level meter see the
 //! signal *before* the gain, so their thresholds do not move with it.
 //!
-//! Two stages, with the gain kept in dB:
-//! - **level loop**: while a frame carries speech (`active`), its RMS is smoothed (fast up, slow
-//!   down) and the gain moves toward `TARGET_DB - level`: quickly when it must go down, slowly
-//!   when it may go up (and a bit faster during the first seconds of speech so the first
-//!   sentences are not quiet). Frames without speech never change the gain, so noise between
-//!   words is not pumped up;
-//! - **peak protection**: if the frame peak times the gain would pass `LIMIT`, the gain drops at
-//!   once. Within a frame the gain ramps linearly (no zipper noise) and a soft limiter is the
-//!   last safety net, so nothing ever clips.
+//! The gain is kept in dB and only moves on frames that carry speech (`active`), so noise
+//! between words is never pumped up:
+//! - **level**: the speech RMS is smoothed (fast up, slow down) and the gain aims at
+//!   `TARGET_DB - level`;
+//! - **peaks**: the speech *peak* is tracked too (instant up, slow down) and the gain never
+//!   rises above what keeps those peaks `PEAK_CEIL_DB` below full scale. Speech has a high crest
+//!   factor, so a gain that only follows the RMS would push every loud syllable into the limiter;
+//! - **limiter** (backstop): when a frame would still pass `LIMIT`, a separate, quickly recovering
+//!   reduction is applied (it is not written into the gain, so one pop does not drag the gain
+//!   down for seconds); a soft knee is the last safety net so nothing ever clips.
+//!
+//! Gain changes ramp over `RAMP_SAMPLES` (2 ms): fast enough for the limiter, smooth enough to
+//! avoid clicks.
 
-/// Speech RMS the loop aims for (dBFS).
-pub const TARGET_DB: f32 = -20.0;
+/// Speech RMS the level loop aims for (dBFS). Leaves room for the crest factor of speech.
+pub const TARGET_DB: f32 = -23.0;
 pub const MIN_GAIN_DB: f32 = -10.0;
 /// Highest gain with noise suppression on; without it the room noise between words would be
-/// amplified too, so the caller lowers the ceiling (see `set_max_gain_db`).
-pub const MAX_GAIN_DB: f32 = 15.0;
+/// amplified too, so the caller lowers the ceiling (see `set_max_gain_db`). A very quiet mic
+/// would want more, but every dB also raises the denoiser's residue and the mic's own noise.
+pub const MAX_GAIN_DB: f32 = 12.0;
+/// Where the tracked speech peaks may end up (dBFS).
+const PEAK_CEIL_DB: f32 = -6.0;
 /// Peak level (linear) the output is kept under.
 const LIMIT: f32 = 0.89;
 
@@ -30,24 +37,54 @@ const FRAME_MS: f32 = 20.0;
 /// gain does not follow every syllable).
 const LEVEL_UP_MS: f32 = 50.0;
 const LEVEL_DOWN_MS: f32 = 400.0;
+/// The tracked speech peak: follows a louder peak within a few frames (a single pop only moves it
+/// part of the way) and falls back slowly.
+const PEAK_UP_MS: f32 = 40.0;
+const PEAK_DOWN_MS: f32 = 1500.0;
 /// Gain time constants: down (speaker got louder), up, and up during the first speech.
 const ATTACK_MS: f32 = 100.0;
 const RELEASE_MS: f32 = 1500.0;
 const FAST_RELEASE_MS: f32 = 300.0;
+/// How fast the limiter's reduction recovers.
+const LIMITER_RELEASE_MS: f32 = 80.0;
 /// Active frames (2 s of speech) that count as "the first speech" after a reset.
 const FAST_START_FRAMES: u32 = 100;
+/// Samples (48 kHz) over which a gain change is ramped.
+const RAMP_SAMPLES: usize = 96;
+
+/// What the AGC did since the last `take_stats` (for the log).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Stats {
+    /// Frames processed.
+    pub frames: u32,
+    /// Frames in which the limiter had to act.
+    pub limited_frames: u32,
+    /// Highest output sample (linear).
+    pub peak_out: f32,
+}
 
 pub struct Agc {
+    /// Gain from the level/peak loop (dB).
     gain_db: f32,
+    /// Extra reduction by the limiter (dB, ≤ 0).
+    limit_db: f32,
+    /// Total gain at the end of the previous frame (linear), where the next ramp starts.
+    prev_total: f32,
     max_gain_db: f32,
-    /// Smoothed speech level (dBFS) before the gain; `None` until the first speech frame.
+    /// Smoothed speech level and tracked speech peak (dBFS) before the gain; `None` until the
+    /// first speech frame.
     level_db: Option<f32>,
+    peak_db: Option<f32>,
     active_frames: u32,
+    stats: Stats,
     level_up: f32,
     level_down: f32,
+    peak_up: f32,
+    peak_down: f32,
     attack: f32,
     release: f32,
     fast_release: f32,
+    limiter_release: f32,
 }
 
 impl Default for Agc {
@@ -83,14 +120,21 @@ impl Agc {
     pub fn new() -> Self {
         Self {
             gain_db: 0.0,
+            limit_db: 0.0,
+            prev_total: 1.0,
             max_gain_db: MAX_GAIN_DB,
             level_db: None,
+            peak_db: None,
             active_frames: 0,
+            stats: Stats::default(),
             level_up: coeff(LEVEL_UP_MS),
             level_down: coeff(LEVEL_DOWN_MS),
+            peak_up: coeff(PEAK_UP_MS),
+            peak_down: coeff(PEAK_DOWN_MS),
             attack: coeff(ATTACK_MS),
             release: coeff(RELEASE_MS),
             fast_release: coeff(FAST_RELEASE_MS),
+            limiter_release: coeff(LIMITER_RELEASE_MS),
         }
     }
 
@@ -107,9 +151,14 @@ impl Agc {
         self.max_gain_db = db.clamp(0.0, MAX_GAIN_DB);
     }
 
-    /// The gain currently applied (dB).
+    /// The gain of the level/peak loop (dB), without the limiter's momentary reduction.
     pub fn gain_db(&self) -> f32 {
         self.gain_db
+    }
+
+    /// Returns what happened since the last call and starts counting again.
+    pub fn take_stats(&mut self) -> Stats {
+        std::mem::take(&mut self.stats)
     }
 
     /// Applies the gain to a frame in place. `active`: the frame carries speech (the VAD's
@@ -118,13 +167,13 @@ impl Agc {
         if frame.is_empty() {
             return;
         }
-        let start = from_db(self.gain_db);
+        let peak = frame.iter().fold(0f32, |m, s| m.max(s.abs()));
 
         if active {
             let rms = (frame.iter().map(|s| s * s).sum::<f32>() / frame.len() as f32).sqrt();
             if rms > 1e-5 {
                 let level = to_db(rms);
-                let smoothed = match self.level_db {
+                let level = match self.level_db {
                     None => level,
                     Some(l) => {
                         l + (level - l)
@@ -135,8 +184,17 @@ impl Agc {
                             }
                     }
                 };
-                self.level_db = Some(smoothed);
-                let desired = (TARGET_DB - smoothed).clamp(MIN_GAIN_DB, self.max_gain_db);
+                self.level_db = Some(level);
+                let p = to_db(peak);
+                let tracked = match self.peak_db {
+                    None => p,
+                    Some(t) => t + (p - t) * if p > t { self.peak_up } else { self.peak_down },
+                };
+                self.peak_db = Some(tracked);
+
+                let desired = (TARGET_DB - level)
+                    .min(PEAK_CEIL_DB - tracked)
+                    .clamp(MIN_GAIN_DB, self.max_gain_db);
                 let alpha = if desired < self.gain_db {
                     self.attack
                 } else if self.active_frames < FAST_START_FRAMES {
@@ -150,18 +208,31 @@ impl Agc {
         }
         self.gain_db = self.gain_db.clamp(MIN_GAIN_DB, self.max_gain_db);
 
-        // Peak protection: applies to every frame, speech or not.
-        let peak = frame.iter().fold(0f32, |m, s| m.max(s.abs()));
-        if peak * from_db(self.gain_db) > LIMIT {
-            self.gain_db = to_db(LIMIT / peak).min(self.gain_db);
-        }
+        // Limiter backstop: reduce just enough for this frame's peak, recover quickly after.
+        let needed = (to_db(LIMIT / peak.max(1e-5)) - self.gain_db).min(0.0);
+        self.limit_db = if needed < self.limit_db {
+            needed
+        } else {
+            (self.limit_db * (1.0 - self.limiter_release)).min(needed)
+        };
+        let limited = self.limit_db < -0.05;
 
-        let end = from_db(self.gain_db);
-        let n = frame.len() as f32;
+        let start = self.prev_total;
+        let end = from_db(self.gain_db + self.limit_db);
+        let mut soft_hit = false;
+        let mut peak_out = 0f32;
         for (i, s) in frame.iter_mut().enumerate() {
-            let g = start + (end - start) * (i + 1) as f32 / n;
-            *s = soft_limit(*s * g).clamp(-1.0, 1.0);
+            let t = ((i + 1) as f32 / RAMP_SAMPLES as f32).min(1.0);
+            let y = *s * (start + (end - start) * t);
+            soft_hit |= y.abs() > LIMIT;
+            *s = soft_limit(y).clamp(-1.0, 1.0);
+            peak_out = peak_out.max(s.abs());
         }
+        self.prev_total = end;
+
+        self.stats.frames += 1;
+        self.stats.limited_frames += u32::from(limited || soft_hit);
+        self.stats.peak_out = self.stats.peak_out.max(peak_out);
     }
 }
 
@@ -201,8 +272,9 @@ mod tests {
         }
         let out = rms_db(&last);
         assert!((out - TARGET_DB).abs() < 2.0, "{out:.1} dBFS");
+        let want = TARGET_DB + 32.0;
         assert!(
-            (agc.gain_db() - 12.0).abs() < 2.0,
+            (agc.gain_db() - want).abs() < 2.0,
             "{:.1} dB",
             agc.gain_db()
         );
@@ -255,8 +327,8 @@ mod tests {
             let mut f = tone(-32.0, &mut ph);
             agc.process(&mut f, true);
         }
-        assert!(agc.gain_db() > 10.0);
-        // From a murmur to −10 dBFS RMS with +12 dB gain would be far over full scale.
+        assert!(agc.gain_db() > 7.0);
+        // From a murmur to −10 dBFS RMS with +9 dB gain would be far over full scale.
         for i in 0..20 {
             let mut f = tone(-10.0, &mut ph);
             agc.process(&mut f, true);
@@ -271,7 +343,7 @@ mod tests {
     fn gain_stays_within_limits() {
         let mut agc = Agc::new();
         let mut ph = 0.0;
-        // Very quiet speech: wants +30 dB, gets the ceiling.
+        // Very quiet speech: wants +27 dB, gets the ceiling.
         for _ in 0..500 {
             let mut f = tone(-50.0, &mut ph);
             agc.process(&mut f, true);
@@ -291,6 +363,62 @@ mod tests {
             agc.process(&mut f, true);
         }
         assert!(agc.gain_db() >= MIN_GAIN_DB - 1e-3, "{:.1}", agc.gain_db());
+    }
+
+    #[test]
+    fn peaky_speech_gets_less_gain_instead_of_hitting_the_limiter() {
+        // A quiet tone (−35 dBFS RMS) with a sharp peak at −6 dBFS in every fifth frame, like the
+        // plosives and loud vowels of real speech. The RMS alone would ask for +12 dB, which would
+        // put those peaks 6 dB over full scale.
+        let mut agc = Agc::new();
+        let mut ph = 0.0;
+        let mut run = |agc: &mut Agc, frames: usize| {
+            for i in 0..frames {
+                let mut f = tone(-35.0, &mut ph);
+                if i % 5 == 0 {
+                    f[480] = 0.5;
+                }
+                agc.process(&mut f, true);
+            }
+        };
+        run(&mut agc, 200);
+        agc.take_stats();
+        run(&mut agc, 200);
+        assert!(agc.gain_db() < 4.0, "{:.1} dB", agc.gain_db());
+        let stats = agc.take_stats();
+        assert_eq!(stats.limited_frames, 0, "{stats:?}");
+        assert!(stats.peak_out < LIMIT, "{stats:?}");
+    }
+
+    #[test]
+    fn a_single_pop_does_not_drag_the_gain_down_for_long() {
+        let mut agc = Agc::new();
+        let mut ph = 0.0;
+        for _ in 0..300 {
+            let mut f = tone(-32.0, &mut ph);
+            agc.process(&mut f, true);
+        }
+        let before = agc.gain_db();
+        let mut pop = tone(-32.0, &mut ph);
+        pop[100] = 1.0;
+        agc.process(&mut pop, true);
+        assert!(peak(&pop) <= 1.0);
+        // The limiter's own reduction is gone within half a second...
+        for _ in 0..25 {
+            let mut f = tone(-32.0, &mut ph);
+            agc.process(&mut f, true);
+        }
+        assert!(agc.limit_db > -0.1, "{:.2} dB", agc.limit_db);
+        // ...and the loop's gain comes back too, instead of staying down.
+        for _ in 0..400 {
+            let mut f = tone(-32.0, &mut ph);
+            agc.process(&mut f, true);
+        }
+        assert!(
+            (agc.gain_db() - before).abs() < 1.0,
+            "{:.1} dB, was {before:.1} dB",
+            agc.gain_db()
+        );
     }
 
     #[test]

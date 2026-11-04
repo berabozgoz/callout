@@ -6,8 +6,8 @@
 ## Where we left off (4 Nov 2026)
 
 - **Phases 0–1 done; Phase 2 (audio quality) mostly done:** FEC/PLC measured, noise suppression (RNNoise),
-  adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (written 4 Nov, uncommitted,
-  not released or field-tested). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
+  adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (4 Nov, committed, not pushed, checked on Bera's mic,
+  not released or tested with other players). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
 - **Released:** v0.1.13 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
@@ -83,7 +83,8 @@ items marked **before release** pass.
 - [ ] **AGC** (since the next release): (a) Bera's webcam mic: the others hear him at a comfortable level without
       raising the volume; (b) a loud player and a quiet one in the same room sound level; (c) with AGC on, fan or
       keyboard noise between words is not louder than before; (d) a mic with Windows' own AGC on does not make
-      the level wobble; (e) the log shows `agc gain_db` lines (expect +5…+15 for a quiet mic); (f) switching it
+      the level wobble; (e) the log shows `agc gain_db` lines (expect +5…+12 for a quiet mic; ✓ 4 Nov: +12 on
+      Bera's webcam, `limited_frames=0`); (f) switching it
       in Settings takes effect in the mic test and Cancel reverts it.
 - [ ] **Push-to-talk in a fullscreen game** (known gap since Phase 1): the global shortcut works while a
       fullscreen game has focus.
@@ -93,7 +94,9 @@ items marked **before release** pass.
 **Start here next session** (pick with the owner):
 - Field data from friends on v0.1.13: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
   FEC (`lost` vs `fec` in `sender jitter`), persistent rooms / close room on the real server.
-- **AGC** is implemented but not released (v0.1.14 candidate): try it on Bera's webcam mic and with a loud
+- **AGC** is implemented, checked on Bera's webcam mic (clean; the "crackle" was amplified mouth noises), not
+  released (v0.1.14 candidate). Open: with noise suppression off the VAD barely opens on that mic (threshold
+  above speech) — check whether that is expected or the floor/margin needs a look. Then try AGC with a loud
   player (see "Pending manual tests"), then release; after that decide whether Phase 2 can be closed.
 - Player experience: **mouse side buttons / non-swallowing keys for push-to-talk** (low-level hook in a small
   separate `unsafe` crate, rule 6); remember per-user volume across sessions; rate-limit wrong room-code attempts
@@ -136,13 +139,26 @@ items marked **before release** pass.
       (no dependency). Runs on the audio thread **after the VAD and the level meter, before the pre-roll
       history and the encoder**, so VAD thresholds, the calibration and the meter keep seeing the signal
       before the gain, while pre-roll frames and the mic test carry it. Level loop: speech frames only
-      (`VadDecision.active`, not the hangover), level smoothed fast-up/slow-down, gain aims at −20 dBFS RMS
-      (down τ 100 ms, up τ 1.5 s, 300 ms during the first 2 s of speech), range −10…+15 dB (+6 dB without
-      noise suppression). Frames without speech never change the gain. Peak protection drops the gain at once
-      when peak × gain passes 0.89; per-sample linear ramp inside a frame plus a soft limiter, so nothing
-      clips. On by default (`Settings.agc`, `Command::SetAgc`, 11 languages); switching it on resets to unity
-      gain; the log has an `agc gain_db` line every 30 s while speaking. Client only: no protocol change, no
-      server update needed.
+      (`VadDecision.active`, not the hangover), level smoothed fast-up/slow-down, gain aims at −23 dBFS RMS
+      (down τ 100 ms, up τ 1.5 s, 300 ms during the first 2 s of speech), range −10…+12 dB (+6 dB without
+      noise suppression). Frames without speech never change the gain. The speech *peak* is tracked as well
+      and caps the gain so peaks stay ≤ −6 dBFS; a quickly recovering limiter (separate from the gain) and
+      a soft knee are the backstop; gain changes ramp over 2 ms. On by default (`Settings.agc`,
+      `Command::SetAgc`, 11 languages); switching it on resets to unity gain; the log has an
+      `agc gain_db limited_frames frames peak_out` line every 30 s while speaking. Client only: no protocol
+      change, no server update needed.
+      **First field test (4 Nov, Bera's webcam mic, release exe): crackling with AGC on, better with it off.**
+      The first version pegged at +15 dB, aimed at −20 dBFS and wrote every limiter hit into the gain
+      (instant drop, 1.5 s recovery = pumping). Reworked (target −23, ceiling +12, peak tracking, separate
+      limiter, 2 ms ramp, limiter stats in the log).
+      **Second check (4 Nov, reworked version, one-off local recording of the mic path):** the AGC is clean. Measured on a 50 s
+      recording: gain steady at +12 dB, non-linear residual after removing the per-frame gain −152 dB
+      (median), no clipped samples (peak −15.7 dBFS), no capture dropouts (`in_overrun=0`, no zero gaps).
+      The "crackle" Bera heard turned out to be mouth noises (clicks at the same times in the raw
+      recording), now 12 dB louder; by ear (Bera) the denoised + AGC version sounds fine. Side findings:
+      the webcam mic's SNR is only ~9 dB (floor −42, loudest speech frame −33 dBFS), and RNNoise cuts deep
+      inside words there (p10 −68 dB on the loudest frames); with noise suppression **off** the VAD
+      threshold (−36.6) sat above nearly all speech, so the mic test played nothing.
    4. **Automatic reconnect done (4 Nov, v0.1.12, field-tested by Bera):** after an involuntary disconnect
       (QUIC connection lost / ping failed) the engine enters `ConnectionState::Reconnecting`, retries with 1, 2, 4,
       8, 15 s… backoff (quietly, no error per attempt), rejoins the previous room and restates mute/deafen
@@ -276,6 +292,13 @@ items marked **before release** pass.
   shows its value in dB and has a "Reset to default" link (4dfc354, unreleased). Session handed over to a new
   conversation here; see "Where we left off" and "Start here next session".
 
+- 4 Nov (AGC crackle investigation): dropout counters in the cpal callbacks (atomic add only; log
+  `audio dropouts (samples) in_overrun out_underrun` every 30 s when non-zero; a few hundred to ~1500
+  output samples right after the pipeline starts are normal). For the analysis a temporary debug build wrote
+  the mic path stages to WAV files on Bera's PC; result: the AGC is not the cause (see Phase 2 item 3).
+  That recorder was then **removed from the source on the owner's decision: CallOut never writes
+  microphone audio to disk**, not even behind a feature flag (rule 9 in `CLAUDE.md`); it is kept as a
+  local-only patch outside the repo for future tests. fmt/clippy/test clean.
 - 4 Nov (AGC): see Next → Phase 2 item 3. `VadDecision` gained `active`; seven unit tests in `agc.rs`
   (convergence, loud input without clipping, no change on non-speech frames, sudden shout, gain limits,
   reset, smooth ramp). fmt/clippy (incl. app)/test/svelte-check clean; not tried in the app, not released.

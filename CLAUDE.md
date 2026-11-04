@@ -42,6 +42,11 @@ ui/                    Svelte 5 (runes) + TypeScript + Vite
 7. Error types: `thiserror` in libraries, `anyhow` in the app/server `main`.
 8. Out-of-scope requests (overlay, video, screen sharing) go into the "Later" list in
    `docs/ARCHITECTURE.md`, not into code.
+9. **Nothing that could be a privacy risk for users goes into the repository** (e.g. writing
+   microphone audio to disk), not even as a debug tool or behind a feature flag; the shipped app never
+   records (the mic test keeps its 5 s in memory only). Such diagnostics are welcome but stay local:
+   patches/scripts outside the repo (location in `CLAUDE.local.md`), applied for a local build and
+   reverted right after; a local pre-commit hook guards against committing them.
 
 ## Commands
 
