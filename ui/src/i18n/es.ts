@@ -30,7 +30,7 @@ export const es: Messages = {
   "settings.pttCapturing": "Pulsa una tecla o combinación… (Esc para cancelar)",
   "settings.pttUnassigned": "Sin asignar — haz clic y pulsa una tecla",
   "settings.pttHint":
-    "El atajo solo está activo mientras estás en una sala. Si eliges una letra sola (p. ej., T), no podrás escribir esa letra en otras aplicaciones mientras estés en una sala; F9 o combinaciones como Ctrl+Alt son más seguras.",
+    "Solo funciona mientras estás en una sala, y entonces la tecla queda reservada para CallOut. Elige una que tu juego no use (una letra sola no se podrá escribir en otras apps mientras tanto).",
   "settings.save": "Guardar",
   "settings.cancel": "Cancelar",
 
@@ -79,7 +79,7 @@ export const es: Messages = {
   "room.copyCode": "Copiar código",
   "room.leave": "Salir",
   "room.close": "Cerrar sala",
-  "room.closeConfirm": "Haz clic otra vez para cerrar",
+  "room.closeAsk": "¿Cerrar la sala para todos? Se eliminará del servidor.",
   "room.closeHint": "Cierra la sala para todos y la elimina del servidor",
   "room.you": "(tú)",
   "room.volume": "Volumen: {pct} %",
@@ -88,6 +88,7 @@ export const es: Messages = {
   "room.stats": "{rtt} ms · búfer {jitter} ms",
   "room.lost": "{n} perdidos",
   "room.pttHint": "Pulsar para hablar: se envía mientras mantengas pulsada la tecla {key}.",
+  "room.pttNoKey": "Pulsar para hablar está activado, pero no hay tecla; elige una en Ajustes.",
   "footer.muted": "silenciado",
 
   "tray.show": "Mostrar CallOut",

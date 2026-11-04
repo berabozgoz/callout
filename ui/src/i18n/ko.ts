@@ -30,7 +30,7 @@ export const ko: Messages = {
   "settings.pttCapturing": "키 또는 키 조합을 누르세요… (Esc로 취소)",
   "settings.pttUnassigned": "설정 안 됨 — 클릭한 뒤 키를 누르세요",
   "settings.pttHint":
-    "단축키는 방에 있는 동안에만 작동해요. 일반 글자 키(예: T)를 고르면 방에 있는 동안 다른 앱에서 그 글자를 입력할 수 없어요. F9나 Ctrl+Alt 같은 조합이 더 안전해요.",
+    "방에 있는 동안에만 작동하며, 그동안 이 키는 CallOut 전용이 돼요. 게임에서 쓰지 않는 키를 고르세요(글자 키 하나를 고르면 그동안 다른 앱에서 그 글자를 입력할 수 없어요).",
   "settings.save": "저장",
   "settings.cancel": "취소",
 
@@ -78,7 +78,7 @@ export const ko: Messages = {
   "room.copyCode": "코드 복사",
   "room.leave": "나가기",
   "room.close": "방 닫기",
-  "room.closeConfirm": "닫으려면 한 번 더 클릭",
+  "room.closeAsk": "모두에게서 방을 닫을까요? 서버에서 삭제돼요.",
   "room.closeHint": "모두에게서 방을 닫고 서버에서 삭제해요",
   "room.you": "(나)",
   "room.volume": "볼륨: {pct}%",
@@ -87,6 +87,7 @@ export const ko: Messages = {
   "room.stats": "{rtt} ms · 버퍼 {jitter} ms",
   "room.lost": "손실 {n}",
   "room.pttHint": "눌러서 말하기: {key} 키를 누르고 있는 동안 전송해요.",
+  "room.pttNoKey": "눌러서 말하기가 켜져 있지만 키가 없어요. 설정에서 키를 고르세요.",
   "footer.muted": "음소거됨",
 
   "tray.show": "CallOut 표시",

@@ -24,7 +24,9 @@ pub struct Settings {
     pub input_device: Option<String>,
     pub output_device: Option<String>,
     pub push_to_talk: bool,
-    /// Tauri shortcut syntax, e.g. `F9`, `Ctrl+Space`, `Alt+Z`.
+    /// Tauri shortcut syntax, e.g. `F8`, `Ctrl+Space`, `Alt+KeyZ`; empty = not set. There is no
+    /// default: any key may clash with a game (F9 pauses Dota 2), so the UI asks for one when
+    /// push-to-talk is turned on.
     pub ptt_shortcut: String,
     /// Noise suppression (RNNoise); on if missing from older settings files.
     pub noise_suppression: bool,
@@ -55,7 +57,7 @@ impl Default for Settings {
             input_device: None,
             output_device: None,
             push_to_talk: false,
-            ptt_shortcut: "F9".into(),
+            ptt_shortcut: String::new(),
             noise_suppression: true,
             vad_sensitivity: 0.0,
             agc: true,
@@ -155,6 +157,34 @@ fn load_settings(data_dir: &Path) -> Settings {
         .ok()
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_default()
+}
+
+/// Up to v0.1.13 every settings file was saved with the old default key `F9`, picked or not.
+/// Where push-to-talk is off it was most likely never picked: clear it, so turning push-to-talk
+/// on asks for a key. Returns whether anything changed.
+fn forget_old_default_ptt_key(s: &mut Settings) -> bool {
+    if !s.push_to_talk && s.ptt_shortcut == "F9" {
+        s.ptt_shortcut.clear();
+        return true;
+    }
+    false
+}
+
+/// The default window height fits the settings page without scrolling; on a short screen
+/// (e.g. 1366×768) shrink it to the work area instead of letting it run under the taskbar.
+fn fit_window_to_screen(w: &tauri::WebviewWindow) -> tauri::Result<()> {
+    let Some(monitor) = w.current_monitor()? else {
+        return Ok(());
+    };
+    let avail = monitor.work_area().size.height;
+    let outer = w.outer_size()?;
+    if outer.height > avail {
+        let inner = w.inner_size()?;
+        let height = inner.height.saturating_sub(outer.height - avail);
+        w.set_size(tauri::PhysicalSize::new(inner.width, height))?;
+        w.center()?;
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -483,7 +513,12 @@ pub fn run() {
                 .app_data_dir()
                 .unwrap_or_else(|_| PathBuf::from("callout-data"));
             let mut settings = load_settings(&data_dir);
-            let mut save_now = false;
+            let mut save_now = forget_old_default_ptt_key(&mut settings);
+            if let Some(w) = app.get_webview_window("main") {
+                if let Err(e) = fit_window_to_screen(&w) {
+                    tracing::warn!("window size: {e}");
+                }
+            }
             if let Some((lcid, code)) = installer_language() {
                 if settings.installer_language_seen != Some(lcid) {
                     // The user picked this language in the installer: start the app in it.
@@ -626,7 +661,32 @@ fn _assert_event_serializable(e: &Event) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::{forget_old_default_ptt_key, Settings};
     use tauri_plugin_global_shortcut::Shortcut;
+
+    #[test]
+    fn old_default_ptt_key_is_forgotten_only_when_unused() {
+        let mut s = Settings {
+            ptt_shortcut: "F9".into(),
+            ..Settings::default()
+        };
+        assert!(forget_old_default_ptt_key(&mut s));
+        assert_eq!(s.ptt_shortcut, "");
+        // In use with push-to-talk on: kept.
+        let mut s = Settings {
+            push_to_talk: true,
+            ptt_shortcut: "F9".into(),
+            ..Settings::default()
+        };
+        assert!(!forget_old_default_ptt_key(&mut s));
+        assert_eq!(s.ptt_shortcut, "F9");
+        // Any other key the user picked: kept.
+        let mut s = Settings {
+            ptt_shortcut: "F8".into(),
+            ..Settings::default()
+        };
+        assert!(!forget_old_default_ptt_key(&mut s));
+    }
 
     /// The UI's key capture field sends `KeyboardEvent.code` names; the shortcut library must
     /// parse all of them.

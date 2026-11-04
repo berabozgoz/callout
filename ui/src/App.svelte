@@ -17,7 +17,7 @@
   const fail = (e: unknown): UiError => ({ key: "error.generic", vars: { detail: String(e) } });
 
   // ---- state ----
-  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9", noise_suppression: true, vad_sensitivity: 0, agc: true, language: null, recent_rooms: [] });
+  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "", noise_suppression: true, vad_sensitivity: 0, agc: true, language: null, recent_rooms: [] });
   let devices = $state<Device[]>([]);
   let version = $state("");
   let conn = $state<ConnectionState>("disconnected");
@@ -129,6 +129,7 @@
           if (e.room && e.room.code !== room?.code) rememberRoom(e.room);
           if (!e.room && room) closedCode = room.code;
           if (e.room) joiningCode = null;
+          if (e.room?.code !== room?.code) confirmClose = false;
           room = e.room; members = e.members;
           if (!e.room) speaking = new Set();
           break;
@@ -242,16 +243,9 @@
     send({ type: "join_room", code });
   }
 
-  // Closing deletes the room for everyone: the first click arms, a second click within 4 s confirms.
+  // Closing deletes the room for everyone: "Close room" opens a confirmation strip under the header.
   let confirmClose = $state(false);
-  let confirmTimer: ReturnType<typeof setTimeout> | undefined;
   function closeRoom() {
-    if (!confirmClose) {
-      confirmClose = true;
-      confirmTimer = setTimeout(() => (confirmClose = false), 4000);
-      return;
-    }
-    clearTimeout(confirmTimer);
     confirmClose = false;
     send({ type: "close_room" });
   }
@@ -316,6 +310,11 @@
     else send({ type: "stop_mic_test" });
   }
   const playTestSound = () => send({ type: "play_test_sound" });
+  // There is no default key (any key could clash with a game): turning push-to-talk on without one
+  // starts the key capture right away.
+  function onPushToTalkToggle() {
+    if (settings.push_to_talk && !settings.ptt_shortcut.trim() && !capturing) startCapture();
+  }
   // Voice activity sensitivity in dB (0 = default); applied live so the threshold line moves.
   function setSensitivity(db: number) {
     settings.vad_sensitivity = db;
@@ -383,24 +382,24 @@
   {#if showSettings}
     <section class="card">
       <h2>{t("settings.title")}</h2>
-      <label>{t("settings.language")}
-        <select bind:value={settings.language} onchange={() => setLanguage(settings.language)}>
-          <option value={null}>{t("settings.languageAuto")}</option>
-          {#each LANGUAGES as l (l.code)}<option value={l.code}>{l.name}</option>{/each}
-        </select>
-      </label>
-      <label><span class="lbl"><Icon name="microphone" size={14} />{t("settings.microphone")}</span>
-        <select bind:value={settings.input_device} onchange={pickInput}>
+      <!-- Caption and control side by side: keeps the page short enough to fit without scrolling. -->
+      <div class="formgrid">
+        <label for="set-mic"><Icon name="microphone" size={14} />{t("settings.microphone")}</label>
+        <select id="set-mic" bind:value={settings.input_device} onchange={pickInput}>
           <option value={null}>{t("settings.default")}</option>
           {#each inputs as d (d.name)}<option value={d.name}>{d.name}</option>{/each}
         </select>
-      </label>
-      <label><span class="lbl"><Icon name="headphones" size={14} />{t("settings.speaker")}</span>
-        <select bind:value={settings.output_device} onchange={pickOutput}>
+        <label for="set-out"><Icon name="headphones" size={14} />{t("settings.speaker")}</label>
+        <select id="set-out" bind:value={settings.output_device} onchange={pickOutput}>
           <option value={null}>{t("settings.default")}</option>
           {#each outputs as d (d.name)}<option value={d.name}>{d.name}</option>{/each}
         </select>
-      </label>
+        <label for="set-lang">{t("settings.language")}</label>
+        <select id="set-lang" bind:value={settings.language} onchange={() => setLanguage(settings.language)}>
+          <option value={null}>{t("settings.languageAuto")}</option>
+          {#each LANGUAGES as l (l.code)}<option value={l.code}>{l.name}</option>{/each}
+        </select>
+      </div>
       <label class="row">
         <input type="checkbox" bind:checked={settings.noise_suppression}
           onchange={(e) => send({ type: "set_noise_suppression", enabled: (e.currentTarget as HTMLInputElement).checked })} />
@@ -412,7 +411,7 @@
         {t("settings.agc")}
       </label>
       <label class="row">
-        <input type="checkbox" bind:checked={settings.push_to_talk} />
+        <input type="checkbox" bind:checked={settings.push_to_talk} onchange={onPushToTalkToggle} />
         {t("settings.pushToTalk")}
       </label>
       {#if !settings.push_to_talk}
@@ -435,11 +434,12 @@
         </div>
       {/if}
       {#if settings.push_to_talk}
-        <label>{t("settings.pttKey")}
-          <button type="button" class="capture" class:listening={capturing} onclick={(e) => { if (e.detail === 0) return; /* ignore the click synthesized when Space/Enter is the captured key */ capturing ? stopCapture() : startCapture(); }}>
+        <div class="formgrid">
+          <label for="set-ptt">{t("settings.pttKey")}</label>
+          <button id="set-ptt" type="button" class="capture" class:listening={capturing} onclick={(e) => { if (e.detail === 0) return; /* ignore the click synthesized when Space/Enter is the captured key */ capturing ? stopCapture() : startCapture(); }}>
             {capturing ? t("settings.pttCapturing") : settings.ptt_shortcut ? prettyShortcut(settings.ptt_shortcut) : t("settings.pttUnassigned")}
           </button>
-        </label>
+        </div>
         <p class="hint">{t("settings.pttHint")}</p>
       {/if}
 
@@ -533,7 +533,7 @@
     <!-- ---------- Room ---------- -->
     <section class="card room">
       <div class="roomhead">
-        <div>
+        <div class="roomtitle">
           <h2>{room.name}</h2>
           <button class="codebtn" title={t("room.copyCode")} onclick={copyCode}>
             {prettyCode(room.code)} {copied ? "✓" : "⧉"}
@@ -541,13 +541,22 @@
         </div>
         <div class="roomactions">
           {#if room.owner !== 0 && room.owner === myId}
-            <button class="danger" class:armed={confirmClose} onclick={closeRoom} title={t("room.closeHint")}>
-              {confirmClose ? t("room.closeConfirm") : t("room.close")}
+            <button class="danger" disabled={confirmClose} onclick={() => (confirmClose = true)} title={t("room.closeHint")}>
+              {t("room.close")}
             </button>
           {/if}
           <button onclick={leaveRoom}>{t("room.leave")}</button>
         </div>
       </div>
+      {#if confirmClose}
+        <div class="confirm">
+          <span>{t("room.closeAsk")}</span>
+          <div class="actions">
+            <button class="danger armed" onclick={closeRoom}>{t("room.close")}</button>
+            <button onclick={() => (confirmClose = false)}>{t("settings.cancel")}</button>
+          </div>
+        </div>
+      {/if}
 
       <ul class="members">
         {#each members as m (m.user_id)}
@@ -581,7 +590,11 @@
     </section>
     {@render inputHint()}
     {#if settings.push_to_talk}
-      <p class="hint">{t("room.pttHint", { key: prettyShortcut(settings.ptt_shortcut) })}</p>
+      {#if settings.ptt_shortcut.trim()}
+        <p class="hint">{t("room.pttHint", { key: prettyShortcut(settings.ptt_shortcut) })}</p>
+      {:else}
+        <p class="hint warn">{t("room.pttNoKey")}</p>
+      {/if}
     {/if}
   {/if}
 

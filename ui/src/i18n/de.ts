@@ -30,7 +30,7 @@ export const de: Messages = {
   "settings.pttCapturing": "Drücke eine Taste oder Kombination… (Esc zum Abbrechen)",
   "settings.pttUnassigned": "Nicht festgelegt — klicken und eine Taste drücken",
   "settings.pttHint":
-    "Das Tastenkürzel ist nur aktiv, solange du in einem Raum bist. Wenn du einen einfachen Buchstaben (z. B. T) wählst, kannst du diesen Buchstaben in anderen Apps nicht tippen, solange du in einem Raum bist; F9 oder Kombinationen wie Strg+Alt sind sicherer.",
+    "Nur aktiv, solange du in einem Raum bist; die Taste gehört dann CallOut. Wähle eine, die dein Spiel nicht nutzt (einen einfachen Buchstaben kannst du währenddessen anderswo nicht tippen).",
   "settings.save": "Speichern",
   "settings.cancel": "Abbrechen",
 
@@ -79,7 +79,7 @@ export const de: Messages = {
   "room.copyCode": "Code kopieren",
   "room.leave": "Verlassen",
   "room.close": "Raum schließen",
-  "room.closeConfirm": "Zum Schließen erneut klicken",
+  "room.closeAsk": "Raum für alle schließen? Er wird vom Server gelöscht.",
   "room.closeHint": "Schließt den Raum für alle und löscht ihn vom Server",
   "room.you": "(du)",
   "room.volume": "Lautstärke: {pct} %",
@@ -88,6 +88,7 @@ export const de: Messages = {
   "room.stats": "{rtt} ms · Puffer {jitter} ms",
   "room.lost": "{n} verloren",
   "room.pttHint": "Push-to-Talk: Gesendet wird, solange {key} gedrückt ist.",
+  "room.pttNoKey": "Push-to-Talk ist an, aber keine Taste festgelegt; wähle eine in den Einstellungen.",
   "footer.muted": "stumm",
 
   "tray.show": "CallOut anzeigen",

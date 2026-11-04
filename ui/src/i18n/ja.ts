@@ -30,7 +30,7 @@ export const ja: Messages = {
   "settings.pttCapturing": "キーまたは組み合わせを押してください…（Esc でキャンセル）",
   "settings.pttUnassigned": "未設定 — クリックしてキーを押してください",
   "settings.pttHint":
-    "ショートカットはルームにいる間だけ有効です。単一の文字キー（例：T）を選ぶと、ルームにいる間はほかのアプリでその文字を入力できなくなります。F9 や Ctrl+Alt などの組み合わせのほうが安全です。",
+    "ルームにいる間だけ有効で、そのキーは CallOut 専用になります。ゲームで使わないキーを選んでください（単独の文字キーにすると、その間ほかのアプリで入力できません）。",
   "settings.save": "保存",
   "settings.cancel": "キャンセル",
 
@@ -79,7 +79,7 @@ export const ja: Messages = {
   "room.copyCode": "コードをコピー",
   "room.leave": "退出",
   "room.close": "ルームを閉じる",
-  "room.closeConfirm": "もう一度クリックで閉じる",
+  "room.closeAsk": "全員のルームを閉じますか？サーバーから削除されます。",
   "room.closeHint": "全員のルームを閉じてサーバーから削除します",
   "room.you": "（自分）",
   "room.volume": "音量：{pct}%",
@@ -88,6 +88,7 @@ export const ja: Messages = {
   "room.stats": "{rtt} ms · バッファー {jitter} ms",
   "room.lost": "ロス {n}",
   "room.pttHint": "プッシュトゥトーク：{key} を押している間だけ送信します。",
+  "room.pttNoKey": "プッシュトゥトークがオンですがキーが未設定です。設定で選んでください。",
   "footer.muted": "ミュート中",
 
   "tray.show": "CallOut を表示",

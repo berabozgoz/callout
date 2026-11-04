@@ -24,6 +24,9 @@ h2 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spa
 .card { background: var(--panel); border-radius: 10px; padding: 14px; }
 label, .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
 label .lbl { display: inline-flex; align-items: center; gap: 6px; }
+.formgrid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 10px; align-items: center; margin-bottom: 12px; }
+.formgrid label { flex-direction: row; align-items: center; gap: 6px; margin: 0; white-space: nowrap; }
+.formgrid select { min-width: 0; width: 100%; }
 label.row { flex-direction: row; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
 input[type="text"], select {
   background: var(--panel2); color: var(--text); border: 1px solid #343941; border-radius: 6px;
@@ -56,10 +59,15 @@ button.forget { color: var(--muted); }
 .update span { flex: 1; }
 .error { color: var(--danger); background: #2a1c1c; border: none; border-radius: 8px; padding: 8px 10px; margin: 0; cursor: pointer; text-align: start; font-size: 13px; }
 
-.roomhead { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.roomhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
 .roomhead h2 { color: var(--text); text-transform: none; font-size: 16px; letter-spacing: 0; margin: 0 0 6px; }
-.roomactions { display: flex; gap: 6px; }
+.roomtitle { min-width: 0; }
+.roomtitle h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roomactions { display: flex; gap: 6px; flex-shrink: 0; }
 button.danger { color: var(--danger); }
+button.danger:disabled { opacity: .5; cursor: default; }
+.confirm { background: #2a1c1c; border-radius: 8px; padding: 10px; margin-bottom: 10px; font-size: 13px; }
+.confirm .actions { margin-top: 8px; }
 button.danger.armed { background: var(--danger); border-color: var(--danger); color: #fff; }
 .codebtn { font-family: ui-monospace, Consolas, monospace; letter-spacing: .1em; font-size: 15px; }
 
@@ -86,7 +94,7 @@ button.linkbtn:hover { text-decoration: underline; }
 .meter .fill { height: 100%; background: var(--muted); transition: width .08s linear; }
 .meter.tx .fill { background: var(--ok); }
 .meter .thr { position: absolute; top: 0; bottom: 0; width: 2px; margin-inline-start: -1px; background: var(--text); opacity: .7; }
-.soundtest { border-top: 1px solid #343941; margin: 14px 0 12px; padding-top: 12px; }
+.soundtest { border-top: 1px solid #343941; margin: 10px 0; padding-top: 10px; }
 .soundtest h3 { font-size: 12px; color: var(--muted); font-weight: 600; margin: 0 0 8px; }
 .soundtest .meter { height: 10px; margin-bottom: 10px; }
 button.recording { border-color: var(--danger); color: var(--danger); }

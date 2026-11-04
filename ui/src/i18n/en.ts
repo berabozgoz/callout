@@ -32,7 +32,7 @@ export const en = {
   "settings.pttCapturing": "Press a key or combination… (Esc to cancel)",
   "settings.pttUnassigned": "Not set — click and press a key",
   "settings.pttHint":
-    "The shortcut is only active while you are in a room. If you pick a plain letter (e.g. T), you can't type that letter in other apps while in a room; F9 or combinations like Ctrl+Alt are safer.",
+    "Active only while you are in a room; the key is then reserved for CallOut. Pick one your game doesn't use (a plain letter can't be typed in other apps meanwhile).",
   "settings.save": "Save",
   "settings.cancel": "Cancel",
 
@@ -86,7 +86,7 @@ export const en = {
   "room.copyCode": "Copy code",
   "room.leave": "Leave",
   "room.close": "Close room",
-  "room.closeConfirm": "Click again to close",
+  "room.closeAsk": "Close the room for everyone? It is deleted from the server.",
   "room.closeHint": "Closes the room for everyone and deletes it from the server",
   "room.you": "(you)",
   "room.volume": "Volume: {pct}%",
@@ -95,6 +95,7 @@ export const en = {
   "room.stats": "{rtt} ms · buffer {jitter} ms",
   "room.lost": "lost {n}",
   "room.pttHint": "Push-to-talk: sending while {key} is held.",
+  "room.pttNoKey": "Push-to-talk is on but no key is set; pick one in Settings.",
   "footer.muted": "muted",
 
   // tray menu (sent to the app shell)

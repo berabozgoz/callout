@@ -30,7 +30,7 @@ export const zhCN: Messages = {
   "settings.pttCapturing": "请按下一个键或组合键…（Esc 取消）",
   "settings.pttUnassigned": "未设置 — 点击后按下一个键",
   "settings.pttHint":
-    "快捷键仅在你位于房间内时生效。如果选择单个字母键（如 T），在房间内时将无法在其他应用中输入该字母；F9 或 Ctrl+Alt 之类的组合键更安全。",
+    "仅在房间内生效，届时该键归 CallOut 专用。请选择游戏不使用的键（若选单个字母键，期间无法在其他应用中输入该字母）。",
   "settings.save": "保存",
   "settings.cancel": "取消",
 
@@ -78,7 +78,7 @@ export const zhCN: Messages = {
   "room.copyCode": "复制代码",
   "room.leave": "离开",
   "room.close": "关闭房间",
-  "room.closeConfirm": "再次点击以关闭",
+  "room.closeAsk": "为所有人关闭房间？房间将从服务器删除。",
   "room.closeHint": "为所有人关闭房间并从服务器删除",
   "room.you": "（你）",
   "room.volume": "音量：{pct}%",
@@ -87,6 +87,7 @@ export const zhCN: Messages = {
   "room.stats": "{rtt} ms · 缓冲 {jitter} ms",
   "room.lost": "丢包 {n}",
   "room.pttHint": "按键说话：按住 {key} 时发送语音。",
+  "room.pttNoKey": "按键说话已开启，但未设置按键；请在设置中选择。",
   "footer.muted": "已静音",
 
   "tray.show": "显示 CallOut",

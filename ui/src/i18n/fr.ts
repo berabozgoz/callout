@@ -30,7 +30,7 @@ export const fr: Messages = {
   "settings.pttCapturing": "Appuyez sur une touche ou une combinaison… (Échap pour annuler)",
   "settings.pttUnassigned": "Non défini — cliquez puis appuyez sur une touche",
   "settings.pttHint":
-    "Le raccourci n'est actif que lorsque vous êtes dans un salon. Si vous choisissez une simple lettre (p. ex. T), vous ne pourrez plus taper cette lettre dans d'autres applications tant que vous serez dans un salon ; F9 ou des combinaisons comme Ctrl+Alt sont plus sûres.",
+    "Actif uniquement dans un salon ; la touche est alors réservée à CallOut. Choisissez-en une que votre jeu n'utilise pas (une simple lettre ne pourra plus être tapée ailleurs entre-temps).",
   "settings.save": "Enregistrer",
   "settings.cancel": "Annuler",
 
@@ -79,7 +79,7 @@ export const fr: Messages = {
   "room.copyCode": "Copier le code",
   "room.leave": "Quitter",
   "room.close": "Fermer le salon",
-  "room.closeConfirm": "Cliquez à nouveau pour fermer",
+  "room.closeAsk": "Fermer le salon pour tout le monde ? Il sera supprimé du serveur.",
   "room.closeHint": "Ferme le salon pour tout le monde et le supprime du serveur",
   "room.you": "(vous)",
   "room.volume": "Volume : {pct} %",
@@ -88,6 +88,7 @@ export const fr: Messages = {
   "room.stats": "{rtt} ms · tampon {jitter} ms",
   "room.lost": "{n} perdus",
   "room.pttHint": "Appuyer pour parler : envoi tant que la touche {key} est maintenue.",
+  "room.pttNoKey": "Appuyer pour parler est activé, mais aucune touche n'est définie ; choisissez-en une dans les Paramètres.",
   "footer.muted": "muet",
 
   "tray.show": "Afficher CallOut",

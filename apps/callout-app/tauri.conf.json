@@ -14,7 +14,8 @@
         "title": "CallOut",
         "label": "main",
         "width": 420,
-        "height": 640,
+        "height": 780,
+        "center": true,
         "minWidth": 360,
         "minHeight": 480,
         "resizable": true

@@ -86,6 +86,15 @@ items marked **before release** pass.
       the level wobble; (e) the log shows `agc gain_db` lines (expect +5…+12 for a quiet mic; ✓ 4 Nov: +12 on
       Bera's webcam, `limited_frames=0`); (f) switching it
       in Settings takes effect in the mic test and Cancel reverts it.
+      ✓ 4 Nov (Bera, release exe): (c) noise between words not louder with AGC on; (f) the switch takes effect
+      in the mic test and Cancel reverts it. (a) and (b) need the release and other players; (d) needs such a mic.
+- [x] **UI fixes before v0.1.14** (since this session): (a) a fresh window opens 780 px tall and centered; the
+      settings page fits without scrolling with push-to-talk on and off; on a 1366×768 screen the window
+      shrinks to the work area; (b) in a room, "Close room" opens a confirmation strip under the header
+      (room name and code stay in place); its "Close room" closes the room, "Cancel" hides the strip;
+      (c) turning push-to-talk on with no key starts the key capture; an old unpicked F9 (push-to-talk off)
+      is cleared on start; with push-to-talk on and no key the room shows a warning.
+      ✓ 4 Nov (Bera, release exe): all of the above as expected.
 - [ ] **Push-to-talk in a fullscreen game** (known gap since Phase 1): the global shortcut works while a
       fullscreen game has focus.
 
@@ -299,6 +308,18 @@ items marked **before release** pass.
   That recorder was then **removed from the source on the owner's decision: CallOut never writes
   microphone audio to disk**, not even behind a feature flag (rule 9 in `CLAUDE.md`); it is kept as a
   local-only patch outside the repo for future tests. fmt/clippy/test clean.
+- 4 Nov (UI fixes before v0.1.14, from Bera): the settings page no longer scrolls: devices and language
+  are caption + control on one row (`.formgrid`), the push-to-talk key too, the sound test is tighter, and
+  the window is 780 px tall (was 640), centered, shrunk to the monitor's work area on short screens
+  (`fit_window_to_screen`). Measured in the browser preview at a 748 px client height: every language fits
+  in both modes (longest: Japanese with push-to-talk, 746 px). "Close room" now opens a confirmation strip
+  (`room.closeAsk`) instead of turning into a long "click again" button that pushed the room code around.
+  **No default push-to-talk key any more** (F9 pauses Dota 2, every key clashes with some game): turning
+  push-to-talk on asks for one; a stored `F9` with push-to-talk off is cleared at start
+  (`forget_old_default_ptt_key`); the room warns when push-to-talk has no key (`room.pttNoKey`); the hint
+  says to pick a key the game doesn't use. The sensitivity slider stays hidden with push-to-talk: the VAD
+  is not used then (the key is the gate; the mic test records without it). 11 languages updated.
+  clippy (incl. app)/test/svelte-check clean; checked in the release exe by Bera.
 - 4 Nov (AGC): see Next → Phase 2 item 3. `VadDecision` gained `active`; seven unit tests in `agc.rs`
   (convergence, loud input without clipping, no change on non-speech frames, sudden shout, gain limits,
   reset, smooth ramp). fmt/clippy (incl. app)/test/svelte-check clean; not tried in the app, not released.

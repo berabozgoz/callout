@@ -30,7 +30,7 @@ export const tr: Messages = {
   "settings.pttCapturing": "Bir tuşa ya da kombinasyona bas… (Esc iptal)",
   "settings.pttUnassigned": "Atanmamış — tıkla ve bir tuşa bas",
   "settings.pttHint":
-    "Kısayol yalnızca bir odadayken etkindir. Düz bir harf (ör. T) seçersen odadayken diğer uygulamalarda o tuşla yazamazsın; F9 ya da Ctrl+Alt gibi birleşimler daha güvenlidir.",
+    "Sadece odadayken etkindir; o sırada tuş CallOut'a ayrılır. Oyununun kullanmadığı bir tuş seç (tek bir harf seçersen o harfi bu sırada başka uygulamalarda yazamazsın).",
   "settings.save": "Kaydet",
   "settings.cancel": "Vazgeç",
 
@@ -78,7 +78,7 @@ export const tr: Messages = {
   "room.copyCode": "Kodu kopyala",
   "room.leave": "Ayrıl",
   "room.close": "Odayı kapat",
-  "room.closeConfirm": "Kapatmak için tekrar tıkla",
+  "room.closeAsk": "Oda herkes için kapatılsın mı? Sunucudan silinir.",
   "room.closeHint": "Odayı herkes için kapatır ve sunucudan siler",
   "room.you": "(sen)",
   "room.volume": "Ses: %{pct}",
@@ -87,6 +87,7 @@ export const tr: Messages = {
   "room.stats": "{rtt} ms · tampon {jitter} ms",
   "room.lost": "kayıp {n}",
   "room.pttHint": "Bas-konuş: {key} basılıyken gönderilir.",
+  "room.pttNoKey": "Bas-konuş açık ama tuş seçilmemiş; Ayarlar'dan bir tuş seç.",
   "footer.muted": "sessiz",
 
   "tray.show": "CallOut'u göster",
