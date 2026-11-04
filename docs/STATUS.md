@@ -9,13 +9,12 @@
   adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (4 Nov, v0.1.14, checked on Bera's mic,
   not yet tested with other players). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
-- **Released:** v0.1.14 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
+- **Released:** v0.1.15 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
 - **Server:** Oracle Always Free (Frankfurt) runs **v0.1.12** (persistent rooms in `/var/lib/callout/rooms.tsv`,
-  owner-only room closing). v0.1.13 and v0.1.14 changed only the app, so no server update was needed. Details in
+  owner-only room closing). v0.1.13–v0.1.15 changed only the app, so no server update was needed. Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main`:** non-swallowing push-to-talk with mouse buttons (`callout-input`), v0.1.15
-  candidate (check `git log v0.1.14..`).
+- **Unreleased on `main`:** nothing (check `git log v0.1.15..`).
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -110,14 +109,14 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- Field data from friends on v0.1.14: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
+- Field data from friends on v0.1.15: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
   FEC (`lost` vs `fec` in `sender jitter`), persistent rooms / close room on the real server.
 - **AGC** is released in v0.1.14 (checked on Bera's webcam mic). Field: a loud and a quiet player in one room
   (AGC (a), (b) in "Pending manual tests"); then decide whether Phase 2 can be closed. Open: with noise
   suppression off the VAD barely opens on that mic (threshold above speech) — check whether that is
   expected or the floor/margin needs a look.
-- Player experience: non-swallowing push-to-talk with mouse buttons is done and checked in a game (unreleased,
-  v0.1.15 candidate); next: remember per-user volume across sessions; rate-limit wrong room-code attempts
+- Player experience: non-swallowing push-to-talk with mouse buttons is out in v0.1.15; next: remember
+  per-user volume across sessions; rate-limit wrong room-code attempts
   on the server (rooms are now permanent).
 - Later: UDP-blocked fallback (reliable stream), RED if field data shows burst loss, code signing, Phase 3.
 
@@ -342,7 +341,7 @@ items marked **before release** pass.
   input while an elevated game has focus unless CallOut is elevated too. UI: the capture field takes mouse
   buttons; hint/capture texts in 11 languages; README. 10 unit tests (parser, press/release logic).
   fmt/clippy (incl. app)/test/svelte-check/cargo deny clean; checked in the release exe and in a game by
-  Bera; unreleased.
+  Bera; released as v0.1.15 (release notes tell push-to-talk users that the key now also reaches the game).
 - 4 Nov: **v0.1.14 released** (AGC, sensitivity dB readout, settings without scrolling, close-room strip,
   no default push-to-talk key, dropout counters in the log). App only; the server stays on v0.1.12.
 - 4 Nov (AGC): see Next → Phase 2 item 3. `VadDecision` gained `active`; seven unit tests in `agc.rs`
