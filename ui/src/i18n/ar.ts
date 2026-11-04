@@ -24,6 +24,7 @@ export const ar: Messages = {
   "settings.sensitivity": "حساسية اكتشاف الصوت",
   "settings.sensitivityLow": "أقل",
   "settings.sensitivityHigh": "أكثر",
+  "settings.sensitivityReset": "إعادة الضبط",
   "settings.pttKey": "مفتاح الضغط للتحدث",
   "settings.pttCapturing": "اضغط مفتاحًا أو مجموعة مفاتيح… (Esc للإلغاء)",
   "settings.pttUnassigned": "غير معيّن — انقر ثم اضغط مفتاحًا",

@@ -26,6 +26,7 @@ export const en = {
   "settings.sensitivity": "Voice activity sensitivity",
   "settings.sensitivityLow": "Less",
   "settings.sensitivityHigh": "More",
+  "settings.sensitivityReset": "Reset to default",
   "settings.pttKey": "Push-to-talk key",
   "settings.pttCapturing": "Press a key or combination… (Esc to cancel)",
   "settings.pttUnassigned": "Not set — click and press a key",

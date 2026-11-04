@@ -22,7 +22,7 @@ header .right { display: flex; align-items: center; gap: 8px; }
 h2 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 10px; }
 
 .card { background: var(--panel); border-radius: 10px; padding: 14px; }
-label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
+label, .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
 label .lbl { display: inline-flex; align-items: center; gap: 6px; }
 label.row { flex-direction: row; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
 input[type="text"], select {
@@ -74,6 +74,10 @@ li.speaking .ring { background: var(--ok); box-shadow: 0 0 0 3px rgba(61, 220, 1
 button.iconlabel { display: inline-flex; align-items: center; gap: 6px; }
 button.iconbtn { display: flex; align-items: center; justify-content: center; padding: 7px 10px; }
 input.vol { width: 90px; accent-color: var(--accent); }
+.senshead { display: flex; align-items: center; gap: 8px; }
+.sensval { color: var(--text); font-variant-numeric: tabular-nums; }
+button.linkbtn { background: none; border: none; padding: 0; color: var(--accent); font-size: 12px; margin-inline-start: auto; }
+button.linkbtn:hover { text-decoration: underline; }
 .sens { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .sens input { flex: 1; accent-color: var(--accent); }
 

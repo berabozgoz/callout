@@ -24,6 +24,7 @@ export const fr: Messages = {
   "settings.sensitivity": "Sensibilité de la détection de la voix",
   "settings.sensitivityLow": "Moins",
   "settings.sensitivityHigh": "Plus",
+  "settings.sensitivityReset": "Réinitialiser",
   "settings.pttKey": "Touche pour parler",
   "settings.pttCapturing": "Appuyez sur une touche ou une combinaison… (Échap pour annuler)",
   "settings.pttUnassigned": "Non défini — cliquez puis appuyez sur une touche",

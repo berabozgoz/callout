@@ -24,6 +24,7 @@ export const ptBR: Messages = {
   "settings.sensitivity": "Sensibilidade da detecção de voz",
   "settings.sensitivityLow": "Menos",
   "settings.sensitivityHigh": "Mais",
+  "settings.sensitivityReset": "Restaurar padrão",
   "settings.pttKey": "Tecla de pressione para falar",
   "settings.pttCapturing": "Pressione uma tecla ou combinação… (Esc para cancelar)",
   "settings.pttUnassigned": "Não definida — clique e pressione uma tecla",

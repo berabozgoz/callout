@@ -24,6 +24,7 @@ export const zhCN: Messages = {
   "settings.sensitivity": "语音激活灵敏度",
   "settings.sensitivityLow": "低",
   "settings.sensitivityHigh": "高",
+  "settings.sensitivityReset": "恢复默认",
   "settings.pttKey": "按键说话快捷键",
   "settings.pttCapturing": "请按下一个键或组合键…（Esc 取消）",
   "settings.pttUnassigned": "未设置 — 点击后按下一个键",

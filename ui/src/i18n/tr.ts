@@ -24,6 +24,7 @@ export const tr: Messages = {
   "settings.sensitivity": "Ses algılama hassasiyeti",
   "settings.sensitivityLow": "Az",
   "settings.sensitivityHigh": "Çok",
+  "settings.sensitivityReset": "Varsayılana dön",
   "settings.pttKey": "Bas-konuş tuşu",
   "settings.pttCapturing": "Bir tuşa ya da kombinasyona bas… (Esc iptal)",
   "settings.pttUnassigned": "Atanmamış — tıkla ve bir tuşa bas",

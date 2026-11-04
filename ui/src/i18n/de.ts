@@ -24,6 +24,7 @@ export const de: Messages = {
   "settings.sensitivity": "Empfindlichkeit der Sprachaktivierung",
   "settings.sensitivityLow": "Weniger",
   "settings.sensitivityHigh": "Mehr",
+  "settings.sensitivityReset": "Auf Standard zurücksetzen",
   "settings.pttKey": "Push-to-Talk-Taste",
   "settings.pttCapturing": "Drücke eine Taste oder Kombination… (Esc zum Abbrechen)",
   "settings.pttUnassigned": "Nicht festgelegt — klicken und eine Taste drücken",

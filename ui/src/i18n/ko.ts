@@ -24,6 +24,7 @@ export const ko: Messages = {
   "settings.sensitivity": "음성 감지 민감도",
   "settings.sensitivityLow": "낮음",
   "settings.sensitivityHigh": "높음",
+  "settings.sensitivityReset": "기본값으로",
   "settings.pttKey": "눌러서 말하기 키",
   "settings.pttCapturing": "키 또는 키 조합을 누르세요… (Esc로 취소)",
   "settings.pttUnassigned": "설정 안 됨 — 클릭한 뒤 키를 누르세요",

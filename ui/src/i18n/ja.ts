@@ -24,6 +24,7 @@ export const ja: Messages = {
   "settings.sensitivity": "音声検出の感度",
   "settings.sensitivityLow": "低",
   "settings.sensitivityHigh": "高",
+  "settings.sensitivityReset": "既定に戻す",
   "settings.pttKey": "プッシュトゥトークのキー",
   "settings.pttCapturing": "キーまたは組み合わせを押してください…（Esc でキャンセル）",
   "settings.pttUnassigned": "未設定 — クリックしてキーを押してください",

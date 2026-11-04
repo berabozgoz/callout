@@ -24,6 +24,7 @@ export const ru: Messages = {
   "settings.sensitivity": "Чувствительность активации по голосу",
   "settings.sensitivityLow": "Меньше",
   "settings.sensitivityHigh": "Больше",
+  "settings.sensitivityReset": "Сбросить",
   "settings.pttKey": "Клавиша рации",
   "settings.pttCapturing": "Нажмите клавишу или сочетание… (Esc — отмена)",
   "settings.pttUnassigned": "Не назначена — нажмите здесь, затем клавишу",

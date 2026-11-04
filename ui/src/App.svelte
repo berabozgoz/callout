@@ -315,6 +315,12 @@
     else send({ type: "stop_mic_test" });
   }
   const playTestSound = () => send({ type: "play_test_sound" });
+  // Voice activity sensitivity in dB (0 = default); applied live so the threshold line moves.
+  function setSensitivity(db: number) {
+    settings.vad_sensitivity = db;
+    send({ type: "set_vad_sensitivity", db });
+  }
+  const formatDb = (db: number) => (db > 0 ? `+${db} dB` : `${db} dB`);
 </script>
 
 <svelte:window onkeydowncapture={onWindowKey} oncontextmenu={onContextMenu} />
@@ -404,14 +410,23 @@
         {t("settings.pushToTalk")}
       </label>
       {#if !settings.push_to_talk}
-        <label>{t("settings.sensitivity")}
+        <!-- Not a <label>: a click on the caption would otherwise trigger the reset button. -->
+        <div class="field">
+          <span class="senshead">
+            {t("settings.sensitivity")}
+            <span class="sensval">{formatDb(Number(settings.vad_sensitivity))}</span>
+            {#if Number(settings.vad_sensitivity) !== 0}
+              <button type="button" class="linkbtn" onclick={() => setSensitivity(0)}>{t("settings.sensitivityReset")}</button>
+            {/if}
+          </span>
           <div class="sens">
             <span>{t("settings.sensitivityLow")}</span>
             <input type="range" min="-12" max="12" step="1" bind:value={settings.vad_sensitivity}
-              oninput={() => send({ type: "set_vad_sensitivity", db: Number(settings.vad_sensitivity) })} />
+              aria-label={t("settings.sensitivity")}
+              oninput={() => setSensitivity(Number(settings.vad_sensitivity))} />
             <span>{t("settings.sensitivityHigh")}</span>
           </div>
-        </label>
+        </div>
       {/if}
       {#if settings.push_to_talk}
         <label>{t("settings.pttKey")}
