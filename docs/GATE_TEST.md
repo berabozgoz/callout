@@ -55,6 +55,67 @@ Phase 2 order. The server address and invite link are in `CLAUDE.local.md`; they
   buffer loss, `sent`/`received` = packets in the last 2 s), plus the `closing connection` reason.
 - Append the results to the bottom of this document as date + summary; update the Phase 2 order (STATUS.md "Next") based on the data.
 
+## Field test plan: Counter-Strike 2 with two players (v0.1.16)
+
+Goal: close several open items from STATUS.md "Pending manual tests" under real game load: AGC (a)(b),
+log upload on the real server, mic test privacy in a room, push-to-talk in a game with the app in the
+tray, long outage, plus field data for adaptive jitter, FEC and the `audio dropouts` counters.
+
+### Before (Bera)
+
+- [ ] Both players on v0.1.16 (footer); anything older than v0.1.12 needs one manual install.
+- [ ] Server on v0.1.16; keep the log open:
+      `journalctl -u callout -f | grep -E "joined|left|closed|connection stats|log upload"`.
+- [ ] Create a room and send the code (also exercises persistent rooms / the recent list on the real server).
+- [ ] Note the local time of every event; the server logs in UTC (Turkey = UTC+3).
+
+### Other player
+
+- Wired mic + headphones (no speakers: no echo cancellation; AirPods/Bluetooth gave ~136 ms buffer before).
+- Ethernet if possible; on Wi-Fi the session doubles as the adaptive jitter field check.
+- Run the mic test once; keep AGC and noise suppression on (defaults).
+
+### CS2 settings
+
+- Turn off or mute each other in CS2's own voice chat so nobody is heard twice. If team voice stays on,
+  CallOut's push-to-talk key must differ from CS2's voice key (default K).
+- Push-to-talk: Mouse 4/5 (unbound in CS2 by default). The key is not swallowed, so a key CS2 uses also
+  triggers its in-game action.
+- Neither CS2 nor CallOut runs as administrator.
+- Balance game vs. voice in the Windows volume mixer and with the per-user volume in the room.
+- Try fullscreen in one match and borderless/windowed in the other.
+
+### Schedule (~60–75 min)
+
+| When | What | Watch for |
+|----|----|-----------|
+| Lobby, 5 min | Join the room; one player runs the mic test while in the room | The other must **not** hear the recording |
+| Lobby | Talk normally; ideally one loud and one quiet speaker | Levels even without raising volume (AGC a/b) |
+| Match 1 (Wingman ~25 min, same team) | Voice activation, CallOut in the background | Crackling/robotic audio, callouts on time, clipped word starts |
+| Match 2 | Push-to-talk on Mouse 4/5, app in the tray | Transmission stops on release, the button still works in game |
+| Optional | Alt-tab, quit and restart the game | Audio keeps going |
+| **After the matches** | One player pulls the cable for ~1 min | Back in the same room within ~15 s of the cable returning (long outage) |
+| End | Both press **"Send log"** | Logs arrive in `/var/lib/callout/logs/` (log upload on the real server) |
+
+Do not pull the cable during a competitive match: CS2 drops too and hands out a penalty. Use the time
+after the match or a Deathmatch/practice server.
+
+### Form
+
+- Network (cable / Wi-Fi), mic and headphone model.
+- Perceived latency (1–5); any moment where a callout arrived late?
+- Crackling/dropouts/robotic audio: when, and what was happening in game (fight, smoke…)?
+- Level: was the other player too quiet/loud, drowned by game audio?
+- Did push-to-talk work in game?
+
+### Afterwards
+
+- Client logs (uploaded): `stats` `rtt_ms` + `jitter_ms` (target < 150 ms); `sender jitter` `lost` vs `fec`
+  (large `lost − fec` = burst loss → RED); `agc gain_db` (+5…+12 for a quiet mic); `audio dropouts`
+  (capture/playback gaps under CS2 load).
+- Server: `connection stats` `dgram_rx` for the push-to-talk user rises only while the button is held.
+- Append the results below and tick the matching items in STATUS.md "Pending manual tests".
+
 ## Results
 
 ### 28 Oct 2026 — two-person pre-test (v0.1.3, Bera + mamitest, both on ethernet desktops)
@@ -189,3 +250,53 @@ output + dynamic mic). Logs: server, bera, batayta, at (none from cocart).
     quickly but shrinks only after 30 s with no late packets (6 quiet 5 s windows), so with ~5 late/min it
     rarely comes back down. Phase 2 adaptive jitter should target a late-packet *rate* (e.g. ≤1–2%) and allow
     occasional late packets/PLC instead of growing the buffer on every burst.
+
+### 4 Nov 2026 — Counter-Strike 2, two players (v0.1.16: Bera + kuzen, both wired, different networks)
+
+Source: server journal + both client logs sent with "Send log" (the first real use of log upload).
+Times UTC.
+
+- **Timeline:** 17:32 Bera creates KBMSH3FF; 17:36 kuzen joins; 17:38–17:59 both muted + deafened most of
+  the time; 17:54:20 kuzen drops; 18:00–18:56 both talking during the matches (~56 min); 18:56 both send
+  logs and leave. Bera's close was clean (`ApplicationClosed "bye"`).
+- **Involuntary drop + automatic reconnect in the field ✓:** at 17:54:10 kuzen's packets stopped reaching
+  the server (`dgram_rx` flat), both sides hit the 10 s idle timeout (client `connection lost: timed out`,
+  server `TimedOut`). The client's first attempt timed out, the second connected at 17:54:29 and rejoined
+  KBMSH3FF with mute/deafen restored, 8 s after the drop. RTT rose 56 → 80 ms in the minute before (same
+  pattern as the 30 Oct drop): a short outage on kuzen's line.
+- **"My voice did not reach him at first":** not the network. kuzen's client received Bera's audio from
+  17:36 (`received` > 0, losses covered by FEC). His output device was switched at 17:36:40 (48 → 44.1 kHz)
+  and switched back and forth four times at 18:00:13–18:00:50 before settling on a 48 kHz device; from then
+  on it worked. Most likely the wrong output device until 18:00.
+- **Loss at the start:** server → kuzen QUIC loss ~10% in kuzen's first 2 min (202 packets, cwnd at its
+  minimum) while a YouTube video was playing on his side; during the matches only 10 packets in ~56 min.
+- **Latency during the matches (18:00–18:56):**
+  - kuzen listening to Bera: RTT avg 39 ms, jitter buffer avg 42 ms (40 ms 92% of the time, max 80) →
+    **~81 ms**. Lost 11 frames from Bera, 2 via FEC.
+  - Bera listening to kuzen: RTT avg 36 ms, jitter buffer **avg 108 ms**, p95 240 ms (40 ms only 12% of the
+    time) → **~144 ms**, peaks ~276 ms. Per-sender: late 238, lost 385, FEC 296 → 89 frames concealed by PLC
+    only. The server received ~67.6k datagrams from kuzen, so loss ≈ 0.6% (0.13% after FEC).
+  - The target jumped to 240 ms at 18:05 together with an audio stall on kuzen's PC (`in_overrun=27936
+    out_underrun=57216`, ~0.3 s capture / ~0.6 s playback), and sat at 140–240 ms during 18:09–18:21.
+- **Asymmetry again (kuzen → Bera irregular, Bera → kuzen clean).** On 31 Oct the same pair without
+  this load gave avg 53 ms in Bera's direction. Server → Bera loss was 0 and Bera's buffer for other
+  senders has been low before, so the irregularity comes from kuzen's side: his uplink or his PC
+  scheduling the audio thread late under CS2 load (the 18:05 overrun shows that it happens at least once).
+  The logs cannot separate the two yet.
+- **AGC:** before both turned it off (18:01:54 Bera, 18:01:57 kuzen) Bera's gain moved +5.7…+11 dB with
+  peaks up to −5 dBFS and `limited_frames=0`; kuzen's sat at +12 dB (quiet mic, peaks −14…−30 dBFS, VAD floor
+  −89/−100 dB: a mic with its own gate). The matches ran with AGC off.
+  **Players: both sounded better without AGC; with it on, kuzen found Bera far too loud.** Bera's mic
+  this time already peaked around −15 dBFS without gain, and AGC still added up to +11 dB, pushing
+  peaks to −5 dBFS. So the AGC boosts a mic that needs no help: target (−23 dBFS RMS) too hot and/or
+  no dead band for levels that are already fine.
+- **Not checked:** push-to-talk was not tried; the mic test was run in the room but nobody checked
+  whether the other side heard it; no cable pull.
+- **Dropout counters:** Bera only small `out_underrun` (480–3840 samples, a few times); kuzen one large
+  stall (above) plus small underruns after pipeline restarts.
+- **Against the criteria:** RTT + buffer < 150 ms ✓ on average in both directions (~81 / ~144 ms), but
+  Bera's direction has peaks well above; drops: 1, recovered automatically in 8 s; crackling: no reports.
+- **Takeaways:** (0) AGC as tuned in v0.1.14 makes normal mics too loud → retune or turn off by default; (1) add capture-timing stats on the sender (largest gap between capture callbacks, frames
+  sent late) so sender-side stalls can be told apart from uplink jitter; (2) FEC covers ~77% of the loss
+  from kuzen, burst loss is ~0.13% → RED not needed on this data; (3) an output-device mix-up looks like
+  "nobody hears me": the "Play test sound" button in settings is the check to suggest.

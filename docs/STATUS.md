@@ -51,6 +51,12 @@ items marked **before release** pass.
 - [x] **Bluetooth mic warning** (since 53e73f4): pick an AirPods/Bluetooth headset mic. Expected: the 16 kHz
       warning in settings and in the room.
       ✓ 4 Nov (Bera, AirPods): the warning shows in settings and in the room.
+- [ ] **AGC off after the update** (next release): on a PC that had v0.1.14–v0.1.16 with AGC on, after the
+      update Settings shows it off; turn it on, Save, restart → stays on. A normal headset mic with AGC on:
+      the log's `agc gain_db` stays near 0.
+- [ ] **CS2 test leftovers** (4 Nov, see `GATE_TEST.md`): push-to-talk in CS2 not tried; the mic test was run
+      in the room but nobody checked whether the other side heard it; the 1 min cable pull was not done.
+      AGC: both players turned it off because it sounded better without; kuzen found Bera too loud with it.
 - [ ] **Adaptive jitter in the field** (since v0.1.10): a Wi-Fi player (cocart) on v0.1.10+ plays a session.
       Expected: `stats` jitter_ms around 80–100 ms instead of ~140 (v0.1.6), late/lost up slightly (~1.5%).
 - [ ] **FEC field data** (since v0.1.7): any session with loss; compare `lost` and `fec` in the `sender jitter`
@@ -80,7 +86,7 @@ items marked **before release** pass.
       ✓ 3 Nov on a local server: closed for everyone, rooms.tsv emptied. With the old v0.1.9 server the button disappears after a reconnect (old server keeps the creator's first session id) — expected until the server update.
 - [ ] **Installer language becomes the app language** (next release): install picking Türkçe on an English
       Windows → the app and the tray open in Turkish; change the language in Settings, reopen → the change is kept.
-- [ ] **AGC** (since the next release): (a) Bera's webcam mic: the others hear him at a comfortable level without
+- [ ] **AGC** (retuned, off by default since the next release; turn it on in Settings to test): (a) Bera's webcam mic: the others hear him at a comfortable level without
       raising the volume; (b) a loud player and a quiet one in the same room sound level; (c) with AGC on, fan or
       keyboard noise between words is not louder than before; (d) a mic with Windows' own AGC on does not make
       the level wobble; (e) the log shows `agc gain_db` lines (expect +5…+12 for a quiet mic; ✓ 4 Nov: +12 on
@@ -113,14 +119,26 @@ items marked **before release** pass.
       ✓ 4 Nov (Bera, release exe): (a) against the Oracle v0.1.12 server; (b)(c) against a local server
       (restarted to force a reconnect); (d) checked on the two stored logs: the name only in the header's
       nickname line, one path masked as `C:\\Users\\<user>\\…`.
-- [ ] **Log upload on the real server** (after the next release + server update): a friend sends a log; it shows
+- [x] **Log upload on the real server** (after the next release + server update): a friend sends a log; it shows
       up in `/var/lib/callout/logs/` (SSH) under their nickname.
+      ✓ 4 Nov (CS2 test): kuzen sent two logs, Bera one; all stored under their nicknames.
+- [ ] **Push-to-talk in Apex Legends, app in the tray** (v0.1.16, alone on the Oracle server): hold/release
+      pattern in the Firing Range while speaking; the server's `connection stats` `dgram_rx` for that user
+      rises only during the holds (~50/s), nothing sticks after release, the key still does its in-game action.
 
 ## Next
 
 **Start here next session** (pick with the owner):
 - **Log upload** is out in v0.1.16 (server updated): ask friends to press "Send log" after a session and read
   the logs over SSH in `/var/lib/callout/logs/`. That is the way to get the field data below.
+- **AGC retuned and off by default (unreleased):** after the CS2 test (too loud, both players preferred it
+  off) the AGC leaves a mic alone when its speech level is inside a comfort band (−30…−20 dBFS RMS) and only
+  raises a quiet one to −30 / lowers a loud one to −20; it ships **off** by default, and settings files from
+  v0.1.14–v0.1.16 get it switched off once (`agc_default_off_seen`). Release it, then try it on a quiet mic
+  (Bera's webcam) by turning it on in Settings.
+- **Sender-side timing stats** (from the CS2 test): log the largest gap between capture callbacks and the
+  number of frames encoded late, atomics only in the callback (rule 1), so a stalled audio thread on a
+  loaded gaming PC can be told apart from uplink jitter (kuzen → Bera avg 108 ms buffer under CS2).
 - Field data from friends on v0.1.16: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
   FEC (`lost` vs `fec` in `sender jitter`), persistent rooms / close room on the real server.
 - **AGC** is released in v0.1.14 (checked on Bera's webcam mic). Field: a loud and a quiet player in one room
@@ -241,6 +259,21 @@ items marked **before release** pass.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 
 ## Last session
+
+- 4 Nov (CS2 field test, Bera + kuzen, v0.1.16, results in `GATE_TEST.md`): log upload works on the real
+  server; a 10 s outage on kuzen's line was recovered by the automatic reconnect in 8 s (room and mute kept);
+  Bera's app close reached the server as `bye`. kuzen → Bera was irregular under CS2 (Bera's buffer avg
+  108 ms, p95 240; the other way avg 42 ms); sender side (uplink or audio thread under load) cannot be told
+  apart yet → next: capture-timing stats on the sender. FEC covered ~77% of the loss; RED not needed.
+  Both players turned AGC off (better without; Bera too loud with it).
+- 4 Nov (AGC retune, from the CS2 test): `agc.rs` swaps the −23 dBFS target for a comfort band
+  (`BAND_LOW_DB` −30, `BAND_HIGH_DB` −20): no gain inside it, a quieter mic is raised only to −30, a louder
+  one lowered to −20 (peak cap, limiter and ramps unchanged). New tests: a mic in the band stays at unity
+  (−29/−26/−21 dBFS), a boosted quiet mic returns to unity when it gets louder; the old tests moved to a
+  −40 dBFS "quiet" level. AGC is now **off by default** (`Settings`, `EngineConfig`, UI default, talk
+  example); `turn_off_old_agc_default` switches it off once for older settings files, a later choice is
+  kept; `save_settings` keeps the internal flags (`installer_language_seen`, `agc_default_off_seen`) from
+  the stored copy. fmt/clippy (incl. app)/test/svelte-check clean; not tried in the app, not released.
 
 - 31 Oct–1 Nov: v0.1.5 and v0.1.6 released (key capture, F5 state, version from tag, audio device
   recovery, per-sender jitter log, QUIC disconnect reason); server updated to v0.1.6.
