@@ -32,8 +32,11 @@ pub struct Settings {
     pub noise_suppression: bool,
     /// Voice activity sensitivity in dB (0 = default, positive = picks up quieter speech).
     pub vad_sensitivity: f32,
-    /// Automatic gain control on the microphone; on if missing from older settings files.
+    /// Automatic gain control on the microphone; off by default (see `agc_default_off_seen`).
     pub agc: bool,
+    /// The one-time switch-off of the old AGC default has been applied (see
+    /// `turn_off_old_agc_default`).
+    pub agc_default_off_seen: bool,
     /// UI language code (`en`, `tr`, …); `None` follows the system language.
     pub language: Option<String>,
     /// Rooms joined lately (newest first), for one-click rejoin. Rooms are persistent on the server.
@@ -60,7 +63,9 @@ impl Default for Settings {
             ptt_shortcut: String::new(),
             noise_suppression: true,
             vad_sensitivity: 0.0,
-            agc: true,
+            agc: false,
+            // `false` so that older files (which lack the field) get the one-time switch-off.
+            agc_default_off_seen: false,
             language: None,
             recent_rooms: Vec::new(),
             installer_language_seen: None,
@@ -174,6 +179,18 @@ fn forget_old_default_ptt_key(s: &mut Settings) -> bool {
     false
 }
 
+/// v0.1.14–v0.1.16 had AGC on by default with a tuning that made normal mics too loud (CS2 field
+/// test, 4 Nov 2026). Turn it off once for settings files from those versions; a player who
+/// switches it on again afterwards keeps it. Returns whether anything changed.
+fn turn_off_old_agc_default(s: &mut Settings) -> bool {
+    if s.agc_default_off_seen {
+        return false;
+    }
+    s.agc = false;
+    s.agc_default_off_seen = true;
+    true
+}
+
 /// The default window height fits the settings page without scrolling; on a short screen
 /// (e.g. 1366×768) shrink it to the work area instead of letting it run under the taskbar.
 fn fit_window_to_screen(w: &tauri::WebviewWindow) -> tauri::Result<()> {
@@ -226,8 +243,16 @@ fn get_settings(state: State<AppState>) -> Settings {
 }
 
 #[tauri::command]
-fn save_settings(app: AppHandle, state: State<AppState>, settings: Settings) -> Result<(), String> {
+fn save_settings(
+    app: AppHandle,
+    state: State<AppState>,
+    mut settings: Settings,
+) -> Result<(), String> {
     let old = state.settings.lock().unwrap().clone();
+    // Internal flags are the app's, not the UI's: keep them even if the UI sent an object
+    // without them (they would deserialize to their defaults and redo the one-time changes).
+    settings.installer_language_seen = old.installer_language_seen;
+    settings.agc_default_off_seen = old.agc_default_off_seen;
     *state.settings.lock().unwrap() = settings.clone();
     state.save_settings()?;
     let applied = state.applied.lock().unwrap().clone();
@@ -630,6 +655,7 @@ pub fn run() {
                 .unwrap_or_else(|_| PathBuf::from("callout-data"));
             let mut settings = load_settings(&data_dir);
             let mut save_now = forget_old_default_ptt_key(&mut settings);
+            save_now |= turn_off_old_agc_default(&mut settings);
             if let Some(w) = app.get_webview_window("main") {
                 if let Err(e) = fit_window_to_screen(&w) {
                     tracing::warn!("window size: {e}");
@@ -779,7 +805,31 @@ fn _assert_event_serializable(e: &Event) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{forget_old_default_ptt_key, scrub_log, tail_lines, Settings};
+    use super::{
+        forget_old_default_ptt_key, scrub_log, tail_lines, turn_off_old_agc_default, Settings,
+    };
+
+    #[test]
+    fn old_agc_default_is_turned_off_once() {
+        // A settings file from v0.1.14–v0.1.16: `agc: true`, no `agc_default_off_seen`.
+        let mut s: Settings = serde_json::from_str(r#"{"nickname":"bera","agc":true}"#).unwrap();
+        assert!(turn_off_old_agc_default(&mut s));
+        assert!(!s.agc && s.agc_default_off_seen);
+        // Switched on again by the player later: kept.
+        s.agc = true;
+        assert!(!turn_off_old_agc_default(&mut s));
+        assert!(s.agc);
+        // A fresh install starts with it off; the flag is set on first start.
+        let mut s = Settings::default();
+        assert!(!s.agc);
+        turn_off_old_agc_default(&mut s);
+        assert!(!s.agc && s.agc_default_off_seen);
+        // A file saved after the switch-off keeps the player's choice.
+        let mut s: Settings =
+            serde_json::from_str(r#"{"agc":true,"agc_default_off_seen":true}"#).unwrap();
+        assert!(!turn_off_old_agc_default(&mut s));
+        assert!(s.agc);
+    }
 
     #[test]
     fn user_names_and_fingerprints_are_masked() {

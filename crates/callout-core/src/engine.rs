@@ -84,7 +84,7 @@ impl Default for EngineConfig {
             push_to_talk: false,
             noise_suppression: true,
             vad_sensitivity_db: 0.0,
-            agc: true,
+            agc: false,
             no_audio: false,
         }
     }

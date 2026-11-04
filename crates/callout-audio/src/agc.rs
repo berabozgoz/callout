@@ -8,8 +8,11 @@
 //!
 //! The gain is kept in dB and only moves on frames that carry speech (`active`), so noise
 //! between words is never pumped up:
-//! - **level**: the speech RMS is smoothed (fast up, slow down) and the gain aims at
-//!   `TARGET_DB - level`;
+//! - **level**: the speech RMS is smoothed (fast up, slow down). A level inside the comfort band
+//!   (`BAND_LOW_DB`…`BAND_HIGH_DB`) is left alone (unity gain); a quieter one is raised to the
+//!   band's lower edge, a louder one brought down to its upper edge. A mic that is already fine
+//!   is not touched: the first version aimed every mic at −23 dBFS and made normal mics too loud
+//!   (CS2 field test, 4 Nov 2026);
 //! - **peaks**: the speech *peak* is tracked too (instant up, slow down) and the gain never
 //!   rises above what keeps those peaks `PEAK_CEIL_DB` below full scale. Speech has a high crest
 //!   factor, so a gain that only follows the RMS would push every loud syllable into the limiter;
@@ -20,8 +23,11 @@
 //! Gain changes ramp over `RAMP_SAMPLES` (2 ms): fast enough for the limiter, smooth enough to
 //! avoid clicks.
 
-/// Speech RMS the level loop aims for (dBFS). Leaves room for the crest factor of speech.
-pub const TARGET_DB: f32 = -23.0;
+/// Comfort band for the smoothed speech RMS (dBFS): no gain inside it. A normal headset mic
+/// speaks around −30…−24; a webcam or laptop mic sits well below the lower edge. The upper
+/// edge leaves room for the crest factor of speech.
+pub const BAND_LOW_DB: f32 = -30.0;
+pub const BAND_HIGH_DB: f32 = -20.0;
 pub const MIN_GAIN_DB: f32 = -10.0;
 /// Highest gain with noise suppression on; without it the room noise between words would be
 /// amplified too, so the caller lowers the ceiling (see `set_max_gain_db`). A very quiet mic
@@ -192,7 +198,14 @@ impl Agc {
                 };
                 self.peak_db = Some(tracked);
 
-                let desired = (TARGET_DB - level)
+                let to_band = if level < BAND_LOW_DB {
+                    BAND_LOW_DB - level
+                } else if level > BAND_HIGH_DB {
+                    BAND_HIGH_DB - level
+                } else {
+                    0.0
+                };
+                let desired = to_band
                     .min(PEAK_CEIL_DB - tracked)
                     .clamp(MIN_GAIN_DB, self.max_gain_db);
                 let alpha = if desired < self.gain_db {
@@ -261,23 +274,63 @@ mod tests {
         f.iter().fold(0f32, |m, s| m.max(s.abs()))
     }
 
+    /// A quiet (webcam-like) speaker: speech RMS ≈ −40 dBFS.
+    const QUIET_DB: f32 = -40.0;
+
     #[test]
-    fn brings_quiet_speech_up_to_target() {
+    fn brings_quiet_speech_up_to_the_band() {
         let mut agc = Agc::new();
         let mut ph = 0.0;
         let mut last = Vec::new();
         for _ in 0..150 {
-            last = tone(-32.0, &mut ph);
+            last = tone(QUIET_DB, &mut ph);
             agc.process(&mut last, true);
         }
         let out = rms_db(&last);
-        assert!((out - TARGET_DB).abs() < 2.0, "{out:.1} dBFS");
-        let want = TARGET_DB + 32.0;
+        assert!((out - BAND_LOW_DB).abs() < 2.0, "{out:.1} dBFS");
+        let want = BAND_LOW_DB - QUIET_DB;
         assert!(
             (agc.gain_db() - want).abs() < 2.0,
             "{:.1} dB",
             agc.gain_db()
         );
+    }
+
+    #[test]
+    fn a_mic_already_in_the_band_is_left_alone() {
+        // A normal headset mic (the CS2 field test: the old AGC added up to +11 dB here).
+        for level in [-29.0, -26.0, -21.0] {
+            let mut agc = Agc::new();
+            let mut ph = 0.0;
+            let mut last = Vec::new();
+            for _ in 0..300 {
+                last = tone(level, &mut ph);
+                agc.process(&mut last, true);
+            }
+            assert!(
+                agc.gain_db().abs() < 0.5,
+                "{level}: {:.1} dB",
+                agc.gain_db()
+            );
+            assert!((rms_db(&last) - level).abs() < 0.5, "{level}");
+        }
+    }
+
+    #[test]
+    fn a_quiet_mic_that_gets_louder_goes_back_to_unity() {
+        let mut agc = Agc::new();
+        let mut ph = 0.0;
+        for _ in 0..150 {
+            let mut f = tone(QUIET_DB, &mut ph);
+            agc.process(&mut f, true);
+        }
+        assert!(agc.gain_db() > 8.0);
+        // The player moves the mic closer: now inside the band, so the boost goes away.
+        for _ in 0..300 {
+            let mut f = tone(-25.0, &mut ph);
+            agc.process(&mut f, true);
+        }
+        assert!(agc.gain_db().abs() < 0.5, "{:.1} dB", agc.gain_db());
     }
 
     #[test]
@@ -303,7 +356,7 @@ mod tests {
         let mut agc = Agc::new();
         let mut ph = 0.0;
         for _ in 0..150 {
-            let mut f = tone(-32.0, &mut ph);
+            let mut f = tone(QUIET_DB, &mut ph);
             agc.process(&mut f, true);
         }
         let before = agc.gain_db();
@@ -324,11 +377,11 @@ mod tests {
         let mut agc = Agc::new();
         let mut ph = 0.0;
         for _ in 0..150 {
-            let mut f = tone(-32.0, &mut ph);
+            let mut f = tone(QUIET_DB, &mut ph);
             agc.process(&mut f, true);
         }
         assert!(agc.gain_db() > 7.0);
-        // From a murmur to −10 dBFS RMS with +9 dB gain would be far over full scale.
+        // From a murmur to −10 dBFS RMS with +10 dB gain would be far over full scale.
         for i in 0..20 {
             let mut f = tone(-10.0, &mut ph);
             agc.process(&mut f, true);
@@ -367,14 +420,14 @@ mod tests {
 
     #[test]
     fn peaky_speech_gets_less_gain_instead_of_hitting_the_limiter() {
-        // A quiet tone (−35 dBFS RMS) with a sharp peak at −6 dBFS in every fifth frame, like the
-        // plosives and loud vowels of real speech. The RMS alone would ask for +12 dB, which would
-        // put those peaks 6 dB over full scale.
+        // A quiet tone (−40 dBFS RMS) with a sharp peak at −6 dBFS in every fifth frame, like the
+        // plosives and loud vowels of real speech. The RMS alone would ask for +10 dB, which would
+        // put those peaks 4 dB over full scale.
         let mut agc = Agc::new();
         let mut ph = 0.0;
         let mut run = |agc: &mut Agc, frames: usize| {
             for i in 0..frames {
-                let mut f = tone(-35.0, &mut ph);
+                let mut f = tone(QUIET_DB, &mut ph);
                 if i % 5 == 0 {
                     f[480] = 0.5;
                 }
@@ -395,23 +448,23 @@ mod tests {
         let mut agc = Agc::new();
         let mut ph = 0.0;
         for _ in 0..300 {
-            let mut f = tone(-32.0, &mut ph);
+            let mut f = tone(QUIET_DB, &mut ph);
             agc.process(&mut f, true);
         }
         let before = agc.gain_db();
-        let mut pop = tone(-32.0, &mut ph);
+        let mut pop = tone(QUIET_DB, &mut ph);
         pop[100] = 1.0;
         agc.process(&mut pop, true);
         assert!(peak(&pop) <= 1.0);
         // The limiter's own reduction is gone within half a second...
         for _ in 0..25 {
-            let mut f = tone(-32.0, &mut ph);
+            let mut f = tone(QUIET_DB, &mut ph);
             agc.process(&mut f, true);
         }
         assert!(agc.limit_db > -0.1, "{:.2} dB", agc.limit_db);
         // ...and the loop's gain comes back too, instead of staying down.
         for _ in 0..400 {
-            let mut f = tone(-32.0, &mut ph);
+            let mut f = tone(QUIET_DB, &mut ph);
             agc.process(&mut f, true);
         }
         assert!(
@@ -426,13 +479,13 @@ mod tests {
         let mut agc = Agc::new();
         let mut ph = 0.0;
         for _ in 0..100 {
-            let mut f = tone(-32.0, &mut ph);
+            let mut f = tone(QUIET_DB, &mut ph);
             agc.process(&mut f, true);
         }
         assert!(agc.gain_db() > 5.0);
         agc.reset();
         assert_eq!(agc.gain_db(), 0.0);
-        let mut f = tone(-32.0, &mut ph);
+        let mut f = tone(QUIET_DB, &mut ph);
         let before = f.clone();
         agc.process(&mut f, false);
         assert_eq!(f, before, "unity gain leaves the frame untouched");
