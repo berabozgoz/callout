@@ -20,6 +20,7 @@ export const de: Messages = {
   "settings.speaker": "Audioausgabe",
   "settings.default": "Standard",
   "settings.noiseSuppression": "Rauschunterdrückung (Lüfter, Brummen, Raumgeräusche)",
+  "settings.agc": "Automatische Lautstärke (gleicht leises und lautes Sprechen aus)",
   "settings.pushToTalk": "Push-to-Talk (sonst Sprachaktivierung)",
   "settings.sensitivity": "Empfindlichkeit der Sprachaktivierung",
   "settings.sensitivityLow": "Weniger",

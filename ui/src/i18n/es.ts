@@ -20,6 +20,7 @@ export const es: Messages = {
   "settings.speaker": "Salida de audio",
   "settings.default": "Predeterminado",
   "settings.noiseSuppression": "Supresión de ruido (ventiladores, zumbidos, ruido ambiente)",
+  "settings.agc": "Volumen automático (equilibra la voz baja y la alta)",
   "settings.pushToTalk": "Pulsar para hablar (si no, detección de voz)",
   "settings.sensitivity": "Sensibilidad de detección de voz",
   "settings.sensitivityLow": "Menos",

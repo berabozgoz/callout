@@ -12,6 +12,7 @@
 
 use crate::{Command, ConnectionState, ErrorKind, Event, MicTestState};
 use bytes::Bytes;
+use callout_audio::agc::{self, Agc};
 use callout_audio::codec::{Decoder, Encoder, EncoderConfig, FRAME};
 use callout_audio::denoise::Denoiser;
 use callout_audio::framer::Framer;
@@ -46,6 +47,16 @@ const MIC_TEST_FRAMES: usize = 250;
 const VAD_HANGOVER_MS: u32 = 400;
 const VAD_PREROLL_MS: u32 = 60;
 const PREROLL_FRAMES: usize = (VAD_PREROLL_MS / 20) as usize;
+/// Without noise suppression the room noise between words would be raised along with the voice.
+const AGC_MAX_GAIN_NO_NS_DB: f32 = 6.0;
+
+fn agc_max_gain_db(noise_suppression: bool) -> f32 {
+    if noise_suppression {
+        agc::MAX_GAIN_DB
+    } else {
+        AGC_MAX_GAIN_NO_NS_DB
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
@@ -58,6 +69,8 @@ pub struct EngineConfig {
     pub noise_suppression: bool,
     /// Voice activity sensitivity in dB (see `Command::SetVadSensitivity`).
     pub vad_sensitivity_db: f32,
+    /// Automatic gain control on the microphone signal (see `Command::SetAgc`).
+    pub agc: bool,
     /// Never set up the audio pipeline (for test environments without audio devices).
     pub no_audio: bool,
 }
@@ -71,6 +84,7 @@ impl Default for EngineConfig {
             push_to_talk: false,
             noise_suppression: true,
             vad_sensitivity_db: 0.0,
+            agc: true,
             no_audio: false,
         }
     }
@@ -122,6 +136,7 @@ struct AudioControl {
     noise_suppression: AtomicBool,
     /// `f32::to_bits` of the VAD sensitivity in dB.
     vad_sensitivity: AtomicU32,
+    agc: AtomicBool,
     /// Set by the cpal stream error callback (device unplugged/lost); the engine rebuilds the audio pipeline.
     stream_error: AtomicBool,
     /// Audio is sent only while in a room (outside a room the server drops it anyway; keep it off the network).
@@ -139,10 +154,11 @@ struct AudioControl {
 }
 
 impl AudioControl {
-    fn new(ptt: bool, noise_suppression: bool, vad_sensitivity_db: f32) -> Arc<Self> {
+    fn new(ptt: bool, noise_suppression: bool, vad_sensitivity_db: f32, agc: bool) -> Arc<Self> {
         Arc::new(Self {
             noise_suppression: AtomicBool::new(noise_suppression),
             vad_sensitivity: AtomicU32::new(vad_sensitivity_db.to_bits()),
+            agc: AtomicBool::new(agc),
             stop: AtomicBool::new(false),
             muted: AtomicBool::new(false),
             deafened: AtomicBool::new(false),
@@ -352,6 +368,11 @@ fn audio_thread(
     let mut sensitivity_bits = ctl.vad_sensitivity.load(Ordering::Relaxed);
     vad.set_sensitivity_db(f32::from_bits(sensitivity_bits));
     let mut ns_active = ctl.noise_suppression.load(Ordering::Relaxed);
+    let mut agc = Agc::new();
+    agc.set_max_gain_db(agc_max_gain_db(ns_active));
+    let mut agc_active = ctl.agc.load(Ordering::Relaxed);
+    let mut agc_log = Instant::now();
+    let mut agc_spoke = false;
     // Pre-roll buffer: the latest frames (including the current one). When speech starts, the earlier ones are sent too.
     let mut history: VecDeque<[f32; FRAME]> = VecDeque::with_capacity(PREROLL_FRAMES + 1);
     // Speech started but no packet has gone out yet (the first frames may be DTX): TALK_START is pending.
@@ -435,7 +456,15 @@ fn audio_thread(
                     ns_active = ns;
                     calib.clear();
                     denoiser = Denoiser::new();
+                    agc.set_max_gain_db(agc_max_gain_db(ns));
                     tracing::info!(enabled = ns, "noise suppression");
+                }
+                let agc_on = ctl.agc.load(Ordering::Relaxed);
+                if agc_on != agc_active {
+                    agc_active = agc_on;
+                    // Start from unity gain when switched on again, not from a stale level.
+                    agc.reset();
+                    tracing::info!(enabled = agc_on, "agc");
                 }
                 let bits = ctl.vad_sensitivity.load(Ordering::Relaxed);
                 if bits != sensitivity_bits {
@@ -463,6 +492,19 @@ fn audio_thread(
                 }
 
                 let d = vad.process_with_prob(&frame, speech_prob);
+                // After the VAD (and the meter above), so their thresholds do not follow the gain;
+                // before the history, so pre-roll frames and the mic test carry it too.
+                if agc_active {
+                    agc.process(&mut frame, d.active);
+                    agc_spoke |= d.active;
+                    if agc_log.elapsed() >= Duration::from_secs(30) {
+                        if agc_spoke {
+                            tracing::info!(gain_db = agc.gain_db(), "agc");
+                        }
+                        agc_log = Instant::now();
+                        agc_spoke = false;
+                    }
+                }
                 let ptt = ctl.ptt_mode.load(Ordering::Relaxed);
                 if history.len() > PREROLL_FRAMES {
                     history.pop_front();
@@ -798,6 +840,7 @@ async fn run(
         cfg.push_to_talk,
         cfg.noise_suppression,
         cfg.vad_sensitivity_db,
+        cfg.agc,
     );
     // The UI asks for a preview while on the settings screen; it persists after a disconnect too.
     let mut preview_wanted = false;
@@ -887,6 +930,7 @@ async fn run(
                 Some(Command::SetVadSensitivity { db }) => {
                     ctl.vad_sensitivity.store(db.to_bits(), Ordering::Relaxed)
                 }
+                Some(Command::SetAgc { enabled }) => ctl.agc.store(enabled, Ordering::Relaxed),
                 Some(Command::SetDeafened { deafened }) => {
                     ctl.deafened.store(deafened, Ordering::Relaxed)
                 }
@@ -1102,6 +1146,7 @@ async fn run(
                         Command::PlayTestSound => { ctl.test_sound.store(true, Ordering::Relaxed); Ok(()) }
                         Command::SetNoiseSuppression { enabled } => { ctl.noise_suppression.store(enabled, Ordering::Relaxed); Ok(()) }
                         Command::SetVadSensitivity { db } => { ctl.vad_sensitivity.store(db.to_bits(), Ordering::Relaxed); Ok(()) }
+                        Command::SetAgc { enabled } => { ctl.agc.store(enabled, Ordering::Relaxed); Ok(()) }
                     };
                     if let Err((kind, message)) = r {
                         emit(Event::Error { kind, message });

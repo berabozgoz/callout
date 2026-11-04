@@ -20,6 +20,7 @@ export const ru: Messages = {
   "settings.speaker": "Вывод звука",
   "settings.default": "По умолчанию",
   "settings.noiseSuppression": "Шумоподавление (вентиляторы, гул, шум комнаты)",
+  "settings.agc": "Автоматическая громкость (выравнивает тихую и громкую речь)",
   "settings.pushToTalk": "Режим рации (иначе активация по голосу)",
   "settings.sensitivity": "Чувствительность активации по голосу",
   "settings.sensitivityLow": "Меньше",

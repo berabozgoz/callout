@@ -22,6 +22,7 @@ export const en = {
   "settings.speaker": "Audio output",
   "settings.default": "Default",
   "settings.noiseSuppression": "Noise suppression (fans, hum, room noise)",
+  "settings.agc": "Automatic volume (evens out quiet and loud speech)",
   "settings.pushToTalk": "Push-to-talk (otherwise voice activity)",
   "settings.sensitivity": "Voice activity sensitivity",
   "settings.sensitivityLow": "Less",

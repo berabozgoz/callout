@@ -20,6 +20,7 @@ export const ar: Messages = {
   "settings.speaker": "إخراج الصوت",
   "settings.default": "الافتراضي",
   "settings.noiseSuppression": "كتم الضوضاء (المراوح، الطنين، ضجيج الغرفة)",
+  "settings.agc": "مستوى صوت تلقائي (يوازن بين الكلام الخافت والعالي)",
   "settings.pushToTalk": "الضغط للتحدث (وإلا فاكتشاف الصوت)",
   "settings.sensitivity": "حساسية اكتشاف الصوت",
   "settings.sensitivityLow": "أقل",

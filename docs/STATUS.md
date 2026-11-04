@@ -6,8 +6,8 @@
 ## Where we left off (4 Nov 2026)
 
 - **Phases 0–1 done; Phase 2 (audio quality) mostly done:** FEC/PLC measured, noise suppression (RNNoise),
-  adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity. Left: AGC and the
-  field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
+  adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (written 4 Nov, uncommitted,
+  not released or field-tested). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
 - **Released:** v0.1.13 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
@@ -80,6 +80,11 @@ items marked **before release** pass.
       ✓ 3 Nov on a local server: closed for everyone, rooms.tsv emptied. With the old v0.1.9 server the button disappears after a reconnect (old server keeps the creator's first session id) — expected until the server update.
 - [ ] **Installer language becomes the app language** (next release): install picking Türkçe on an English
       Windows → the app and the tray open in Turkish; change the language in Settings, reopen → the change is kept.
+- [ ] **AGC** (since the next release): (a) Bera's webcam mic: the others hear him at a comfortable level without
+      raising the volume; (b) a loud player and a quiet one in the same room sound level; (c) with AGC on, fan or
+      keyboard noise between words is not louder than before; (d) a mic with Windows' own AGC on does not make
+      the level wobble; (e) the log shows `agc gain_db` lines (expect +5…+15 for a quiet mic); (f) switching it
+      in Settings takes effect in the mic test and Cancel reverts it.
 - [ ] **Push-to-talk in a fullscreen game** (known gap since Phase 1): the global shortcut works while a
       fullscreen game has focus.
 
@@ -88,7 +93,8 @@ items marked **before release** pass.
 **Start here next session** (pick with the owner):
 - Field data from friends on v0.1.13: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
   FEC (`lost` vs `fec` in `sender jitter`), persistent rooms / close room on the real server.
-- Phase 2 remainder: **AGC** (target −20 dBFS, gentle gain); then decide whether Phase 2 can be closed.
+- **AGC** is implemented but not released (v0.1.14 candidate): try it on Bera's webcam mic and with a loud
+  player (see "Pending manual tests"), then release; after that decide whether Phase 2 can be closed.
 - Player experience: **mouse side buttons / non-swallowing keys for push-to-talk** (low-level hook in a small
   separate `unsafe` crate, rule 6); remember per-user volume across sessions; rate-limit wrong room-code attempts
   on the server (rooms are now permanent).
@@ -126,7 +132,17 @@ items marked **before release** pass.
       the rest of the talk spurt played 100–250 ms late (matches cocart's 140–240 ms); a resync now trims the
       backlog to the target. `tests/jitter_sim.rs` (old → new avg buffering): wired 38 → 37 ms, Wi-Fi 120 → 84 ms,
       Wi-Fi with stalls 127 → 99 ms, for ~1.5% concealed (late) frames. Field check: cocart's `stats` jitter_ms.
-   3. AGC: target −20 dBFS, gentle gain.
+   3. **AGC done (4 Nov, not released or field-tested):** `callout-audio/src/agc.rs`, own implementation
+      (no dependency). Runs on the audio thread **after the VAD and the level meter, before the pre-roll
+      history and the encoder**, so VAD thresholds, the calibration and the meter keep seeing the signal
+      before the gain, while pre-roll frames and the mic test carry it. Level loop: speech frames only
+      (`VadDecision.active`, not the hangover), level smoothed fast-up/slow-down, gain aims at −20 dBFS RMS
+      (down τ 100 ms, up τ 1.5 s, 300 ms during the first 2 s of speech), range −10…+15 dB (+6 dB without
+      noise suppression). Frames without speech never change the gain. Peak protection drops the gain at once
+      when peak × gain passes 0.89; per-sample linear ramp inside a frame plus a soft limiter, so nothing
+      clips. On by default (`Settings.agc`, `Command::SetAgc`, 11 languages); switching it on resets to unity
+      gain; the log has an `agc gain_db` line every 30 s while speaking. Client only: no protocol change, no
+      server update needed.
    4. **Automatic reconnect done (4 Nov, v0.1.12, field-tested by Bera):** after an involuntary disconnect
       (QUIC connection lost / ping failed) the engine enters `ConnectionState::Reconnecting`, retries with 1, 2, 4,
       8, 15 s… backoff (quietly, no error per attempt), rejoins the previous room and restates mute/deafen
@@ -259,6 +275,10 @@ items marked **before release** pass.
   headphones icons (emoji removed from those texts), "Speaker" renamed "Audio output"; the sensitivity slider
   shows its value in dB and has a "Reset to default" link (4dfc354, unreleased). Session handed over to a new
   conversation here; see "Where we left off" and "Start here next session".
+
+- 4 Nov (AGC): see Next → Phase 2 item 3. `VadDecision` gained `active`; seven unit tests in `agc.rs`
+  (convergence, loud input without clipping, no change on non-speech frames, sudden shout, gain limits,
+  reset, smooth ramp). fmt/clippy (incl. app)/test/svelte-check clean; not tried in the app, not released.
 
 ## Previous session
 

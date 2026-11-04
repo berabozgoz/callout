@@ -20,6 +20,7 @@ export const ptBR: Messages = {
   "settings.speaker": "Saída de áudio",
   "settings.default": "Padrão",
   "settings.noiseSuppression": "Supressão de ruído (ventoinhas, zumbido, barulho do ambiente)",
+  "settings.agc": "Volume automático (equilibra a voz baixa e a alta)",
   "settings.pushToTalk": "Pressione para falar (senão, detecção de voz)",
   "settings.sensitivity": "Sensibilidade da detecção de voz",
   "settings.sensitivityLow": "Menos",

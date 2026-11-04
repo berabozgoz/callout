@@ -129,6 +129,7 @@ impl Vad {
         let talk_start = self.speaking && !was_speaking;
         VadDecision {
             send: self.speaking,
+            active,
             talk_start,
             preroll: if talk_start { self.preroll_frames } else { 0 },
         }
@@ -157,6 +158,9 @@ impl Vad {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VadDecision {
     pub send: bool,
+    /// This frame itself carries speech (energy or speech probability); unlike `send` it is false
+    /// during the hangover. The AGC only adapts on these frames.
+    pub active: bool,
     pub talk_start: bool,
     /// If speech started: how many frames before this one should also be sent (preroll).
     pub preroll: u32,

@@ -20,6 +20,7 @@ export const ko: Messages = {
   "settings.speaker": "오디오 출력",
   "settings.default": "기본값",
   "settings.noiseSuppression": "소음 억제(팬, 웅웅거림, 실내 소음)",
+  "settings.agc": "자동 음량(작은 목소리와 큰 목소리를 고르게 맞춤)",
   "settings.pushToTalk": "눌러서 말하기(끄면 음성 감지)",
   "settings.sensitivity": "음성 감지 민감도",
   "settings.sensitivityLow": "낮음",

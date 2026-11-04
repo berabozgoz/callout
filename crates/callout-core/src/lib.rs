@@ -77,6 +77,11 @@ pub enum Command {
     SetVadSensitivity {
         db: f32,
     },
+    /// Automatic gain control: evens out the microphone level before it is sent (quiet mics
+    /// are raised, loud speech is lowered). Does not change what voice detection sees.
+    SetAgc {
+        enabled: bool,
+    },
     /// Close the current room for everyone and delete it (only its creator's device may).
     CloseRoom,
 }

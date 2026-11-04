@@ -20,6 +20,7 @@ export const zhCN: Messages = {
   "settings.speaker": "音频输出",
   "settings.default": "默认",
   "settings.noiseSuppression": "噪音抑制（风扇、嗡嗡声、环境噪音）",
+  "settings.agc": "自动音量（平衡小声和大声说话）",
   "settings.pushToTalk": "按键说话（关闭时为语音激活）",
   "settings.sensitivity": "语音激活灵敏度",
   "settings.sensitivityLow": "低",

@@ -30,6 +30,8 @@ pub struct Settings {
     pub noise_suppression: bool,
     /// Voice activity sensitivity in dB (0 = default, positive = picks up quieter speech).
     pub vad_sensitivity: f32,
+    /// Automatic gain control on the microphone; on if missing from older settings files.
+    pub agc: bool,
     /// UI language code (`en`, `tr`, …); `None` follows the system language.
     pub language: Option<String>,
     /// Rooms joined lately (newest first), for one-click rejoin. Rooms are persistent on the server.
@@ -56,6 +58,7 @@ impl Default for Settings {
             ptt_shortcut: "F9".into(),
             noise_suppression: true,
             vad_sensitivity: 0.0,
+            agc: true,
             language: None,
             recent_rooms: Vec::new(),
             installer_language_seen: None,
@@ -117,6 +120,7 @@ struct AppliedAudio {
     output_device: Option<String>,
     noise_suppression: bool,
     vad_sensitivity: f32,
+    agc: bool,
 }
 
 struct AppState {
@@ -225,6 +229,14 @@ fn save_settings(app: AppHandle, state: State<AppState>, settings: Settings) -> 
             },
         );
     }
+    if applied.agc != settings.agc {
+        send_command(
+            &state,
+            Command::SetAgc {
+                enabled: settings.agc,
+            },
+        );
+    }
     state.engine.send(Command::SetPushToTalkMode {
         enabled: settings.push_to_talk,
     });
@@ -259,6 +271,7 @@ fn send_command(state: &AppState, command: Command) {
             Command::SetVadSensitivity { db } => {
                 state.applied.lock().unwrap().vad_sensitivity = *db
             }
+            Command::SetAgc { enabled } => state.applied.lock().unwrap().agc = *enabled,
             _ => {}
         }
     }
@@ -487,6 +500,7 @@ pub fn run() {
                 push_to_talk: settings.push_to_talk,
                 noise_suppression: settings.noise_suppression,
                 vad_sensitivity_db: settings.vad_sensitivity,
+                agc: settings.agc,
                 no_audio: false,
             });
 
@@ -520,6 +534,7 @@ pub fn run() {
                     output_device: settings.output_device.clone(),
                     noise_suppression: settings.noise_suppression,
                     vad_sensitivity: settings.vad_sensitivity,
+                    agc: settings.agc,
                 }),
                 settings: Mutex::new(settings),
                 data_dir,

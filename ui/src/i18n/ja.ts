@@ -20,6 +20,7 @@ export const ja: Messages = {
   "settings.speaker": "音声出力",
   "settings.default": "既定",
   "settings.noiseSuppression": "ノイズ抑制（ファン、ハム音、室内の雑音）",
+  "settings.agc": "自動音量調整（小さい声と大きい声を均一にします）",
   "settings.pushToTalk": "プッシュトゥトーク（オフ時は音声検出）",
   "settings.sensitivity": "音声検出の感度",
   "settings.sensitivityLow": "低",

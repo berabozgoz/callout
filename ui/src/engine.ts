@@ -44,6 +44,7 @@ export type Command =
   | { type: "play_test_sound" }
   | { type: "set_noise_suppression"; enabled: boolean }
   | { type: "set_vad_sensitivity"; db: number }
+  | { type: "set_agc"; enabled: boolean }
   | { type: "close_room" };
 
 export type Settings = {
@@ -56,6 +57,8 @@ export type Settings = {
   noise_suppression: boolean;
   /** Voice activity sensitivity in dB (0 = default, positive = picks up quieter speech). */
   vad_sensitivity: number;
+  /** Automatic gain control on the microphone. */
+  agc: boolean;
   /** UI language code, or null to follow the system language. */
   language: string | null;
   /** Rooms joined lately, newest first (rooms are persistent on the server). */

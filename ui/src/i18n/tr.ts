@@ -20,6 +20,7 @@ export const tr: Messages = {
   "settings.speaker": "Ses çıkışı",
   "settings.default": "Varsayılan",
   "settings.noiseSuppression": "Gürültü bastırma (fan, uğultu, oda sesi)",
+  "settings.agc": "Otomatik ses seviyesi (kısık ve yüksek konuşmayı dengeler)",
   "settings.pushToTalk": "Bas-konuş (kapalıysa ses algılama)",
   "settings.sensitivity": "Ses algılama hassasiyeti",
   "settings.sensitivityLow": "Az",

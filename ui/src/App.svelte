@@ -17,7 +17,7 @@
   const fail = (e: unknown): UiError => ({ key: "error.generic", vars: { detail: String(e) } });
 
   // ---- state ----
-  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9", noise_suppression: true, vad_sensitivity: 0, language: null, recent_rooms: [] });
+  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "F9", noise_suppression: true, vad_sensitivity: 0, agc: true, language: null, recent_rooms: [] });
   let devices = $state<Device[]>([]);
   let version = $state("");
   let conn = $state<ConnectionState>("disconnected");
@@ -295,6 +295,7 @@
       if (savedSettings.output_device !== settings.output_device) send({ type: "set_output_device", name: savedSettings.output_device });
       if (savedSettings.noise_suppression !== settings.noise_suppression) send({ type: "set_noise_suppression", enabled: savedSettings.noise_suppression });
       if (savedSettings.vad_sensitivity !== settings.vad_sensitivity) send({ type: "set_vad_sensitivity", db: savedSettings.vad_sensitivity });
+      if (savedSettings.agc !== settings.agc) send({ type: "set_agc", enabled: savedSettings.agc });
       if (savedSettings.language !== settings.language) setLanguage(savedSettings.language);
       settings = savedSettings;
     }
@@ -404,6 +405,11 @@
         <input type="checkbox" bind:checked={settings.noise_suppression}
           onchange={(e) => send({ type: "set_noise_suppression", enabled: (e.currentTarget as HTMLInputElement).checked })} />
         {t("settings.noiseSuppression")}
+      </label>
+      <label class="row">
+        <input type="checkbox" bind:checked={settings.agc}
+          onchange={(e) => send({ type: "set_agc", enabled: (e.currentTarget as HTMLInputElement).checked })} />
+        {t("settings.agc")}
       </label>
       <label class="row">
         <input type="checkbox" bind:checked={settings.push_to_talk} />
