@@ -11,8 +11,9 @@
   panic logging; code signing (SmartScreen) is not.
 - **Released:** v0.1.16 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
-- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.12** (persistent rooms in `/var/lib/callout/rooms.tsv`,
-  owner-only room closing). v0.1.13–v0.1.15 changed only the app, so no server update was needed. Details in
+- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.16** (persistent rooms in `/var/lib/callout/rooms.tsv`,
+  owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated 4 Nov 17:04 UTC, nobody was
+  connected, invite link unchanged, 7 rooms loaded). Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
 - **Unreleased on `main`:** nothing (check `git log v0.1.16..`).
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
@@ -366,7 +367,9 @@ items marked **before release** pass.
   holds, 30 days) → Send; after a reconnect or an audio/connection error the strip offers itself once per
   run. 11 languages; README (players + hosts), ARCHITECTURE, CLAUDE.md rule 9 note. Tests: proto
   roundtrip, server store/rate limit/cleanup/file names, scrubbing, end-to-end `engine_uploads_a_log_once_per_interval`.
-  Checked by Bera in the release exe (old Oracle server and a local one). Released as **v0.1.16**.
+  Checked by Bera in the release exe (old Oracle server and a local one). Released as **v0.1.16**; the
+  Oracle server was updated to v0.1.16 the same day (`log uploads enabled=true`; the service may write
+  `/var/lib/callout`, 42 GB free).
 - 4 Nov: **v0.1.14 released** (AGC, sensitivity dB readout, settings without scrolling, close-room strip,
   no default push-to-talk key, dropout counters in the log). App only; the server stays on v0.1.12.
 - 4 Nov (AGC): see Next → Phase 2 item 3. `VadDecision` gained `active`; seven unit tests in `agc.rs`
