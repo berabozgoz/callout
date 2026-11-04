@@ -3,24 +3,25 @@
 > Read this file at the start of every session; at the end of a session update the "Last session" and "Next" sections.
 > Private details such as the server address and invite link are not written here but in `CLAUDE.local.md`, which is not in git.
 
-## Where we left off (2 Nov 2026)
+## Where we left off (4 Nov 2026)
 
-- **Phase 0 and Phase 1 done** (gate test closed on 1 Nov; Phase 2 is next). Two Windows PCs talked over the desktop app on the same network; room codes,
-  speaking indicator, jitter 40–60 ms, 0 loss on LAN.
-- **Server is on the internet:** Oracle Always Free (Frankfurt, VM.Standard.E2.1.Micro, Ubuntu 24.04),
-  installed as a systemd service via `deploy/install.sh`. Bera connected from the app: RTT 36 ms.
-  Connection details are in `CLAUDE.local.md`.
-- **Release v0.1.13** is on GitHub Releases (v0.1.12: reconnect, listen-only, sensitivity, auto-update, persistent rooms, close room; v0.1.13: installer language, icons); the server runs v0.1.12 (compatible) (compatible; invite link unchanged): NSIS installer (currentUser), portable
-  `callout-app.exe`, `callout-server.exe`, `callout-server-linux-x64`.
-- **English + i18n (2 Nov, v0.1.9):** code, docs, logs, server output and commits are
-  English. The UI is localized in 11 languages (`ui/src/i18n/*.ts`: en source, tr, de, es, fr, pt-BR, ru, ar
-  with right-to-left layout, zh-CN, ja, ko; first drafts, native review welcome) with a language setting
-  (system default or fixed, `Settings.language`). `Event::Error` carries an `ErrorKind` the UI translates;
-  microphone access denied (`0x80070005`) has its own message. Tray labels come from the UI
-  (`set_tray_labels`); the NSIS installer has the same 11 languages. Server log lines changed to English
-  (e.g. `connection stats`, `connection closed`, `joined room`, `left room`) since the server update.
-  An empty room name now gets a default in the creator's language. Fixed after v0.1.9 (commit a2b4fa5,
-  released in v0.1.10): `index.html` declared `lang="tr"`, so CSS uppercase rendered "SETTİNGS".
+- **Phases 0–1 done; Phase 2 (audio quality) mostly done:** FEC/PLC measured, noise suppression (RNNoise),
+  adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity. Left: AGC and the
+  field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
+  panic logging; code signing (SmartScreen) is not.
+- **Released:** v0.1.13 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
+  copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
+- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.12** (persistent rooms in `/var/lib/callout/rooms.tsv`,
+  owner-only room closing). v0.1.13 changed only the app, so no server update was needed. Details in
+  `CLAUDE.local.md`; update with `install.sh` (see Workflow).
+- **Unreleased on `main` (local or pushed, check `git log origin/main..HEAD`):** sensitivity dB readout + reset
+  link (4dfc354) and STATUS updates. They go out with the next release (v0.1.14).
+- **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
+  English is the source; add keys to every dictionary, the `Messages` type enforces it).
+- **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
+  joined before, can find them); rooms persist until closed by their creator's device or unused for 30 days;
+  the client reconnects and rejoins on its own; the app starts in the installer's language once per new
+  installer choice; the portable exe gets a "Download" link instead of the in-app updater.
 - The home network is behind CGNAT, so hosting the server from home is not possible; Tailscale was not wanted.
 
 ## Pending manual tests
@@ -84,6 +85,16 @@ items marked **before release** pass.
 
 ## Next
 
+**Start here next session** (pick with the owner):
+- Field data from friends on v0.1.13: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
+  FEC (`lost` vs `fec` in `sender jitter`), persistent rooms / close room on the real server.
+- Phase 2 remainder: **AGC** (target −20 dBFS, gentle gain); then decide whether Phase 2 can be closed.
+- Player experience: **mouse side buttons / non-swallowing keys for push-to-talk** (low-level hook in a small
+  separate `unsafe` crate, rule 6); remember per-user volume across sessions; rate-limit wrong room-code attempts
+  on the server (rooms are now permanent).
+- Later: UDP-blocked fallback (reliable stream), RED if field data shows burst loss, code signing, Phase 3.
+
+
 1. **Phase 1 closed (1 Nov 2026).** Four-person test (`GATE_TEST.md`): 4 people for ~52 min total
    (35 min uninterrupted), no system drops/errors, latency and CPU criteria passed; the uninterrupted 60 min
    was missed on the participants' side. Added to the Phase 2 queue from the test: Opus FEC + PLC moved up (1–8%
@@ -116,7 +127,7 @@ items marked **before release** pass.
       backlog to the target. `tests/jitter_sim.rs` (old → new avg buffering): wired 38 → 37 ms, Wi-Fi 120 → 84 ms,
       Wi-Fi with stalls 127 → 99 ms, for ~1.5% concealed (late) frames. Field check: cocart's `stats` jitter_ms.
    3. AGC: target −20 dBFS, gentle gain.
-   4. **Automatic reconnect done (4 Nov, not released or field-tested):** after an involuntary disconnect
+   4. **Automatic reconnect done (4 Nov, v0.1.12, field-tested by Bera):** after an involuntary disconnect
       (QUIC connection lost / ping failed) the engine enters `ConnectionState::Reconnecting`, retries with 1, 2, 4,
       8, 15 s… backoff (quietly, no error per attempt), rejoins the previous room and restates mute/deafen
       (also fixed for fresh joins). `Disconnect` stops it; a user `Connect` starts fresh. If the room is gone
@@ -127,8 +138,8 @@ items marked **before release** pass.
    6. Lossy network simulation test (5% loss, 100 ms jitter) — headless. Jitter part done
       (`tests/jitter_sim.rs`). The loss part is in
       `callout-audio/tests/loss_sim.rs`; the jitter (delay variation) part remains.
-   7. UI polish: VAD threshold margin setting. (Listen-only join, Bluetooth mic warning and panic logging
-      done 4 Nov.) **Mic test done (2 Nov,
+   7. UI polish: done (VAD sensitivity slider with dB readout/reset, listen-only join, Bluetooth mic warning,
+      panic logging, icons). **Mic test done (2 Nov,
       v0.1.8, tried in the app):** a "Mic test" section in settings — 5 s recording, played back the way
       others in the room would hear it (VAD/push-to-talk gate + Opus) along with the sent share; "Play test sound"
       (a chime); a speech-detection threshold line on the level meter (also on the in-room meter). When not connected
@@ -244,6 +255,10 @@ items marked **before release** pass.
   sets `Settings.language` once per new choice (`installer_language_seen`), so a later in-app change is kept.
 - 4 Nov: **v0.1.13 released** (installer language → app language, icons in settings and the sound test) and
   delivered through the in-app updater: Bera's v0.1.12 updated itself to v0.1.13. The update path works end to end.
+- 4 Nov (UI polish after v0.1.13): settings device pickers and the sound test buttons use the microphone /
+  headphones icons (emoji removed from those texts), "Speaker" renamed "Audio output"; the sensitivity slider
+  shows its value in dB and has a "Reset to default" link (4dfc354, unreleased). Session handed over to a new
+  conversation here; see "Where we left off" and "Start here next session".
 
 ## Previous session
 
