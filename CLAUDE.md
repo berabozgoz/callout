@@ -23,7 +23,8 @@ crates/callout-audio   cpal capture/playback, Opus, jitter, mixer
 crates/callout-net     quinn QUIC: control stream + audio datagrams
 crates/callout-core    Engine: Command/Event engine (audio thread + network tasks); examples/talk.rs headless client
 crates/callout-server  SFU + rooms + identity, single binary
-apps/callout-app       Tauri shell: engine_command/get_settings/save_settings, "engine" event channel, PTT shortcut, tray
+crates/callout-input   push-to-talk listener (Windows Raw Input, never swallows the key); the only crate with unsafe
+apps/callout-app       Tauri shell: engine_command/get_settings/save_settings, "engine" event channel, PTT listener, tray
 ui/                    Svelte 5 (runes) + TypeScript + Vite
 ```
 

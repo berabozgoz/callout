@@ -83,7 +83,7 @@ export const send = (command: Command) => invoke<void>("engine_command", { comma
 export const getSettings = () => invoke<Settings>("get_settings");
 export const saveSettings = (settings: Settings) => invoke<void>("save_settings", { settings });
 export const engineSnapshot = () => invoke<Snapshot>("engine_snapshot");
-/** Temporarily releases the push-to-talk shortcut during key capture (otherwise the key never reaches the UI). */
+/** Pauses push-to-talk during key capture (pressing the old key there must not transmit). */
 export const pttCapture = (active: boolean) => invoke<void>("ptt_capture", { active });
 export const listDevices = () => invoke<Device[]>("list_audio_devices");
 export const appVersion = () => invoke<string>("app_version");
@@ -101,13 +101,13 @@ export function onPtt(handler: (pressed: boolean) => void): Promise<UnlistenFn> 
   return listen<boolean>("ptt", (ev) => handler(ev.payload));
 }
 
-/** `Ctrl+KeyT` → `Ctrl + T`, `Alt+ArrowUp` → `Alt + ↑` */
+/** `Ctrl+KeyT` → `Ctrl + T`, `Alt+ArrowUp` → `Alt + ↑`, `Mouse4` → `Mouse 4` */
 export function prettyShortcut(s: string): string {
   const arrows: Record<string, string> = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
   return s
     .split("+")
     .filter(Boolean)
-    .map((p) => arrows[p] ?? p.replace(/^Key/, "").replace(/^Digit/, ""))
+    .map((p) => arrows[p] ?? p.replace(/^Key/, "").replace(/^Digit/, "").replace(/^Mouse(\d)$/, "Mouse $1"))
     .join(" + ");
 }
 

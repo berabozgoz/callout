@@ -27,10 +27,10 @@ export const zhCN: Messages = {
   "settings.sensitivityHigh": "高",
   "settings.sensitivityReset": "恢复默认",
   "settings.pttKey": "按键说话快捷键",
-  "settings.pttCapturing": "请按下一个键或组合键…（Esc 取消）",
-  "settings.pttUnassigned": "未设置 — 点击后按下一个键",
+  "settings.pttCapturing": "按下按键、组合键或鼠标按钮…（Esc 取消）",
+  "settings.pttUnassigned": "未设置 — 点击后按下按键或鼠标按钮",
   "settings.pttHint":
-    "仅在房间内生效，届时该键归 CallOut 专用。请选择游戏不使用的键（若选单个字母键，期间无法在其他应用中输入该字母）。",
+    "仅在房间内生效。CallOut 不会拦截该键，它在游戏中依然有效：请选择游戏不使用的键，或鼠标侧键。如果游戏以管理员身份运行，请也以管理员身份运行 CallOut。",
   "settings.save": "保存",
   "settings.cancel": "取消",
 

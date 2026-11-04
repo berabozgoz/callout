@@ -1,6 +1,6 @@
 //! Tauri shell. Rule: no audio or network logic lives here; it only
 //! forwards commands to the `callout-core` engine, emits its events to the webview as `engine`,
-//! stores settings, and manages the push-to-talk shortcut and the system tray.
+//! stores settings, and manages the push-to-talk listener and the system tray.
 
 use callout_core::{
     Command, ConnectionState, DeviceInfo, Direction, Engine, EngineConfig, Event, Member, RoomInfo,
@@ -13,7 +13,6 @@ use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, State};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 /// User settings stored on disk (`<app-data>/settings.json`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,9 +23,10 @@ pub struct Settings {
     pub input_device: Option<String>,
     pub output_device: Option<String>,
     pub push_to_talk: bool,
-    /// Tauri shortcut syntax, e.g. `F8`, `Ctrl+Space`, `Alt+KeyZ`; empty = not set. There is no
-    /// default: any key may clash with a game (F9 pauses Dota 2), so the UI asks for one when
-    /// push-to-talk is turned on.
+    /// `KeyboardEvent.code` names with modifiers or a mouse button, e.g. `KeyV`, `Ctrl+Space`,
+    /// `Mouse4` (see `callout_input::Binding`); empty = not set. The key is not swallowed, so it
+    /// also does what it does in the game; there is no default (any key clashes with some game,
+    /// F9 pauses Dota 2), the UI asks for one when push-to-talk is turned on.
     pub ptt_shortcut: String,
     /// Noise suppression (RNNoise); on if missing from older settings files.
     pub noise_suppression: bool,
@@ -128,11 +128,15 @@ struct AppliedAudio {
 struct AppState {
     engine: Engine,
     snapshot: Mutex<Snapshot>,
-    /// The shortcut is released while capturing a key in settings (otherwise the key never reaches the UI).
+    /// Push-to-talk is paused while a key is being captured in settings (pressing the old key
+    /// there must not transmit).
     ptt_capture: AtomicBool,
+    /// Push-to-talk listener; `None` if it could not start (push-to-talk then does nothing and
+    /// the log says why).
+    ptt: Option<callout_input::Listener>,
     settings: Mutex<Settings>,
     data_dir: PathBuf,
-    /// Are we in a room? The push-to-talk shortcut is held system-wide only while in a room.
+    /// Are we in a room? The push-to-talk listener receives input only while in a room.
     in_room: AtomicBool,
     /// Audio settings last sent to the engine. The settings screen applies a selection without
     /// saving it (so the sound test uses it); saving does not resend the same values.
@@ -314,7 +318,7 @@ fn engine_snapshot(state: State<AppState>) -> Snapshot {
     state.snapshot.lock().unwrap().clone()
 }
 
-/// When key capture in settings starts/ends: temporarily releases the push-to-talk shortcut.
+/// When key capture in settings starts/ends: pauses push-to-talk meanwhile.
 #[tauri::command]
 fn ptt_capture(app: AppHandle, state: State<AppState>, active: bool) -> Result<(), String> {
     state.ptt_capture.store(active, Ordering::Relaxed);
@@ -367,11 +371,12 @@ fn app_version(app: AppHandle) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Push-to-talk shortcut
+// Push-to-talk
 // ---------------------------------------------------------------------------
 
-/// The shortcut consumes the key system-wide (a plain key like "T" cannot be typed in other apps).
-/// So it stays registered only while push-to-talk is on **and** we are in a room; otherwise it is released.
+/// The listener observes the key without swallowing it, but it still sees every keystroke while
+/// it has a binding. So the binding is set only while push-to-talk is on **and** we are in a room
+/// (and no key is being captured); otherwise it is cleared and no input is received.
 fn sync_ptt(app: &AppHandle) -> Result<(), String> {
     let Some(state) = app.try_state::<AppState>() else {
         return Ok(());
@@ -380,23 +385,41 @@ fn sync_ptt(app: &AppHandle) -> Result<(), String> {
         let s = state.settings.lock().unwrap();
         (s.push_to_talk, s.ptt_shortcut.trim().to_string())
     };
-    let gs = app.global_shortcut();
-    gs.unregister_all().map_err(|e| e.to_string())?;
-    if shortcut.is_empty() {
-        return Ok(());
-    }
     // Report invalid syntax to the user even outside a room.
-    shortcut
-        .parse::<tauri_plugin_global_shortcut::Shortcut>()
-        .map_err(|e| format!("shortcut '{shortcut}': {e}"))?;
-    if enabled
+    let binding = if shortcut.is_empty() {
+        None
+    } else {
+        Some(
+            shortcut
+                .parse::<callout_input::Binding>()
+                .map_err(|e| format!("shortcut '{shortcut}': {e}"))?,
+        )
+    };
+    let active = enabled
         && state.in_room.load(Ordering::Relaxed)
-        && !state.ptt_capture.load(Ordering::Relaxed)
-    {
-        gs.register(shortcut.as_str())
-            .map_err(|e| format!("shortcut '{shortcut}': {e}"))?;
+        && !state.ptt_capture.load(Ordering::Relaxed);
+    if let Some(listener) = &state.ptt {
+        listener.set_binding(binding.filter(|_| active));
     }
     Ok(())
+}
+
+/// Starts the listener; its callback runs on the listener's own thread.
+fn start_ptt_listener(app: &AppHandle) -> Option<callout_input::Listener> {
+    let handle = app.clone();
+    let started = callout_input::Listener::start(move |pressed| {
+        if let Some(state) = handle.try_state::<AppState>() {
+            state.engine.send(Command::PushToTalk { pressed });
+        }
+        let _ = handle.emit("ptt", pressed);
+    });
+    match started {
+        Ok(listener) => Some(listener),
+        Err(e) => {
+            tracing::error!("{e}");
+            None
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -494,18 +517,6 @@ pub fn run() {
         // Updates come from GitHub Releases (latest.json), signed with the key in the release workflow.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .plugin(
-            tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
-                    // Whatever the key, the only registered shortcut is push-to-talk.
-                    let pressed = event.state() == ShortcutState::Pressed;
-                    if let Some(state) = app.try_state::<AppState>() {
-                        state.engine.send(Command::PushToTalk { pressed });
-                    }
-                    let _ = app.emit("ptt", pressed);
-                })
-                .build(),
-        )
         .setup(|app| {
             // Data folder: %APPDATA%/io.github.berabozgoz.callout
             let data_dir = app
@@ -547,7 +558,7 @@ pub fn run() {
                         st.snapshot.lock().unwrap().apply(&ev);
                     }
                     if let Event::RoomUpdated { room, .. } = &ev {
-                        // Sync the shortcut only on room join/leave (when the value changes).
+                        // Sync push-to-talk only on room join/leave (when the value changes).
                         let in_room = room.is_some();
                         let changed = handle.try_state::<AppState>().is_some_and(|st| {
                             st.in_room.swap(in_room, Ordering::Relaxed) != in_room
@@ -576,6 +587,7 @@ pub fn run() {
                 in_room: AtomicBool::new(false),
                 snapshot: Mutex::new(Snapshot::new()),
                 ptt_capture: AtomicBool::new(false),
+                ptt: start_ptt_listener(app.handle()),
             });
             if save_now {
                 if let Err(e) = app.state::<AppState>().save_settings() {
@@ -662,7 +674,6 @@ fn _assert_event_serializable(e: &Event) -> String {
 #[cfg(test)]
 mod tests {
     use super::{forget_old_default_ptt_key, Settings};
-    use tauri_plugin_global_shortcut::Shortcut;
 
     #[test]
     fn old_default_ptt_key_is_forgotten_only_when_unused() {
@@ -686,30 +697,6 @@ mod tests {
             ..Settings::default()
         };
         assert!(!forget_old_default_ptt_key(&mut s));
-    }
-
-    /// The UI's key capture field sends `KeyboardEvent.code` names; the shortcut library must
-    /// parse all of them.
-    #[test]
-    fn captured_key_codes_parse() {
-        for s in [
-            "F9",
-            "F4",
-            "Ctrl+F4",
-            "KeyT",
-            "Digit9",
-            "Ctrl+KeyT",
-            "Ctrl+Alt+KeyZ",
-            "Ctrl+Shift+Digit1",
-            "Alt+ArrowUp",
-            "Space",
-            "Ctrl+Space",
-            "Numpad5",
-            "Super+KeyV",
-            "Backquote",
-        ] {
-            assert!(s.parse::<Shortcut>().is_ok(), "failed to parse: {s}");
-        }
     }
 }
 

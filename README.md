@@ -28,9 +28,11 @@ Before your first session, open **Settings (⚙)**:
 - Pick your microphone and speaker, then run the **sound test**: speak for 5 seconds and hear yourself
   the way others will. The line on the level meter is the voice activity threshold.
 - Leave **noise suppression** on unless you have a studio-quiet mic.
-- Choose **push-to-talk** if you prefer it to voice activity; CallOut then asks for a key. The key is
-  reserved for CallOut only while you are in a room, so pick one your game doesn't use (F9, for example,
-  pauses Dota 2); a combination like Ctrl+Alt+… is safer than a plain letter.
+- Choose **push-to-talk** if you prefer it to voice activity; CallOut then asks for a key, a combination
+  or a mouse button (middle or side buttons). CallOut listens for it only while you are in a room and
+  never blocks it, so it also does what it does in your game: pick one the game doesn't use (F9, for
+  example, pauses Dota 2), or a mouse side button. If the game runs as administrator, run CallOut as
+  administrator too (Windows hides input in such a game from normal apps).
 
 If the connection drops, CallOut reconnects on its own and puts you back in your room.
 

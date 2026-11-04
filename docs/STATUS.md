@@ -14,7 +14,8 @@
 - **Server:** Oracle Always Free (Frankfurt) runs **v0.1.12** (persistent rooms in `/var/lib/callout/rooms.tsv`,
   owner-only room closing). v0.1.13 and v0.1.14 changed only the app, so no server update was needed. Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main`:** nothing (check `git log origin/main..HEAD` and `git log v0.1.14..`).
+- **Unreleased on `main`:** non-swallowing push-to-talk with mouse buttons (`callout-input`), v0.1.15
+  candidate (check `git log v0.1.14..`).
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -94,8 +95,17 @@ items marked **before release** pass.
       (c) turning push-to-talk on with no key starts the key capture; an old unpicked F9 (push-to-talk off)
       is cleared on start; with push-to-talk on and no key the room shows a warning.
       ✓ 4 Nov (Bera, release exe): all of the above as expected.
-- [ ] **Push-to-talk in a fullscreen game** (known gap since Phase 1): the global shortcut works while a
+- [x] **Non-swallowing push-to-talk** (since this session): (a) bind a plain letter (e.g. V): in a room it
+      transmits while held **and** the letter still types in Notepad / works in the game; (b) bind a mouse side
+      button (Mouse 4/5): transmits while held, the browser does not go back; (c) Ctrl+key combination needs
+      Ctrl, a plain key also works while Shift is held; (d) outside a room or with push-to-talk off nothing
+      transmits; (e) Win+L while holding the key: transmission stops within ~0.25 s; (f) a game run as
+      administrator: push-to-talk works only if CallOut runs as administrator too (expected).
+      ✓ 4 Nov (Bera, release exe): plain key, mouse side button, combination, off outside a room, Win+L
+      release, and in a game. (f) not tried (no elevated game at hand).
+- [x] **Push-to-talk in a fullscreen game** (known gap since Phase 1): push-to-talk works while a
       fullscreen game has focus.
+      ✓ 4 Nov (Bera): with the Raw Input listener, in a game.
 
 ## Next
 
@@ -106,8 +116,8 @@ items marked **before release** pass.
   (AGC (a), (b) in "Pending manual tests"); then decide whether Phase 2 can be closed. Open: with noise
   suppression off the VAD barely opens on that mic (threshold above speech) — check whether that is
   expected or the floor/margin needs a look.
-- Player experience: **mouse side buttons / non-swallowing keys for push-to-talk** (low-level hook in a small
-  separate `unsafe` crate, rule 6); remember per-user volume across sessions; rate-limit wrong room-code attempts
+- Player experience: non-swallowing push-to-talk with mouse buttons is done and checked in a game (unreleased,
+  v0.1.15 candidate); next: remember per-user volume across sessions; rate-limit wrong room-code attempts
   on the server (rooms are now permanent).
 - Later: UDP-blocked fallback (reliable stream), RED if field data shows burst loss, code signing, Phase 3.
 
@@ -188,9 +198,9 @@ items marked **before release** pass.
 3. **The push-to-talk shortcut was swallowing the key** (28 Oct, found in the two-person test): the shortcut was
    registered system-wide from app start, so a plain "T" could not be typed in other apps.
    Fixed: registered only while push-to-talk is on **and** in a room (`sync_ptt`). Outside a room
-   (including the tray) the key is free. Permanent fix in Phase 2: a low-level keyboard/mouse listener that does not
-   consume the key (WH_KEYBOARD_LL; `unsafe` in a separate crate, rule 6) → plain key and mouse button
-   PTT in games. In a room the plain key is still swallowed; the UI shows a warning note.
+   (including the tray) the key is free. **Permanent fix done (4 Nov):** `callout-input` listens with Raw
+   Input (not a WH_KEYBOARD_LL hook, which would sit in the input path), never consumes the key, and supports
+   mouse buttons; checked in a game.
 4. **Ghost connection:** fixed (`Client::close_graceful`, 700 ms wait on tray "Quit") — not verified in the real
    app: the server log should show the close as `ApplicationClosed ... "bye"`, not `TimedOut`.
    In the first two-person test, mamitest's first session (joined the room, ~7 s later `in_room=false` on the server)
@@ -205,7 +215,7 @@ items marked **before release** pass.
    the backoff does not reset until it has been stable for 30 s), per-sender jitter log (every 30 s,
    `sender jitter sender=… target_ms late lost underflow`), the actual QUIC error in the disconnect reason,
    the client `lost` counter no longer drops back. Not yet tried in the field by unplugging a device.
-7. Known gaps: PTT in games (fullscreen) not verified; no mouse button PTT.
+7. Known gaps: closed 4 Nov (Raw Input push-to-talk works in a fullscreen game, mouse buttons supported).
 
 ## Workflow
 
@@ -319,6 +329,20 @@ items marked **before release** pass.
   says to pick a key the game doesn't use. The sensitivity slider stays hidden with push-to-talk: the VAD
   is not used then (the key is the gate; the mic test records without it). 11 languages updated.
   clippy (incl. app)/test/svelte-check clean; checked in the release exe by Bera.
+- 4 Nov (non-swallowing push-to-talk): new crate `callout-input`, the only one with `unsafe` (rule 6):
+  Windows Raw Input (`RIDEV_INPUTSINK`) on a hidden window of its own thread replaces the Tauri global
+  shortcut (`RegisterHotKey`, which consumed the key system-wide; the plugin and its permissions are
+  removed). The key or mouse button is only observed, so it still works in the game. Bindings keep the old
+  format (`KeyboardEvent.code` + modifiers) and add `Mouse3/4/5` (middle, back, forward); keys are matched
+  by scan code (physical position, layout independent). Extra modifiers do not block a plain key; only the
+  trigger's release ends the transmission. Devices are registered only while a binding is set (in a room,
+  push-to-talk on, not capturing), the mouse only for a mouse trigger; a 250 ms timer releases if the
+  trigger is no longer physically down (lost key-up on the secure desktop). Raw input registration is per
+  process: this replaces tao's startup registration (device events, unused by Tauri). Known limit: no
+  input while an elevated game has focus unless CallOut is elevated too. UI: the capture field takes mouse
+  buttons; hint/capture texts in 11 languages; README. 10 unit tests (parser, press/release logic).
+  fmt/clippy (incl. app)/test/svelte-check/cargo deny clean; checked in the release exe and in a game by
+  Bera; unreleased.
 - 4 Nov: **v0.1.14 released** (AGC, sensitivity dB readout, settings without scrolling, close-room strip,
   no default push-to-talk key, dropout counters in the log). App only; the server stays on v0.1.12.
 - 4 Nov (AGC): see Next → Phase 2 item 3. `VadDecision` gained `active`; seven unit tests in `agc.rs`

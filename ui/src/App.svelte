@@ -203,9 +203,31 @@
     if (e.altKey) parts.push("Alt");
     if (e.shiftKey) parts.push("Shift");
     if (e.metaKey) parts.push("Super");
-    parts.push(e.code); // KeyT, Digit9, F9, ArrowUp… the shortcut library's own names
+    parts.push(e.code); // KeyT, Digit9, F9, ArrowUp… (matched by physical key position)
     settings.ptt_shortcut = parts.join("+");
     stopCapture();
+  }
+  // Mouse buttons for push-to-talk: middle and the two side buttons. Left/right stay normal
+  // clicks (the capture button itself is clicked to cancel).
+  const MOUSE_BUTTONS: Record<number, string> = { 1: "Mouse3", 3: "Mouse4", 4: "Mouse5" };
+  function captureMouse(e: MouseEvent) {
+    if (!capturing) return;
+    const name = MOUSE_BUTTONS[e.button];
+    if (!name) return;
+    e.preventDefault(); // side buttons would otherwise navigate back/forward
+    e.stopPropagation();
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.metaKey) parts.push("Super");
+    parts.push(name);
+    settings.ptt_shortcut = parts.join("+");
+    stopCapture();
+  }
+  // Swallows the matching up/aux-click so a side button does not navigate after the capture.
+  function blockSideButton(e: MouseEvent) {
+    if (e.button === 3 || e.button === 4) e.preventDefault();
   }
 
   // ---- actions ----
@@ -323,7 +345,8 @@
   const formatDb = (db: number) => (db > 0 ? `+${db} dB` : `${db} dB`);
 </script>
 
-<svelte:window onkeydowncapture={onWindowKey} oncontextmenu={onContextMenu} />
+<svelte:window onkeydowncapture={onWindowKey} oncontextmenu={onContextMenu}
+  onmousedowncapture={captureMouse} onmouseup={blockSideButton} onauxclick={blockSideButton} />
 
 {#snippet inputHint()}
   {#if inputRate === null}

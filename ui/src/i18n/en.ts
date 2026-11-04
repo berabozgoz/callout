@@ -29,10 +29,10 @@ export const en = {
   "settings.sensitivityHigh": "More",
   "settings.sensitivityReset": "Reset to default",
   "settings.pttKey": "Push-to-talk key",
-  "settings.pttCapturing": "Press a key or combination… (Esc to cancel)",
-  "settings.pttUnassigned": "Not set — click and press a key",
+  "settings.pttCapturing": "Press a key, combination or mouse button… (Esc to cancel)",
+  "settings.pttUnassigned": "Not set — click, then press a key or mouse button",
   "settings.pttHint":
-    "Active only while you are in a room; the key is then reserved for CallOut. Pick one your game doesn't use (a plain letter can't be typed in other apps meanwhile).",
+    "Active only while you are in a room. CallOut doesn't block the key, so it still works in your game too: pick one the game doesn't use, or a mouse side button. If the game runs as administrator, run CallOut as administrator too.",
   "settings.save": "Save",
   "settings.cancel": "Cancel",
 

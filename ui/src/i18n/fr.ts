@@ -27,10 +27,10 @@ export const fr: Messages = {
   "settings.sensitivityHigh": "Plus",
   "settings.sensitivityReset": "Réinitialiser",
   "settings.pttKey": "Touche pour parler",
-  "settings.pttCapturing": "Appuyez sur une touche ou une combinaison… (Échap pour annuler)",
-  "settings.pttUnassigned": "Non défini — cliquez puis appuyez sur une touche",
+  "settings.pttCapturing": "Appuyez sur une touche, une combinaison ou un bouton de souris… (Échap pour annuler)",
+  "settings.pttUnassigned": "Non défini — cliquez puis appuyez sur une touche ou un bouton de souris",
   "settings.pttHint":
-    "Actif uniquement dans un salon ; la touche est alors réservée à CallOut. Choisissez-en une que votre jeu n'utilise pas (une simple lettre ne pourra plus être tapée ailleurs entre-temps).",
+    "Actif uniquement dans un salon. CallOut ne bloque pas la touche, elle agit donc aussi dans le jeu : choisissez-en une que le jeu n'utilise pas, ou un bouton latéral de la souris. Si le jeu tourne en administrateur, lancez aussi CallOut en administrateur.",
   "settings.save": "Enregistrer",
   "settings.cancel": "Annuler",
 

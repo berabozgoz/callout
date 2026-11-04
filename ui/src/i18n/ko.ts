@@ -27,10 +27,10 @@ export const ko: Messages = {
   "settings.sensitivityHigh": "높음",
   "settings.sensitivityReset": "기본값으로",
   "settings.pttKey": "눌러서 말하기 키",
-  "settings.pttCapturing": "키 또는 키 조합을 누르세요… (Esc로 취소)",
-  "settings.pttUnassigned": "설정 안 됨 — 클릭한 뒤 키를 누르세요",
+  "settings.pttCapturing": "키, 키 조합 또는 마우스 버튼을 누르세요… (Esc로 취소)",
+  "settings.pttUnassigned": "설정 안 됨 — 클릭한 뒤 키나 마우스 버튼을 누르세요",
   "settings.pttHint":
-    "방에 있는 동안에만 작동하며, 그동안 이 키는 CallOut 전용이 돼요. 게임에서 쓰지 않는 키를 고르세요(글자 키 하나를 고르면 그동안 다른 앱에서 그 글자를 입력할 수 없어요).",
+    "방에 있는 동안에만 작동해요. CallOut은 키를 막지 않아서 게임에서도 그 키가 그대로 동작해요. 게임에서 쓰지 않는 키나 마우스 측면 버튼을 고르세요. 게임을 관리자 권한으로 실행한다면 CallOut도 관리자 권한으로 실행하세요.",
   "settings.save": "저장",
   "settings.cancel": "취소",
 

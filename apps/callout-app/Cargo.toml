@@ -15,9 +15,9 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 callout-core.workspace = true
+callout-input.workspace = true
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2"
-tauri-plugin-global-shortcut = "2"
 tauri-plugin-clipboard-manager = "2"
 tokio.workspace = true
 serde.workspace = true

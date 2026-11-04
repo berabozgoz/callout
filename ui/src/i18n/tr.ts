@@ -27,10 +27,10 @@ export const tr: Messages = {
   "settings.sensitivityHigh": "Çok",
   "settings.sensitivityReset": "Varsayılana dön",
   "settings.pttKey": "Bas-konuş tuşu",
-  "settings.pttCapturing": "Bir tuşa ya da kombinasyona bas… (Esc iptal)",
-  "settings.pttUnassigned": "Atanmamış — tıkla ve bir tuşa bas",
+  "settings.pttCapturing": "Bir tuşa, kombinasyona ya da mouse tuşuna bas… (Esc iptal)",
+  "settings.pttUnassigned": "Atanmamış — tıkla, sonra bir tuşa ya da mouse tuşuna bas",
   "settings.pttHint":
-    "Sadece odadayken etkindir; o sırada tuş CallOut'a ayrılır. Oyununun kullanmadığı bir tuş seç (tek bir harf seçersen o harfi bu sırada başka uygulamalarda yazamazsın).",
+    "Sadece odadayken etkindir. CallOut tuşu engellemez, tuş oyunda da çalışmaya devam eder: oyunun kullanmadığı bir tuş ya da mouse yan tuşu seç. Oyun yönetici olarak çalışıyorsa CallOut'u da yönetici olarak çalıştır.",
   "settings.save": "Kaydet",
   "settings.cancel": "Vazgeç",
 

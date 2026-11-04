@@ -6,6 +6,7 @@ members = [
     "crates/callout-net",
     "crates/callout-core",
     "crates/callout-server",
+    "crates/callout-input",
     "apps/callout-app",
 ]
 # callout-app pulls in Tauri plugins (webkit etc.); Linux CI builds only the
@@ -16,6 +17,7 @@ default-members = [
     "crates/callout-net",
     "crates/callout-core",
     "crates/callout-server",
+    "crates/callout-input",
 ]
 
 [workspace.package]
@@ -30,6 +32,7 @@ callout-proto = { path = "crates/callout-proto" }
 callout-audio = { path = "crates/callout-audio" }
 callout-net = { path = "crates/callout-net" }
 callout-core = { path = "crates/callout-core" }
+callout-input = { path = "crates/callout-input" }
 
 serde = { version = "1", features = ["derive"] }
 postcard = { version = "1", features = ["alloc"] }

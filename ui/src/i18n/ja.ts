@@ -27,10 +27,10 @@ export const ja: Messages = {
   "settings.sensitivityHigh": "高",
   "settings.sensitivityReset": "既定に戻す",
   "settings.pttKey": "プッシュトゥトークのキー",
-  "settings.pttCapturing": "キーまたは組み合わせを押してください…（Esc でキャンセル）",
-  "settings.pttUnassigned": "未設定 — クリックしてキーを押してください",
+  "settings.pttCapturing": "キー、組み合わせ、またはマウスボタンを押してください…（Esc でキャンセル）",
+  "settings.pttUnassigned": "未設定 — クリックしてキーまたはマウスボタンを押してください",
   "settings.pttHint":
-    "ルームにいる間だけ有効で、そのキーは CallOut 専用になります。ゲームで使わないキーを選んでください（単独の文字キーにすると、その間ほかのアプリで入力できません）。",
+    "ルームにいる間だけ有効です。CallOut はキーをブロックしないため、ゲーム内でもそのキーは機能します。ゲームで使わないキーかマウスのサイドボタンを選んでください。ゲームを管理者として実行している場合は、CallOut も管理者として実行してください。",
   "settings.save": "保存",
   "settings.cancel": "キャンセル",
 

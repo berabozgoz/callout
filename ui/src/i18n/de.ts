@@ -27,10 +27,10 @@ export const de: Messages = {
   "settings.sensitivityHigh": "Mehr",
   "settings.sensitivityReset": "Auf Standard zurücksetzen",
   "settings.pttKey": "Push-to-Talk-Taste",
-  "settings.pttCapturing": "Drücke eine Taste oder Kombination… (Esc zum Abbrechen)",
-  "settings.pttUnassigned": "Nicht festgelegt — klicken und eine Taste drücken",
+  "settings.pttCapturing": "Drücke eine Taste, Kombination oder Maustaste… (Esc zum Abbrechen)",
+  "settings.pttUnassigned": "Nicht festgelegt — klicken, dann eine Taste oder Maustaste drücken",
   "settings.pttHint":
-    "Nur aktiv, solange du in einem Raum bist; die Taste gehört dann CallOut. Wähle eine, die dein Spiel nicht nutzt (einen einfachen Buchstaben kannst du währenddessen anderswo nicht tippen).",
+    "Nur aktiv, solange du in einem Raum bist. CallOut blockiert die Taste nicht, sie wirkt also auch im Spiel: Wähle eine, die das Spiel nicht nutzt, oder eine Maus-Seitentaste. Läuft das Spiel als Administrator, starte auch CallOut als Administrator.",
   "settings.save": "Speichern",
   "settings.cancel": "Abbrechen",
 

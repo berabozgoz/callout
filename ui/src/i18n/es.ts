@@ -27,10 +27,10 @@ export const es: Messages = {
   "settings.sensitivityHigh": "Más",
   "settings.sensitivityReset": "Restablecer",
   "settings.pttKey": "Tecla de pulsar para hablar",
-  "settings.pttCapturing": "Pulsa una tecla o combinación… (Esc para cancelar)",
-  "settings.pttUnassigned": "Sin asignar — haz clic y pulsa una tecla",
+  "settings.pttCapturing": "Pulsa una tecla, combinación o botón del ratón… (Esc para cancelar)",
+  "settings.pttUnassigned": "Sin asignar — haz clic y pulsa una tecla o un botón del ratón",
   "settings.pttHint":
-    "Solo funciona mientras estás en una sala, y entonces la tecla queda reservada para CallOut. Elige una que tu juego no use (una letra sola no se podrá escribir en otras apps mientras tanto).",
+    "Solo funciona mientras estás en una sala. CallOut no bloquea la tecla, así que también actúa en el juego: elige una que el juego no use o un botón lateral del ratón. Si el juego se ejecuta como administrador, ejecuta CallOut también como administrador.",
   "settings.save": "Guardar",
   "settings.cancel": "Cancelar",
 
