@@ -6,16 +6,15 @@
 ## Where we left off (4 Nov 2026)
 
 - **Phases 0–1 done; Phase 2 (audio quality) mostly done:** FEC/PLC measured, noise suppression (RNNoise),
-  adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (4 Nov, committed, not pushed, checked on Bera's mic,
-  not released or tested with other players). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
+  adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (4 Nov, v0.1.14, checked on Bera's mic,
+  not yet tested with other players). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
-- **Released:** v0.1.13 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
+- **Released:** v0.1.14 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
 - **Server:** Oracle Always Free (Frankfurt) runs **v0.1.12** (persistent rooms in `/var/lib/callout/rooms.tsv`,
-  owner-only room closing). v0.1.13 changed only the app, so no server update was needed. Details in
+  owner-only room closing). v0.1.13 and v0.1.14 changed only the app, so no server update was needed. Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main` (local or pushed, check `git log origin/main..HEAD`):** sensitivity dB readout + reset
-  link (4dfc354) and STATUS updates. They go out with the next release (v0.1.14).
+- **Unreleased on `main`:** nothing (check `git log origin/main..HEAD` and `git log v0.1.14..`).
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -101,12 +100,12 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- Field data from friends on v0.1.13: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
+- Field data from friends on v0.1.14: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
   FEC (`lost` vs `fec` in `sender jitter`), persistent rooms / close room on the real server.
-- **AGC** is implemented, checked on Bera's webcam mic (clean; the "crackle" was amplified mouth noises), not
-  released (v0.1.14 candidate). Open: with noise suppression off the VAD barely opens on that mic (threshold
-  above speech) — check whether that is expected or the floor/margin needs a look. Then try AGC with a loud
-  player (see "Pending manual tests"), then release; after that decide whether Phase 2 can be closed.
+- **AGC** is released in v0.1.14 (checked on Bera's webcam mic). Field: a loud and a quiet player in one room
+  (AGC (a), (b) in "Pending manual tests"); then decide whether Phase 2 can be closed. Open: with noise
+  suppression off the VAD barely opens on that mic (threshold above speech) — check whether that is
+  expected or the floor/margin needs a look.
 - Player experience: **mouse side buttons / non-swallowing keys for push-to-talk** (low-level hook in a small
   separate `unsafe` crate, rule 6); remember per-user volume across sessions; rate-limit wrong room-code attempts
   on the server (rooms are now permanent).
@@ -320,6 +319,8 @@ items marked **before release** pass.
   says to pick a key the game doesn't use. The sensitivity slider stays hidden with push-to-talk: the VAD
   is not used then (the key is the gate; the mic test records without it). 11 languages updated.
   clippy (incl. app)/test/svelte-check clean; checked in the release exe by Bera.
+- 4 Nov: **v0.1.14 released** (AGC, sensitivity dB readout, settings without scrolling, close-room strip,
+  no default push-to-talk key, dropout counters in the log). App only; the server stays on v0.1.12.
 - 4 Nov (AGC): see Next → Phase 2 item 3. `VadDecision` gained `active`; seven unit tests in `agc.rs`
   (convergence, loud input without clipping, no change on non-speech frames, sudden shout, gain limits,
   reset, smooth ramp). fmt/clippy (incl. app)/test/svelte-check clean; not tried in the app, not released.
