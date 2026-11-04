@@ -65,10 +65,11 @@ items marked **before release** pass.
       still follows its own language setting (system language by default), not the installer's choice.
 - [ ] **Mic test is private in a room** (since v0.1.8): run the mic test while in a room; the others must not
       hear the recording.
-- [ ] **Auto-update** (from the first updater-enabled release on): with release N installed, publish N+1. Expected:
+- [x] **Auto-update** (from the first updater-enabled release on): with release N installed, publish N+1. Expected:
       the banner appears (at start or within 6 h), "Update and restart" downloads, leaves the room cleanly and
       installs; CallOut reopens on N+1 with settings kept. In the portable exe the banner instead says to
       download the new exe and its "Download" button opens the Releases page.
+      ✓ 4 Nov (Bera): installed v0.1.12 showed the banner after a restart, updated in-app to v0.1.13.
 - [x] **Persistent rooms** (after the server update): create a room, everyone leaves, rejoin with the same code;
       the lobby's recent rooms list joins with one click; after `install.sh` re-runs (server restart) everyone
       reconnects into the same room.
@@ -241,6 +242,8 @@ items marked **before release** pass.
 - 4 Nov (installer language → app): the NSIS installer stores the picked language as an LCID in
   `HKCU\Software\berabozgoz\CallOut\Installer Language`; at start the app maps it (1055 → tr, 1033 → en, …) and
   sets `Settings.language` once per new choice (`installer_language_seen`), so a later in-app change is kept.
+- 4 Nov: **v0.1.13 released** (installer language → app language, icons in settings and the sound test) and
+  delivered through the in-app updater: Bera's v0.1.12 updated itself to v0.1.13. The update path works end to end.
 
 ## Previous session
 
