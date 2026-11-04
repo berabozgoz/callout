@@ -54,6 +54,12 @@ items marked **before release** pass.
 - [ ] **AGC off after the update** (next release): on a PC that had v0.1.14–v0.1.16 with AGC on, after the
       update Settings shows it off; turn it on, Save, restart → stays on. A normal headset mic with AGC on:
       the log's `agc gain_db` stays near 0.
+      ✓ 4 Nov (Bera, dev build, webcam mic): an older settings file (no flag) came up with AGC off and the
+      flag set; AGC on + Save, tray Quit, restart → still on. Webcam with AGC on: `gain_db` +10…+11,
+      `peak_out` −14…−16 dBFS, `limited_frames=0`. Not tried yet: the true → false switch-off on a real
+      update (unit-tested), a normal headset mic (no other mic at hand). Running an older build after the
+      new one drops the flag when it saves (it does not know the field), so the next new start switches AGC
+      off once more: harmless, only seen when switching back and forth between builds.
 - [ ] **CS2 test leftovers** (4 Nov, see `GATE_TEST.md`): push-to-talk in CS2 not tried; the mic test was run
       in the room but nobody checked whether the other side heard it; the 1 min cable pull was not done.
       AGC: both players turned it off because it sounded better without; kuzen found Bera too loud with it.
@@ -140,8 +146,10 @@ items marked **before release** pass.
 - **AGC retuned and off by default (unreleased):** after the CS2 test (too loud, both players preferred it
   off) the AGC leaves a mic alone when its speech level is inside a comfort band (−30…−20 dBFS RMS) and only
   raises a quiet one to −30 / lowers a loud one to −20; it ships **off** by default, and settings files from
-  v0.1.14–v0.1.16 get it switched off once (`agc_default_off_seen`). Release it, then try it on a quiet mic
-  (Bera's webcam) by turning it on in Settings.
+  v0.1.14–v0.1.16 get it switched off once (`agc_default_off_seen`). Checked locally on Bera's webcam
+  (+10…+11 dB at normal speech, clean). The CS2 complaint was on that same webcam while speaking up in
+  game (old AGC still +6…+8 dB there; the band should give ~0 for that level) → field check: Bera on the
+  webcam with AGC on in a game with kuzen, no longer too loud.
 - **Sender-side timing stats** (from the CS2 test): log the largest gap between capture callbacks and the
   number of frames encoded late, atomics only in the callback (rule 1), so a stalled audio thread on a
   loaded gaming PC can be told apart from uplink jitter (kuzen → Bera avg 108 ms buffer under CS2).

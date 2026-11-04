@@ -286,17 +286,19 @@ Times UTC.
 - **AGC:** before both turned it off (18:01:54 Bera, 18:01:57 kuzen) Bera's gain moved +5.7…+11 dB with
   peaks up to −5 dBFS and `limited_frames=0`; kuzen's sat at +12 dB (quiet mic, peaks −14…−30 dBFS, VAD floor
   −89/−100 dB: a mic with its own gate). The matches ran with AGC off.
-  **Players: both sounded better without AGC; with it on, kuzen found Bera far too loud.** Bera's mic
-  this time already peaked around −15 dBFS without gain, and AGC still added up to +11 dB, pushing
-  peaks to −5 dBFS. So the AGC boosts a mic that needs no help: target (−23 dBFS RMS) too hot and/or
-  no dead band for levels that are already fine.
+  **Players: both sounded better without AGC; with it on, kuzen found Bera far too loud.** Bera used
+  the Logitech C310 webcam mic (the quiet one AGC was tuned on). Speaking up in the game his peaks
+  reached about −15…−11 dBFS before the gain, and AGC still added +6…+8 dB (+11 on quieter speech),
+  pushing peaks to −5 dBFS. The −23 dBFS RMS target was too hot, with no dead band for a level that
+  is already fine.
 - **Not checked:** push-to-talk was not tried; the mic test was run in the room but nobody checked
   whether the other side heard it; no cable pull.
 - **Dropout counters:** Bera only small `out_underrun` (480–3840 samples, a few times); kuzen one large
   stall (above) plus small underruns after pipeline restarts.
 - **Against the criteria:** RTT + buffer < 150 ms ✓ on average in both directions (~81 / ~144 ms), but
   Bera's direction has peaks well above; drops: 1, recovered automatically in 8 s; crackling: no reports.
-- **Takeaways:** (0) AGC as tuned in v0.1.14 makes normal mics too loud → retune or turn off by default; (1) add capture-timing stats on the sender (largest gap between capture callbacks, frames
+- **Takeaways:** (0) AGC as tuned in v0.1.14 is too loud, even on a quiet webcam mic when the player speaks up →
+  retune and turn off by default; (1) add capture-timing stats on the sender (largest gap between capture callbacks, frames
   sent late) so sender-side stalls can be told apart from uplink jitter; (2) FEC covers ~77% of the loss
   from kuzen, burst loss is ~0.13% → RED not needed on this data; (3) an output-device mix-up looks like
   "nobody hears me": the "Play test sound" button in settings is the check to suggest.

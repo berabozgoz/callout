@@ -10,9 +10,9 @@
 //! between words is never pumped up:
 //! - **level**: the speech RMS is smoothed (fast up, slow down). A level inside the comfort band
 //!   (`BAND_LOW_DB`…`BAND_HIGH_DB`) is left alone (unity gain); a quieter one is raised to the
-//!   band's lower edge, a louder one brought down to its upper edge. A mic that is already fine
-//!   is not touched: the first version aimed every mic at −23 dBFS and made normal mics too loud
-//!   (CS2 field test, 4 Nov 2026);
+//!   band's lower edge, a louder one brought down to its upper edge. A level that is already fine
+//!   is not touched: the first version aimed everything at −23 dBFS, so even loud in-game speech
+//!   on a quiet webcam mic still got +6…+8 dB and was found too loud (CS2 field test, 4 Nov 2026);
 //! - **peaks**: the speech *peak* is tracked too (instant up, slow down) and the gain never
 //!   rises above what keeps those peaks `PEAK_CEIL_DB` below full scale. Speech has a high crest
 //!   factor, so a gain that only follows the RMS would push every loud syllable into the limiter;
@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn a_mic_already_in_the_band_is_left_alone() {
-        // A normal headset mic (the CS2 field test: the old AGC added up to +11 dB here).
+        // Speech already at a comfortable level (the old −23 dBFS target still added gain here).
         for level in [-29.0, -26.0, -21.0] {
             let mut agc = Agc::new();
             let mut ph = 0.0;

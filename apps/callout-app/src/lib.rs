@@ -179,7 +179,7 @@ fn forget_old_default_ptt_key(s: &mut Settings) -> bool {
     false
 }
 
-/// v0.1.14–v0.1.16 had AGC on by default with a tuning that made normal mics too loud (CS2 field
+/// v0.1.14–v0.1.16 had AGC on by default with a tuning that players found too loud (CS2 field
 /// test, 4 Nov 2026). Turn it off once for settings files from those versions; a player who
 /// switches it on again afterwards keeps it. Returns whether anything changed.
 fn turn_off_old_agc_default(s: &mut Settings) -> bool {
