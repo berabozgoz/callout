@@ -35,10 +35,10 @@ export const ja: Messages = {
   "test.title": "サウンドテスト",
   "test.threshold": "音声検出のしきい値",
   "test.calibrating": "準備中…静かにしてください",
-  "test.recording": "⏺ 話してください… {s} 秒",
-  "test.playing": "▶ 録音を再生中…（停止）",
-  "test.start": "🎙 マイクをテスト",
-  "test.tone": "🔊 テスト音を再生",
+  "test.recording": "話してください… {s} 秒",
+  "test.playing": "録音を再生中…（停止）",
+  "test.start": "マイクをテスト",
+  "test.tone": "テスト音を再生",
   "test.resultNone":
     "録音のうち送信される部分はありませんでした。マイクの音量がしきい値を下回っていたか、別のマイクが選択されています。",
   "test.result":

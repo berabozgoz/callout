@@ -38,10 +38,10 @@ export const en = {
   "test.title": "Sound test",
   "test.threshold": "Voice activity threshold",
   "test.calibrating": "Getting ready… stay quiet",
-  "test.recording": "⏺ Speak… {s} s",
-  "test.playing": "▶ Playing recording… (stop)",
-  "test.start": "🎙 Test microphone",
-  "test.tone": "🔊 Play test sound",
+  "test.recording": "Speak… {s} s",
+  "test.playing": "Playing recording… (stop)",
+  "test.start": "Test microphone",
+  "test.tone": "Play test sound",
   "test.resultNone":
     "Nothing in the recording would have been sent: your microphone stayed below the threshold, or the wrong microphone is selected.",
   "test.result":

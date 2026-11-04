@@ -35,10 +35,10 @@ export const ar: Messages = {
   "test.title": "اختبار الصوت",
   "test.threshold": "عتبة اكتشاف الصوت",
   "test.calibrating": "جارٍ التحضير… التزم الصمت",
-  "test.recording": "⏺ تحدّث… {s} ث",
-  "test.playing": "▶ جارٍ تشغيل التسجيل… (إيقاف)",
-  "test.start": "🎙 اختبار الميكروفون",
-  "test.tone": "🔊 تشغيل صوت اختبار",
+  "test.recording": "تحدّث… {s} ث",
+  "test.playing": "جارٍ تشغيل التسجيل… (إيقاف)",
+  "test.start": "اختبار الميكروفون",
+  "test.tone": "تشغيل صوت اختبار",
   "test.resultNone":
     "لم يكن أي جزء من التسجيل ليُرسَل: بقي الميكروفون دون العتبة، أو أن الميكروفون المحدد غير صحيح.",
   "test.result":

@@ -35,10 +35,10 @@ export const zhCN: Messages = {
   "test.title": "声音测试",
   "test.threshold": "语音激活阈值",
   "test.calibrating": "准备中…请保持安静",
-  "test.recording": "⏺ 请说话… {s} 秒",
-  "test.playing": "▶ 正在播放录音…（停止）",
-  "test.start": "🎙 测试麦克风",
-  "test.tone": "🔊 播放测试音",
+  "test.recording": "请说话… {s} 秒",
+  "test.playing": "正在播放录音…（停止）",
+  "test.start": "测试麦克风",
+  "test.tone": "播放测试音",
   "test.resultNone":
     "录音中没有任何内容会被发送：你的麦克风音量一直低于阈值，或者选错了麦克风。",
   "test.result":

@@ -35,10 +35,10 @@ export const fr: Messages = {
   "test.title": "Test audio",
   "test.threshold": "Seuil de détection de la voix",
   "test.calibrating": "Préparation… restez silencieux",
-  "test.recording": "⏺ Parlez… {s} s",
-  "test.playing": "▶ Lecture de l'enregistrement… (arrêter)",
-  "test.start": "🎙 Tester le micro",
-  "test.tone": "🔊 Jouer un son de test",
+  "test.recording": "Parlez… {s} s",
+  "test.playing": "Lecture de l'enregistrement… (arrêter)",
+  "test.start": "Tester le micro",
+  "test.tone": "Jouer un son de test",
   "test.resultNone":
     "Rien dans l'enregistrement n'aurait été envoyé : votre micro est resté sous le seuil, ou le mauvais micro est sélectionné.",
   "test.result":

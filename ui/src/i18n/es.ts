@@ -35,10 +35,10 @@ export const es: Messages = {
   "test.title": "Prueba de sonido",
   "test.threshold": "Umbral de detección de voz",
   "test.calibrating": "Preparando… guarda silencio",
-  "test.recording": "⏺ Habla… {s} s",
-  "test.playing": "▶ Reproduciendo la grabación… (detener)",
-  "test.start": "🎙 Probar micrófono",
-  "test.tone": "🔊 Reproducir sonido de prueba",
+  "test.recording": "Habla… {s} s",
+  "test.playing": "Reproduciendo la grabación… (detener)",
+  "test.start": "Probar micrófono",
+  "test.tone": "Reproducir sonido de prueba",
   "test.resultNone":
     "No se habría enviado nada de la grabación: tu micrófono se mantuvo por debajo del umbral o está seleccionado el micrófono equivocado.",
   "test.result":

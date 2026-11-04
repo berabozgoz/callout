@@ -35,10 +35,10 @@ export const de: Messages = {
   "test.title": "Soundtest",
   "test.threshold": "Schwellenwert der Sprachaktivierung",
   "test.calibrating": "Wird vorbereitet… bitte still sein",
-  "test.recording": "⏺ Sprich… {s} s",
-  "test.playing": "▶ Aufnahme wird abgespielt… (Stopp)",
-  "test.start": "🎙 Mikrofon testen",
-  "test.tone": "🔊 Testton abspielen",
+  "test.recording": "Sprich… {s} s",
+  "test.playing": "Aufnahme wird abgespielt… (Stopp)",
+  "test.start": "Mikrofon testen",
+  "test.tone": "Testton abspielen",
   "test.resultNone":
     "In der Aufnahme wäre nichts gesendet worden: Dein Mikrofon blieb unter dem Schwellenwert, oder das falsche Mikrofon ist ausgewählt.",
   "test.result":

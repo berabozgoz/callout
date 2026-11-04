@@ -35,10 +35,10 @@ export const tr: Messages = {
   "test.title": "Ses testi",
   "test.threshold": "Konuşma algılama eşiği",
   "test.calibrating": "Hazırlanıyor… sessiz kal",
-  "test.recording": "⏺ Konuş… {s} sn",
-  "test.playing": "▶ Kayıt çalınıyor… (durdur)",
-  "test.start": "🎙 Mikrofonu test et",
-  "test.tone": "🔊 Test sesi çal",
+  "test.recording": "Konuş… {s} sn",
+  "test.playing": "Kayıt çalınıyor… (durdur)",
+  "test.start": "Mikrofonu test et",
+  "test.tone": "Test sesi çal",
   "test.resultNone":
     "Kayıtta hiç ses gönderilmedi: mikrofon sesi eşiğin altında kaldı ya da yanlış mikrofon seçili.",
   "test.result":

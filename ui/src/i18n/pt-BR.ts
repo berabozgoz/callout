@@ -35,10 +35,10 @@ export const ptBR: Messages = {
   "test.title": "Teste de som",
   "test.threshold": "Limite de detecção de voz",
   "test.calibrating": "Preparando… fique em silêncio",
-  "test.recording": "⏺ Fale… {s} s",
-  "test.playing": "▶ Reproduzindo gravação… (parar)",
-  "test.start": "🎙 Testar microfone",
-  "test.tone": "🔊 Tocar som de teste",
+  "test.recording": "Fale… {s} s",
+  "test.playing": "Reproduzindo gravação… (parar)",
+  "test.start": "Testar microfone",
+  "test.tone": "Tocar som de teste",
   "test.resultNone":
     "Nada da gravação teria sido enviado: seu microfone ficou abaixo do limite ou o microfone errado está selecionado.",
   "test.result":

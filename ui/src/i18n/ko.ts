@@ -35,10 +35,10 @@ export const ko: Messages = {
   "test.title": "사운드 테스트",
   "test.threshold": "음성 감지 임계값",
   "test.calibrating": "준비 중… 조용히 해 주세요",
-  "test.recording": "⏺ 말해 보세요… {s}초",
-  "test.playing": "▶ 녹음 재생 중… (중지)",
-  "test.start": "🎙 마이크 테스트",
-  "test.tone": "🔊 테스트 사운드 재생",
+  "test.recording": "말해 보세요… {s}초",
+  "test.playing": "녹음 재생 중… (중지)",
+  "test.start": "마이크 테스트",
+  "test.tone": "테스트 사운드 재생",
   "test.resultNone":
     "녹음에서 전송될 부분이 없었어요. 마이크 소리가 임계값보다 낮았거나 다른 마이크가 선택되어 있어요.",
   "test.result":

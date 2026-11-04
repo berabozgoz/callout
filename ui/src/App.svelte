@@ -427,13 +427,14 @@
         {@render meter()}
         {@render inputHint()}
         <div class="actions">
-          <button class:recording={micTest === "recording"} onclick={toggleMicTest}>
+          <button class="iconlabel" class:recording={micTest === "recording"} onclick={toggleMicTest}>
+            <Icon name="microphone" size={16} />
             {#if micTest === "calibrating"}{t("test.calibrating")}
             {:else if micTest === "recording"}{t("test.recording", { s: remaining })}
             {:else if micTest === "playing"}{t("test.playing")}
             {:else}{t("test.start")}{/if}
           </button>
-          <button onclick={playTestSound}>{t("test.tone")}</button>
+          <button class="iconlabel" onclick={playTestSound}><Icon name="headphones" size={16} />{t("test.tone")}</button>
         </div>
         {#if micResult === 0}
           <p class="hint warn">{t("test.resultNone")}</p>
