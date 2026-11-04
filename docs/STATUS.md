@@ -6,16 +6,16 @@
 ## Where we left off (4 Nov 2026)
 
 - **Phases 0–1 done; Phase 2 (audio quality) mostly done:** FEC/PLC measured, noise suppression (RNNoise),
-  adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (4 Nov, v0.1.14, checked on Bera's mic,
-  not yet tested with other players). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
+  adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (v0.1.14; retuned to a comfort band and
+  off by default in v0.1.17 after the CS2 test). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
-- **Released:** v0.1.16 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
+- **Released:** v0.1.17 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
-- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.16** (persistent rooms in `/var/lib/callout/rooms.tsv`,
+- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.16** (v0.1.17 is app-only, no server update needed) (persistent rooms in `/var/lib/callout/rooms.tsv`,
   owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated 4 Nov 17:04 UTC, nobody was
   connected, invite link unchanged, 7 rooms loaded). Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main`:** nothing (check `git log v0.1.16..`).
+- **Unreleased on `main`:** nothing (check `git log v0.1.17..`).
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -273,6 +273,11 @@ items marked **before release** pass.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 
 ## Last session
+
+- 4 Nov: **v0.1.17 released** (AGC comfort band, off by default with a one-time switch-off; app only, server
+  stays on v0.1.16); `latest.json` serves 0.1.17, release notes carry a "What's new". During the build Bera's
+  PC rebooted with bugcheck 0x00020001 (HYPERVISOR_ERROR, no dump written): Windows' virtualization layer,
+  not CallOut (user mode only, no driver); watch whether it repeats.
 
 - 4 Nov (CS2 field test, Bera + kuzen, v0.1.16, results in `GATE_TEST.md`): log upload works on the real
   server; a 10 s outage on kuzen's line was recovered by the automatic reconnect in 8 s (room and mute kept);
