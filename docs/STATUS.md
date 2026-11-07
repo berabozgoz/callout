@@ -3,20 +3,20 @@
 > Read this file at the start of every session; at the end of a session update the "Last session" and "Next" sections.
 > Private details such as the server address and invite link are not written here but in `CLAUDE.local.md`, which is not in git.
 
-## Where we left off (4 Nov 2026)
+## Where we left off (8 Nov 2026)
 
 - **Phases 0–1 done; Phase 2 (audio quality) mostly done:** FEC/PLC measured, noise suppression (RNNoise),
   adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (v0.1.14; retuned to a comfort band and
   off by default in v0.1.17 after the CS2 test). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
-- **Released:** v0.1.17 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
+- **Released:** v0.1.18 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
-- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.16** (v0.1.17 is app-only, no server update needed) (persistent rooms in `/var/lib/callout/rooms.tsv`,
+- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.16** (v0.1.17 and v0.1.18 are app-only, no server update needed) (persistent rooms in `/var/lib/callout/rooms.tsv`,
   owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated 4 Nov 17:04 UTC, nobody was
   connected, invite link unchanged, 7 rooms loaded). Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main`:** audio thread priority (MMCSS) + `audio timing` log line; per-user volume shown
-  as a number and remembered by nickname; join/leave sounds (check `git log v0.1.17..`).
+- **Unreleased on `main`:** nothing (check `git log v0.1.18..`). v0.1.18 brought the audio thread priority
+  (MMCSS) + `audio timing` log line, per-user volume numbers + remembered volumes, join/leave sounds.
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -41,18 +41,18 @@ items marked **before release** pass.
 - [x] **Reconnect "Stop" button** (before release): pull the cable, press Stop. Back on the connect screen; no
       reconnect when the cable returns.
       ✓ 3 Nov (Bera): Stop returned to the connect screen; no automatic reconnect afterwards.
-- [ ] **Join/leave sounds** (next release): Settings → "Join sound": picking a style plays its join form,
+- [ ] **Join/leave sounds** (v0.1.18): Settings → "Join sound": picking a style plays its join form,
       the play button plays join then leave; Save applies it, Cancel keeps the old one. In a room you hear
       the join sound when you join and when someone joins, the leave sound when someone leaves (also after
       their connection drops, ~10 s later); nothing when deafened or set to Off. Check the level against
       voices (peak 0.22, like the test sound) and that it plays on the chosen output device.
-- [ ] **Remembered per-user volume** (next release): in a room, move a player's slider: the number next to
+- [ ] **Remembered per-user volume** (v0.1.18): in a room, move a player's slider: the number next to
       it follows (e.g. 55%, highlighted when not 100%); clicking the number resets to 100%. Leave and rejoin,
       quit from the tray and reopen, and pull the cable for a reconnect: that player comes back at the set
       volume (number and what you hear). `settings.json` has `user_volumes` with only the non-100% players;
       saving the settings page does not drop them. Known limit: keyed by nickname (no stable user id until
       Phase 3), so a renamed player starts at 100% and two players with the same name share the value.
-- [ ] **Audio thread priority under game load** (next release): the log shows `audio thread priority raised
+- [ ] **Audio thread priority under game load** (v0.1.18): the log shows `audio thread priority raised
       boost="mmcss pro audio"` after joining. In a game session (LoL or CS2, the 7 Nov / 4 Nov players)
       `out_underrun` and `late` should drop well below 7 Nov (Hallobadi: ~1.2 s underrun in 50 min, 56
       late), and `audio timing` should show `loop_stalls` near 0 with `loop_max_ms` well under 40. If
@@ -180,13 +180,13 @@ items marked **before release** pass.
   (+10…+11 dB at normal speech, clean). The CS2 complaint was on that same webcam while speaking up in
   game (old AGC still +6…+8 dB there; the band should give ~0 for that level) → field check: Bera on the
   webcam with AGC on in a game with kuzen, no longer too loud.
-- **Audio thread priority + timing stats (unreleased, on `main`):** the engine's audio thread now joins
+- **Audio thread priority + timing stats (released in v0.1.18):** the engine's audio thread now joins
   the MMCSS "Pro Audio" task (new crate `callout-priority`, fallback `THREAD_PRIORITY_HIGHEST`), after two
   players' PCs starved it under game load (Hallobadi under LoL: ~1.2 s of `out_underrun` in 50 min matching
   his `late` bursts on a clean network; kuzen under CS2: one 0.6 s stall). Every 30 s the log has an
   `audio timing` line: `loop_max_ms`, `loop_stalls` (loop gaps ≥ 20 ms), `capture_max_ms`,
   `playback_max_ms`. Checked locally (talk example, local server): `boost="mmcss pro audio"`, loop max
-  3 ms, callbacks 10–11 ms. Next: release, then a game session with the same players and compare
+  3 ms, callbacks 10–11 ms. Next: a game session with the same players and compare
   `out_underrun` / `late` with the 7 Nov numbers (see Pending manual tests).
 - Field data from friends on v0.1.16: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
   FEC (`lost` vs `fec` in `sender jitter`), persistent rooms / close room on the real server.
@@ -195,7 +195,7 @@ items marked **before release** pass.
   suppression off the VAD barely opens on that mic (threshold above speech) — check whether that is
   expected or the floor/margin needs a look.
 - Player experience: non-swallowing push-to-talk with mouse buttons is out in v0.1.15; per-user volume
-  numbers + remembered volumes are on `main` (unreleased); next: rate-limit wrong room-code attempts
+  numbers + remembered volumes and join/leave sounds are out in v0.1.18; next: rate-limit wrong room-code attempts
   on the server (rooms are now permanent).
 - Later: UDP-blocked fallback (reliable stream), RED if field data shows burst loss, code signing, Phase 3.
 
@@ -308,6 +308,12 @@ items marked **before release** pass.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 
 ## Last session
+
+- 8 Nov: **v0.1.18 released** (audio thread MMCSS priority + `audio timing`, per-user volume numbers and
+  remembered volumes, join/leave sounds; app only, server stays on v0.1.16). Release and CI green; six
+  assets (installer + `.sig`, portable exe, both servers, `latest.json` serving 0.1.18); release notes carry
+  a "What's new". Next: a game session with friends on v0.1.18 → compare `out_underrun` / `late` /
+  `audio timing` with 7 Nov, and the three v0.1.18 items in "Pending manual tests".
 
 - 8 Nov (join/leave sounds, Bera's request): `callout-audio::cues` synthesizes four styles (Chime, Pop
   "bubble", Marimba, Beep "radio"), each with a rising join and a falling leave form (48 kHz, frame-aligned,
