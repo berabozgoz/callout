@@ -3,10 +3,11 @@
 //! stores settings, and manages the push-to-talk listener and the system tray.
 
 use callout_core::{
-    Command, ConnectionState, DeviceInfo, Direction, Engine, EngineConfig, Event, Member, RoomInfo,
-    UserId,
+    Command, ConnectionState, DeviceInfo, Direction, Engine, EngineConfig, Event, JoinSound,
+    Member, RoomInfo, UserId,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -44,6 +45,13 @@ pub struct Settings {
     /// Installer language (Windows LCID) already applied to `language`; a new install with a
     /// different choice applies it again, the same one does not override a later in-app change.
     pub installer_language_seen: Option<u32>,
+    /// Volumes set for other players (gain, 1.0 = normal), by nickname: the protocol has no stable
+    /// user id (a `user_id` lasts one connection) until accounts come in Phase 3. Only values other
+    /// than 1.0 are kept. Owned by the app: written when a slider moves, never taken from the UI's
+    /// `save_settings` copy (which may be older).
+    pub user_volumes: BTreeMap<String, f32>,
+    /// Sound when someone joins or leaves the room (and when we join one).
+    pub join_sound: JoinSound,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -69,6 +77,8 @@ impl Default for Settings {
             language: None,
             recent_rooms: Vec::new(),
             installer_language_seen: None,
+            user_volumes: BTreeMap::new(),
+            join_sound: JoinSound::default(),
         }
     }
 }
@@ -191,6 +201,31 @@ fn turn_off_old_agc_default(s: &mut Settings) -> bool {
     true
 }
 
+/// Stores the volume set for `nickname` (removed when back at normal). Returns whether the stored
+/// map changed.
+fn remember_volume(volumes: &mut BTreeMap<String, f32>, nickname: &str, gain: f32) -> bool {
+    let gain = (gain.clamp(0.0, 4.0) * 100.0).round() / 100.0;
+    if (gain - 1.0).abs() < 0.005 {
+        volumes.remove(nickname).is_some()
+    } else {
+        volumes.insert(nickname.to_string(), gain) != Some(gain)
+    }
+}
+
+/// Saved volumes to send to the engine for the members of a room (not for ourselves). Sent on every
+/// room update: a `user_id` is new after each join or reconnect, and resending is harmless.
+fn saved_volumes_for(
+    members: &[Member],
+    me: Option<UserId>,
+    volumes: &BTreeMap<String, f32>,
+) -> Vec<(UserId, f32)> {
+    members
+        .iter()
+        .filter(|m| Some(m.user_id) != me)
+        .filter_map(|m| volumes.get(&m.nickname).map(|g| (m.user_id, *g)))
+        .collect()
+}
+
 /// The default window height fits the settings page without scrolling; on a short screen
 /// (e.g. 1366×768) shrink it to the work area instead of letting it run under the taskbar.
 fn fit_window_to_screen(w: &tauri::WebviewWindow) -> tauri::Result<()> {
@@ -253,6 +288,7 @@ fn save_settings(
     // without them (they would deserialize to their defaults and redo the one-time changes).
     settings.installer_language_seen = old.installer_language_seen;
     settings.agc_default_off_seen = old.agc_default_off_seen;
+    settings.user_volumes = old.user_volumes;
     *state.settings.lock().unwrap() = settings.clone();
     state.save_settings()?;
     let applied = state.applied.lock().unwrap().clone();
@@ -296,6 +332,11 @@ fn save_settings(
             },
         );
     }
+    if old.join_sound != settings.join_sound {
+        state.engine.send(Command::SetJoinSound {
+            sound: settings.join_sound,
+        });
+    }
     state.engine.send(Command::SetPushToTalkMode {
         enabled: settings.push_to_talk,
     });
@@ -313,6 +354,23 @@ fn engine_command(state: State<AppState>, command: Command) {
 
 /// Forwards a command to the engine; updates the state the app keeps (snapshot, applied devices).
 fn send_command(state: &AppState, command: Command) {
+    if let Command::SetUserVolume { user_id, gain } = &command {
+        let nickname = (state.snapshot.lock().unwrap().members.iter())
+            .find(|m| m.user_id == *user_id)
+            .map(|m| m.nickname.clone());
+        if let Some(nickname) = nickname {
+            let changed = remember_volume(
+                &mut state.settings.lock().unwrap().user_volumes,
+                &nickname,
+                *gain,
+            );
+            if changed {
+                if let Err(e) = state.save_settings() {
+                    tracing::warn!("could not save settings: {e}");
+                }
+            }
+        }
+    }
     {
         let mut snap = state.snapshot.lock().unwrap();
         match &command {
@@ -678,6 +736,7 @@ pub fn run() {
                 noise_suppression: settings.noise_suppression,
                 vad_sensitivity_db: settings.vad_sensitivity,
                 agc: settings.agc,
+                join_sound: settings.join_sound,
                 no_audio: false,
             });
 
@@ -686,7 +745,21 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 while let Some(ev) = events.recv().await {
                     if let Some(st) = handle.try_state::<AppState>() {
-                        st.snapshot.lock().unwrap().apply(&ev);
+                        let me = {
+                            let mut snap = st.snapshot.lock().unwrap();
+                            snap.apply(&ev);
+                            snap.user_id
+                        };
+                        if let Event::RoomUpdated { members, .. } = &ev {
+                            let saved = saved_volumes_for(
+                                members,
+                                me,
+                                &st.settings.lock().unwrap().user_volumes,
+                            );
+                            for (user_id, gain) in saved {
+                                st.engine.send(Command::SetUserVolume { user_id, gain });
+                            }
+                        }
                     }
                     if let Event::RoomUpdated { room, .. } = &ev {
                         // Sync push-to-talk only on room join/leave (when the value changes).
@@ -806,8 +879,62 @@ fn _assert_event_serializable(e: &Event) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        forget_old_default_ptt_key, scrub_log, tail_lines, turn_off_old_agc_default, Settings,
+        forget_old_default_ptt_key, remember_volume, saved_volumes_for, scrub_log, tail_lines,
+        turn_off_old_agc_default, Settings,
     };
+    use callout_core::Member;
+    use std::collections::BTreeMap;
+
+    fn member(user_id: u32, nickname: &str) -> Member {
+        Member {
+            user_id,
+            nickname: nickname.into(),
+            muted: false,
+            deafened: false,
+        }
+    }
+
+    #[test]
+    fn volumes_are_remembered_by_nickname() {
+        let mut v = BTreeMap::new();
+        assert!(remember_volume(&mut v, "kuzen", 0.55));
+        assert!(
+            !remember_volume(&mut v, "kuzen", 0.551),
+            "same value after rounding"
+        );
+        assert_eq!(v.get("kuzen"), Some(&0.55));
+        assert!(
+            remember_volume(&mut v, "kuzen", 1.0),
+            "back to normal removes it"
+        );
+        assert!(v.is_empty());
+        assert!(!remember_volume(&mut v, "kuzen", 1.0));
+        remember_volume(&mut v, "loud", 9.0);
+        assert_eq!(v.get("loud"), Some(&4.0), "clamped like the engine");
+    }
+
+    #[test]
+    fn saved_volumes_apply_to_others_in_the_room() {
+        let mut v = BTreeMap::new();
+        v.insert("kuzen".to_string(), 0.5);
+        v.insert("bera".to_string(), 1.5);
+        let members = [member(7, "bera"), member(8, "kuzen"), member(9, "cocart")];
+        // Ourselves (7, even with a matching name) and players without a saved value are skipped.
+        assert_eq!(saved_volumes_for(&members, Some(7), &v), vec![(8, 0.5)]);
+    }
+
+    #[test]
+    fn settings_files_load_with_and_without_volumes() {
+        let s: Settings = serde_json::from_str(r#"{"nickname":"bera"}"#).unwrap();
+        assert!(s.user_volumes.is_empty());
+        assert_eq!(
+            s.join_sound,
+            callout_core::JoinSound::Chime,
+            "older files get the default"
+        );
+        let s: Settings = serde_json::from_str(r#"{"user_volumes":{"kuzen":0.7}}"#).unwrap();
+        assert_eq!(s.user_volumes.get("kuzen"), Some(&0.7));
+    }
 
     #[test]
     fn old_agc_default_is_turned_off_once() {

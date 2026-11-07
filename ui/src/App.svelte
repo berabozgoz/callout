@@ -4,7 +4,7 @@
   import {
     send, getSettings, saveSettings, listDevices, appVersion, onEngine, onPtt, prettyCode,
     engineSnapshot, pttCapture, prettyShortcut, setTrayLabels, isInstalled, openReleasesPage, sendLog,
-    type Settings, type Device, type Member, type RoomInfo, type ConnectionState, type MicTestState,
+    type Settings, type Device, type Member, type JoinSound, JOIN_SOUNDS, type RoomInfo, type ConnectionState, type MicTestState,
     type ErrorKind, type LogUploadOutcome,
   } from "./engine";
   import { t, i18n, setLanguage, LANGUAGES } from "./i18n/index.svelte";
@@ -17,7 +17,7 @@
   const fail = (e: unknown): UiError => ({ key: "error.generic", vars: { detail: String(e) } });
 
   // ---- state ----
-  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "", noise_suppression: true, vad_sensitivity: 0, agc: false, language: null, recent_rooms: [] });
+  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "", noise_suppression: true, vad_sensitivity: 0, agc: false, language: null, recent_rooms: [], user_volumes: {}, join_sound: "chime" });
   let devices = $state<Device[]>([]);
   let version = $state("");
   let conn = $state<ConnectionState>("disconnected");
@@ -300,9 +300,17 @@
   }
   function toggleMute() { muted = !muted; send({ type: "set_muted", muted }); }
   function toggleDeafen() { deafened = !deafened; send({ type: "set_deafened", deafened }); }
-  function setVolume(user_id: number, gain: number) {
-    volumes = { ...volumes, [user_id]: gain };
-    send({ type: "set_user_volume", user_id, gain });
+  // A player's volume: what was set in this session, else what was saved for the nickname (the app
+  // stores it and applies it on join), else normal.
+  function volumeOf(m: Member): number {
+    return volumes[m.user_id] ?? settings.user_volumes?.[m.nickname] ?? 1;
+  }
+  function setVolume(m: Member, gain: number) {
+    volumes = { ...volumes, [m.user_id]: gain };
+    // Mirror what the app saves, so the value survives a webview reload of this copy too.
+    const { [m.nickname]: _, ...rest } = settings.user_volumes ?? {};
+    settings.user_volumes = Math.abs(gain - 1) < 0.005 ? rest : { ...rest, [m.nickname]: gain };
+    send({ type: "set_user_volume", user_id: m.user_id, gain });
   }
   async function copyCode() {
     if (!room) return;
@@ -359,6 +367,15 @@
     else send({ type: "stop_mic_test" });
   }
   const playTestSound = () => send({ type: "play_test_sound" });
+  // Join/leave sound: picking one plays its join form; the button plays join, then leave. Applied
+  // to the room only when the settings are saved.
+  let leavePreview: ReturnType<typeof setTimeout> | undefined;
+  function previewJoinSound(sound: JoinSound, both: boolean) {
+    clearTimeout(leavePreview);
+    if (sound === "off") return;
+    send({ type: "preview_join_sound", sound, leave: false });
+    if (both) leavePreview = setTimeout(() => send({ type: "preview_join_sound", sound, leave: true }), 700);
+  }
   // There is no default key (any key could clash with a game): turning push-to-talk on without one
   // starts the key capture right away.
   function onPushToTalkToggle() {
@@ -466,6 +483,17 @@
           <option value={null}>{t("settings.default")}</option>
           {#each outputs as d (d.name)}<option value={d.name}>{d.name}</option>{/each}
         </select>
+        <label for="set-join"><Icon name="bell" size={14} />{t("settings.joinSound")}</label>
+        <div class="withbtn">
+          <select id="set-join" bind:value={settings.join_sound} onchange={() => previewJoinSound(settings.join_sound, false)}>
+            {#each JOIN_SOUNDS as js (js)}<option value={js}>{t(`joinSound.${js}`)}</option>{/each}
+          </select>
+          <button type="button" class="iconbtn small" disabled={settings.join_sound === "off"}
+            onclick={() => previewJoinSound(settings.join_sound, true)}
+            title={t("settings.joinSoundPlay")} aria-label={t("settings.joinSoundPlay")}>
+            <Icon name="player-play" size={14} />
+          </button>
+        </div>
         <label for="set-lang">{t("settings.language")}</label>
         <select id="set-lang" bind:value={settings.language} onchange={() => setLanguage(settings.language)}>
           <option value={null}>{t("settings.languageAuto")}</option>
@@ -641,9 +669,14 @@
             </span>
             {#if m.user_id !== myId}
               <input class="vol" type="range" min="0" max="2" step="0.05"
-                value={volumes[m.user_id] ?? 1}
-                oninput={(e) => setVolume(m.user_id, Number((e.target as HTMLInputElement).value))}
-                title={t("room.volume", { pct: Math.round((volumes[m.user_id] ?? 1) * 100) })} />
+                value={volumeOf(m)}
+                oninput={(e) => setVolume(m, Number((e.target as HTMLInputElement).value))}
+                aria-label={t("room.volume", { pct: Math.round(volumeOf(m) * 100) })}
+                title={t("room.volume", { pct: Math.round(volumeOf(m) * 100) })} />
+              <button type="button" class="volpct" class:changed={Math.round(volumeOf(m) * 100) !== 100}
+                onclick={() => setVolume(m, 1)} title={t("room.volumeReset")}>
+                {t("room.volumePct", { pct: Math.round(volumeOf(m) * 100) })}
+              </button>
             {/if}
           </li>
         {/each}

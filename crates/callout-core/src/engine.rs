@@ -11,10 +11,13 @@
 //! open (preview: for the level meter and the sound test). It is rebuilt when the device changes.
 
 use crate::timing::{self, GapMeter, LoopMeter};
-use crate::{Command, ConnectionState, ErrorKind, Event, LogUploadOutcome, MicTestState};
+use crate::{
+    Command, ConnectionState, ErrorKind, Event, JoinSound, LogUploadOutcome, MicTestState,
+};
 use bytes::Bytes;
 use callout_audio::agc::{self, Agc};
 use callout_audio::codec::{Decoder, Encoder, EncoderConfig, FRAME};
+use callout_audio::cues::{self, Cue};
 use callout_audio::denoise::Denoiser;
 use callout_audio::framer::Framer;
 use callout_audio::jitter::{JitterBuffer, Playout};
@@ -35,7 +38,7 @@ use ringbuf::HeapRb;
 use std::collections::{HashMap, VecDeque};
 use std::f32::consts::TAU;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -72,6 +75,8 @@ pub struct EngineConfig {
     pub vad_sensitivity_db: f32,
     /// Automatic gain control on the microphone signal (see `Command::SetAgc`).
     pub agc: bool,
+    /// Sound for joins and leaves (see `Command::SetJoinSound`).
+    pub join_sound: JoinSound,
     /// Never set up the audio pipeline (for test environments without audio devices).
     pub no_audio: bool,
 }
@@ -86,6 +91,7 @@ impl Default for EngineConfig {
             noise_suppression: true,
             vad_sensitivity_db: 0.0,
             agc: false,
+            join_sound: JoinSound::default(),
             no_audio: false,
         }
     }
@@ -146,6 +152,11 @@ struct AudioControl {
     mic_test_start: AtomicBool,
     mic_test_stop: AtomicBool,
     test_sound: AtomicBool,
+    /// `JoinSound::to_u8` of the setting.
+    join_sound: AtomicU8,
+    /// A cue to play: `sound * 2 + leave` (see [`cue_request`]), 0 = none. Set by the engine,
+    /// taken by the audio thread.
+    cue_request: AtomicU8,
     gains: Mutex<HashMap<UserId, f32>>,
     // statistics
     sent: AtomicU32,
@@ -170,6 +181,8 @@ impl AudioControl {
             mic_test_start: AtomicBool::new(false),
             mic_test_stop: AtomicBool::new(false),
             test_sound: AtomicBool::new(false),
+            join_sound: AtomicU8::new(JoinSound::default().to_u8()),
+            cue_request: AtomicU8::new(0),
             gains: Mutex::new(HashMap::new()),
             sent: AtomicU32::new(0),
             received: AtomicU32::new(0),
@@ -218,6 +231,29 @@ fn encode_opus(enc: &mut Encoder, frame: &[f32]) -> Option<Vec<u8>> {
         .ok()
         .filter(|p| !Encoder::is_dtx_packet(p))
         .map(|p| p.to_vec())
+}
+
+/// Encodes a cue for `AudioControl::cue_request`; `None` for `JoinSound::Off`.
+fn cue_request(sound: JoinSound, cue: Cue) -> Option<u8> {
+    let s = sound.to_u8();
+    (s != 0).then_some(s * 2 + u8::from(cue == Cue::Leave))
+}
+
+/// Decodes an `AudioControl::cue_request` value.
+fn decode_cue_request(r: u8) -> Option<(cues::Style, Cue)> {
+    let style = JoinSound::from_u8(r / 2).style()?;
+    Some((style, if r % 2 == 1 { Cue::Leave } else { Cue::Join }))
+}
+
+/// Room event cue with the player's setting; nothing when it is off or we are deafened.
+fn play_room_cue(ctl: &AudioControl, cue: Cue) {
+    if ctl.deafened.load(Ordering::Relaxed) {
+        return;
+    }
+    let sound = JoinSound::from_u8(ctl.join_sound.load(Ordering::Relaxed));
+    if let Some(r) = cue_request(sound, cue) {
+        ctl.cue_request.store(r, Ordering::Relaxed);
+    }
 }
 
 /// Short two-note chime (48 kHz, length a multiple of the frame size).
@@ -436,6 +472,8 @@ fn audio_thread(
     let mut test_gate = false;
     let mut tone: Vec<f32> = Vec::new();
     let mut tone_pos = 0usize;
+    let mut cue: Vec<f32> = Vec::new();
+    let mut cue_pos = 0usize;
     let emit_test = |state: MicTestState, transmitted_pct: Option<u8>| {
         let _ = ev.send(Event::MicTest {
             state,
@@ -465,6 +503,12 @@ fn audio_thread(
         if ctl.test_sound.swap(false, Ordering::Relaxed) {
             tone = test_sound();
             tone_pos = 0;
+        }
+        if let Some((style, kind)) = decode_cue_request(ctl.cue_request.swap(0, Ordering::Relaxed))
+        {
+            tracing::debug!(?style, ?kind, "join/leave cue");
+            cue = cues::render(style, kind);
+            cue_pos = 0;
         }
 
         // 1) Transmit
@@ -725,6 +769,12 @@ fn audio_thread(
                 }
                 tone_pos += FRAME;
             }
+            if cue_pos < cue.len() {
+                for (m, s) in mix.iter_mut().zip(&cue[cue_pos..cue_pos + FRAME]) {
+                    *m = (*m + s).clamp(-1.0, 1.0);
+                }
+                cue_pos += FRAME;
+            }
             out.clear();
             if down.process(&mix, &mut out).is_ok() {
                 for &s in &out {
@@ -940,6 +990,8 @@ async fn run(
         cfg.vad_sensitivity_db,
         cfg.agc,
     );
+    ctl.join_sound
+        .store(cfg.join_sound.to_u8(), Ordering::Relaxed);
     // The UI asks for a preview while on the settings screen; it persists after a disconnect too.
     let mut preview_wanted = false;
     // Set after an involuntary disconnect: retry with backoff until it works or the user cancels.
@@ -1029,6 +1081,20 @@ async fn run(
                     ctl.vad_sensitivity.store(db.to_bits(), Ordering::Relaxed)
                 }
                 Some(Command::SetAgc { enabled }) => ctl.agc.store(enabled, Ordering::Relaxed),
+                Some(Command::SetJoinSound { sound }) => {
+                    ctl.join_sound.store(sound.to_u8(), Ordering::Relaxed)
+                }
+                Some(Command::PreviewJoinSound { sound, leave }) => {
+                    let kind = if leave { Cue::Leave } else { Cue::Join };
+                    if let Some(r) = cue_request(sound, kind) {
+                        if preview.is_none() {
+                            preview = open_preview(&cfg, &ctl, &ev);
+                        }
+                        if preview.is_some() {
+                            ctl.cue_request.store(r, Ordering::Relaxed);
+                        }
+                    }
+                }
                 Some(Command::SetDeafened { deafened }) => {
                     ctl.deafened.store(deafened, Ordering::Relaxed)
                 }
@@ -1249,6 +1315,13 @@ async fn run(
                         Command::SetNoiseSuppression { enabled } => { ctl.noise_suppression.store(enabled, Ordering::Relaxed); Ok(()) }
                         Command::SetVadSensitivity { db } => { ctl.vad_sensitivity.store(db.to_bits(), Ordering::Relaxed); Ok(()) }
                         Command::SetAgc { enabled } => { ctl.agc.store(enabled, Ordering::Relaxed); Ok(()) }
+                        Command::SetJoinSound { sound } => { ctl.join_sound.store(sound.to_u8(), Ordering::Relaxed); Ok(()) }
+                        Command::PreviewJoinSound { sound, leave } => {
+                            if let Some(r) = cue_request(sound, if leave { Cue::Leave } else { Cue::Join }) {
+                                ctl.cue_request.store(r, Ordering::Relaxed);
+                            }
+                            Ok(())
+                        }
                         Command::UploadLog { app_version, log } => {
                             // In a task of its own: the upload may take a while (and an older server
                             // never answers), the control loop must go on.
@@ -1286,6 +1359,7 @@ async fn run(
                                 if ctl.deafened.load(Ordering::Relaxed) {
                                     let _ = client.control().send(&ClientMsg::SetDeafened(true)).await;
                                 }
+                                play_room_cue(&ctl, Cue::Join);
                             }
                             room = Some(r);
                             ctl.in_room.store(true, Ordering::Relaxed);
@@ -1293,11 +1367,18 @@ async fn run(
                             emit(Event::RoomUpdated { room: room.clone(), members: members.clone() });
                         }
                         ServerMsg::MemberJoined(m) => {
+                            let known = members.iter().any(|x| x.user_id == m.user_id);
+                            if !known && m.user_id != my_id && room.is_some() {
+                                play_room_cue(&ctl, Cue::Join);
+                            }
                             members.retain(|x| x.user_id != m.user_id);
                             members.push(m);
                             emit(Event::RoomUpdated { room: room.clone(), members: members.clone() });
                         }
                         ServerMsg::MemberLeft(id) => {
+                            if id != my_id && members.iter().any(|x| x.user_id == id) {
+                                play_room_cue(&ctl, Cue::Leave);
+                            }
                             members.retain(|x| x.user_id != id);
                             emit(Event::RoomUpdated { room: room.clone(), members: members.clone() });
                         }
@@ -1485,6 +1566,67 @@ fn restart_audio(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cue_requests_round_trip_and_off_plays_nothing() {
+        use callout_audio::cues::Style;
+        assert_eq!(cue_request(JoinSound::Off, Cue::Join), None);
+        assert_eq!(cue_request(JoinSound::Off, Cue::Leave), None);
+        for (sound, style) in [
+            (JoinSound::Chime, Style::Chime),
+            (JoinSound::Pop, Style::Pop),
+            (JoinSound::Marimba, Style::Marimba),
+            (JoinSound::Beep, Style::Beep),
+        ] {
+            for cue in [Cue::Join, Cue::Leave] {
+                let r = cue_request(sound, cue).expect("a request");
+                assert_ne!(r, 0, "0 means no request");
+                assert_eq!(decode_cue_request(r), Some((style, cue)));
+            }
+        }
+        assert_eq!(decode_cue_request(0), None);
+    }
+
+    #[test]
+    fn room_cue_respects_setting_and_deafen() {
+        let ctl = AudioControl::new(false, true, 0.0, false);
+        play_room_cue(&ctl, Cue::Join);
+        assert_eq!(
+            decode_cue_request(ctl.cue_request.swap(0, Ordering::Relaxed)),
+            Some((callout_audio::cues::Style::Chime, Cue::Join)),
+            "default sound"
+        );
+        ctl.deafened.store(true, Ordering::Relaxed);
+        play_room_cue(&ctl, Cue::Leave);
+        assert_eq!(
+            ctl.cue_request.load(Ordering::Relaxed),
+            0,
+            "deafened: silent"
+        );
+        ctl.deafened.store(false, Ordering::Relaxed);
+        ctl.join_sound
+            .store(JoinSound::Off.to_u8(), Ordering::Relaxed);
+        play_room_cue(&ctl, Cue::Leave);
+        assert_eq!(ctl.cue_request.load(Ordering::Relaxed), 0, "off: silent");
+    }
+
+    #[test]
+    fn join_sound_serializes_as_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&JoinSound::Marimba).unwrap(),
+            "\"marimba\""
+        );
+        let c: Command =
+            serde_json::from_str(r#"{"type":"preview_join_sound","sound":"pop","leave":true}"#)
+                .unwrap();
+        assert_eq!(
+            c,
+            Command::PreviewJoinSound {
+                sound: JoinSound::Pop,
+                leave: true
+            }
+        );
+    }
 
     #[test]
     fn test_sound_is_frame_aligned_and_safe() {

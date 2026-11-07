@@ -83,6 +83,7 @@ async fn main() -> Result<()> {
         noise_suppression: true,
         vad_sensitivity_db: 0.0,
         agc: false,
+        join_sound: callout_core::JoinSound::default(),
         no_audio: false,
     });
     engine.send(Command::Connect {

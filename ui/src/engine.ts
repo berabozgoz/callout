@@ -49,7 +49,13 @@ export type Command =
   | { type: "set_noise_suppression"; enabled: boolean }
   | { type: "set_vad_sensitivity"; db: number }
   | { type: "set_agc"; enabled: boolean }
-  | { type: "close_room" };
+  | { type: "close_room" }
+  | { type: "set_join_sound"; sound: JoinSound }
+  | { type: "preview_join_sound"; sound: JoinSound; leave: boolean };
+
+/** `callout_core::JoinSound`: the sound when someone joins or leaves the room. */
+export type JoinSound = "off" | "chime" | "pop" | "marimba" | "beep";
+export const JOIN_SOUNDS: JoinSound[] = ["chime", "pop", "marimba", "beep", "off"];
 
 export type Settings = {
   nickname: string;
@@ -67,6 +73,11 @@ export type Settings = {
   language: string | null;
   /** Rooms joined lately, newest first (rooms are persistent on the server). */
   recent_rooms: { code: string; name: string }[];
+  /** Volumes set for other players by nickname (1 = normal; only other values are kept). The app
+   * owns this: it saves it when a slider moves and ignores it in `save_settings`. */
+  user_volumes: Record<string, number>;
+  /** Sound when someone joins or leaves the room (and when we join one). */
+  join_sound: JoinSound;
 };
 
 /** The engine's actual state: the engine stays connected even if the webview reloads. */

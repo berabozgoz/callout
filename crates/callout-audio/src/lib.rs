@@ -7,13 +7,14 @@
 //!
 //! Modules: [`codec`] (Opus), [`resample`] (device rate ↔ 48 kHz), [`framer`] (20 ms frames),
 //! [`vad`] (voice activity detection), [`agc`] (automatic gain control),
-//! [`jitter`] (per-sender jitter buffer), [`mixer`] (mixer).
+//! [`jitter`] (per-sender jitter buffer), [`mixer`] (mixer), [`cues`] (join/leave sounds).
 //! Loopback example: `cargo run -p callout-audio --example loopback`.
 
 #![forbid(unsafe_code)]
 
 pub mod agc;
 pub mod codec;
+pub mod cues;
 pub mod denoise;
 pub mod framer;
 pub mod jitter;

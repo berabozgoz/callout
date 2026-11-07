@@ -20,5 +20,6 @@ cpal.workspace = true
 ringbuf.workspace = true
 
 [dev-dependencies]
+serde_json = "1"
 anyhow.workspace = true
 tracing-subscriber.workspace = true

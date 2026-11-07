@@ -15,7 +15,8 @@
   owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated 4 Nov 17:04 UTC, nobody was
   connected, invite link unchanged, 7 rooms loaded). Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main`:** audio thread priority (MMCSS) + `audio timing` log line (check `git log v0.1.17..`).
+- **Unreleased on `main`:** audio thread priority (MMCSS) + `audio timing` log line; per-user volume shown
+  as a number and remembered by nickname; join/leave sounds (check `git log v0.1.17..`).
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -40,6 +41,17 @@ items marked **before release** pass.
 - [x] **Reconnect "Stop" button** (before release): pull the cable, press Stop. Back on the connect screen; no
       reconnect when the cable returns.
       ✓ 3 Nov (Bera): Stop returned to the connect screen; no automatic reconnect afterwards.
+- [ ] **Join/leave sounds** (next release): Settings → "Join sound": picking a style plays its join form,
+      the play button plays join then leave; Save applies it, Cancel keeps the old one. In a room you hear
+      the join sound when you join and when someone joins, the leave sound when someone leaves (also after
+      their connection drops, ~10 s later); nothing when deafened or set to Off. Check the level against
+      voices (peak 0.22, like the test sound) and that it plays on the chosen output device.
+- [ ] **Remembered per-user volume** (next release): in a room, move a player's slider: the number next to
+      it follows (e.g. 55%, highlighted when not 100%); clicking the number resets to 100%. Leave and rejoin,
+      quit from the tray and reopen, and pull the cable for a reconnect: that player comes back at the set
+      volume (number and what you hear). `settings.json` has `user_volumes` with only the non-100% players;
+      saving the settings page does not drop them. Known limit: keyed by nickname (no stable user id until
+      Phase 3), so a renamed player starts at 100% and two players with the same name share the value.
 - [ ] **Audio thread priority under game load** (next release): the log shows `audio thread priority raised
       boost="mmcss pro audio"` after joining. In a game session (LoL or CS2, the 7 Nov / 4 Nov players)
       `out_underrun` and `late` should drop well below 7 Nov (Hallobadi: ~1.2 s underrun in 50 min, 56
@@ -182,8 +194,8 @@ items marked **before release** pass.
   (AGC (a), (b) in "Pending manual tests"); then decide whether Phase 2 can be closed. Open: with noise
   suppression off the VAD barely opens on that mic (threshold above speech) — check whether that is
   expected or the floor/margin needs a look.
-- Player experience: non-swallowing push-to-talk with mouse buttons is out in v0.1.15; next: remember
-  per-user volume across sessions; rate-limit wrong room-code attempts
+- Player experience: non-swallowing push-to-talk with mouse buttons is out in v0.1.15; per-user volume
+  numbers + remembered volumes are on `main` (unreleased); next: rate-limit wrong room-code attempts
   on the server (rooms are now permanent).
 - Later: UDP-blocked fallback (reliable stream), RED if field data shows burst loss, code signing, Phase 3.
 
@@ -296,6 +308,29 @@ items marked **before release** pass.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 
 ## Last session
+
+- 8 Nov (join/leave sounds, Bera's request): `callout-audio::cues` synthesizes four styles (Chime, Pop
+  "bubble", Marimba, Beep "radio"), each with a rising join and a falling leave form (48 kHz, frame-aligned,
+  peak 0.22, faded ends; no sound files). The engine plays the join cue when we enter a room and when a
+  member joins (`MemberJoined` for someone not yet listed), the leave cue on `MemberLeft`; not when deafened
+  or Off. The audio thread renders and mixes it like the test sound (`cue_request` atomic, never in a cpal
+  callback). New `Command::SetJoinSound` / `PreviewJoinSound`, `JoinSound` (default Chime) in settings and
+  `EngineConfig`; Settings page row with a select and a play button (join, then leave), 11 languages.
+  Tests: cue shape (3), request encoding/deafen/off/serde (3), settings default (1); clippy, svelte-check
+  clean. End-to-end with two talk clients on a local server: own join, other's join and other's leave
+  (after a dropped connection) all triggered. Settings page checked in the browser preview (fits 750 px).
+  Not heard/picked in the real app yet, not released.
+
+- 8 Nov (per-user volume, Bera's request): the room shows each player's volume as a number next to the
+  slider (localized: `%55` in Turkish, `55 %` in German/French…; highlighted when not 100%; a click resets
+  to 100%). Volumes are remembered across sessions by **nickname** in `settings.json` (`user_volumes`, only
+  non-100% values): the protocol has no stable user id (a `user_id` lasts one connection), and adding the
+  device key to `Member` would need a protocol bump and a server update. The app owns the map: it saves on
+  every slider change (`send_command` looks up the nickname in the snapshot), resends saved volumes to the
+  engine on every `RoomUpdated` (covers join, rejoin and reconnect, which all bring new user ids), and
+  `save_settings` keeps its own copy over the UI's. 3 new app tests; clippy, tests, svelte-check clean;
+  UI checked in the browser preview with a mocked Tauri layer (saved 50% shown, slider updates the
+  number, reset sends gain 1). Not tried in the real app, not released.
 
 - 8 Nov (audio thread priority, from the LoL/CS2 findings): new crate `callout-priority` (unsafe, rule 6;
   `windows-sys` Threading only, already in the tree) puts the engine audio thread into MMCSS "Pro Audio"

@@ -91,6 +91,61 @@ pub enum Command {
         app_version: String,
         log: String,
     },
+    /// The sound played when someone joins or leaves the room (and when we join one).
+    SetJoinSound {
+        sound: JoinSound,
+    },
+    /// Plays a join (or leave) sound once on the output device, whatever the setting, for
+    /// picking one in settings.
+    PreviewJoinSound {
+        sound: JoinSound,
+        leave: bool,
+    },
+}
+
+/// Join/leave sound style (see `callout_audio::cues`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JoinSound {
+    Off,
+    #[default]
+    Chime,
+    Pop,
+    Marimba,
+    Beep,
+}
+
+impl JoinSound {
+    pub(crate) fn to_u8(self) -> u8 {
+        match self {
+            JoinSound::Off => 0,
+            JoinSound::Chime => 1,
+            JoinSound::Pop => 2,
+            JoinSound::Marimba => 3,
+            JoinSound::Beep => 4,
+        }
+    }
+
+    pub(crate) fn from_u8(v: u8) -> Self {
+        match v {
+            1 => JoinSound::Chime,
+            2 => JoinSound::Pop,
+            3 => JoinSound::Marimba,
+            4 => JoinSound::Beep,
+            _ => JoinSound::Off,
+        }
+    }
+
+    pub(crate) fn style(self) -> Option<callout_audio::cues::Style> {
+        use callout_audio::cues::Style;
+        match self {
+            JoinSound::Off => None,
+            JoinSound::Chime => Some(Style::Chime),
+            JoinSound::Pop => Some(Style::Pop),
+            JoinSound::Marimba => Some(Style::Marimba),
+            JoinSound::Beep => Some(Style::Beep),
+        }
+    }
 }
 
 /// Core → UI.
