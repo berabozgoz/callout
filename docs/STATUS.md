@@ -68,6 +68,9 @@ items marked **before release** pass.
       AGC: both players turned it off because it sounded better without; kuzen found Bera too loud with it.
 - [ ] **Adaptive jitter in the field** (since v0.1.10): a Wi-Fi player (cocart) on v0.1.10+ plays a session.
       Expected: `stats` jitter_ms around 80–100 ms instead of ~140 (v0.1.6), late/lost up slightly (~1.5%).
+      7 Nov (LoL, v0.1.17): Hallobadi is behind a Wi-Fi hop (PC wired to a box that reaches the router over
+      Wi-Fi); Bera's buffer for him averaged 64 ms (60 ms 85% of the time, max 140), loss ~0.5% (92% via
+      FEC). Good, but cocart's worse Wi-Fi is still the real check.
 - [x] **FEC field data** (since v0.1.7): any session with loss; compare `lost` and `fec` in the `sender jitter`
       lines. A large `lost − fec` means burst loss → consider RED.
       ✓ 4 Nov (CS2): FEC 77% of kuzen's loss. ✓ 7 Nov (LoL): FEC 443 of 484 from Hallobadi (92%, ~0.5%
@@ -106,8 +109,9 @@ items marked **before release** pass.
       ✓ 4 Nov (Bera, release exe): (c) noise between words not louder with AGC on; (f) the switch takes effect
       in the mic test and Cancel reverts it. (a) and (b) need the release and other players; (d) needs such a mic.
       7 Nov (LoL, v0.1.17, both AGC on): (e) Bera's webcam median +0.2 dB in game (was +6…+8 in CS2),
-      Hallobadi's gated quiet mic median +7.8 dB (cap +12), limiter in 20 of 98 windows. Player
-      impressions for (a)/(b) not recorded yet.
+      Hallobadi's gated quiet mic median +7.8 dB (cap +12), limiter in 20 of 98 windows.
+      ✓ (a) Hallobadi: Bera (webcam, AGC on) sounded good, not too loud. (b) still needs a loud and a quiet
+      player compared by ear.
 - [x] **UI fixes before v0.1.14** (since this session): (a) a fresh window opens 780 px tall and centered; the
       settings page fits without scrolling with push-to-talk on and off; on a 1366×768 screen the window
       shrinks to the work area; (b) in a room, "Close room" opens a confirmation strip under the header
@@ -291,8 +295,8 @@ items marked **before release** pass.
 - 7 Nov (LoL field test, Bera + Hallobadi, v0.1.17, both AGC on; results in `GATE_TEST.md`): ~50 min,
   no drops; RTT + buffer ~100 ms both ways; FEC covered 92% of Hallobadi's ~0.5% uplink loss; Bera's
   webcam AGC gain ≈0 dB (the retune works). Found: playback underruns on Hallobadi's PC under LoL
-  coinciding with his `late` bursts → audio thread starved by the game (see Next). Player impressions
-  (loudness, clarity) still to be written down.
+  coinciding with his `late` bursts → audio thread starved by the game (see Next). Players: Hallobadi
+  found Bera's voice good (not too loud), Bera noticed no dropouts; Hallobadi tried push-to-talk for a while.
 
 - 4 Nov: **v0.1.17 released** (AGC comfort band, off by default with a one-time switch-off; app only, server
   stays on v0.1.16); `latest.json` serves 0.1.17, release notes carry a "What's new". During the build Bera's

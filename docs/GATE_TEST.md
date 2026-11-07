@@ -317,7 +317,7 @@ Source: server journal + both client logs sent with "Send log". Times UTC.
     → **~100 ms**.
 - **Loss, Hallobadi → Bera:** 484 frames lost of ~96k the server received from him (~0.5%), **443 recovered
   by FEC (92%)**, 41 by PLC only (~0.04%). Spread evenly over the session (2–22 per 30 s), single packets:
-  his uplink. Server → Bera QUIC loss 0, so nothing was lost on Bera's side. RED not needed.
+  his uplink, which has a Wi-Fi hop (his PC is wired to a box that reaches the router over Wi-Fi). Server → Bera QUIC loss 0, so nothing was lost on Bera's side. RED not needed.
 - **Loss, Bera → Hallobadi:** 17 frames, FEC 0: not network loss (server → Hallobadi QUIC loss: 1 packet)
   but frames that were missing at playout together with the next one, i.e. late. They fall in the
   minutes with `late` counts.
@@ -331,11 +331,14 @@ Source: server journal + both client logs sent with "Send log". Times UTC.
   `limited_frames` 15 in total — inside the comfort band, as intended (the old AGC added +6…+8 dB at this
   level in CS2). Hallobadi: a quiet mic with its own gate (44.1 kHz stereo, VAD floor −100 dB), gain median
   +7.8 dB (max +12, the cap), peaks up to −0.2 dBFS, limiter active in 20 of 98 windows (390 frames).
-- **Not in the logs:** player impressions (was Bera too loud? did Hallobadi sound clipped or pumping?),
-  whether push-to-talk was used, Hallobadi's connection type.
+- **Players:** Hallobadi said Bera sounded good and did not find him too loud (AGC on; in CS2 kuzen found
+  him far too loud with the old AGC). Bera noticed no dropouts in Hallobadi's voice. Hallobadi tried
+  push-to-talk for a while (the app does not log key presses, so the logs cannot show when). Not known:
+  whether Hallobadi heard gaps during his playback underruns (17:30–17:33).
 - **Against the criteria:** RTT + buffer < 150 ms ✓ in both directions (~100 / ~100 ms, peaks ~176);
   drops 0.
-- **Takeaways:** (1) the AGC retune does what it should on Bera's webcam (≈0 dB); (2) audio-thread stalls
+- **Takeaways:** (1) the AGC retune does what it should on Bera's webcam (≈0 dB, and the other player
+  found him fine, no longer too loud); (2) audio-thread stalls
   under game load are now seen on two players' PCs in two games → raise the audio thread's priority
   (MMCSS "Pro Audio" / time-critical) and/or add the timing stats; (3) FEC covers 92% of a ~0.5% uplink
   loss → RED still not needed.
