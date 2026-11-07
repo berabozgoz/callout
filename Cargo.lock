@@ -513,7 +513,7 @@ dependencies = [
 
 [[package]]
 name = "callout-app"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "callout-core",
  "callout-input",
@@ -533,7 +533,7 @@ dependencies = [
 
 [[package]]
 name = "callout-audio"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "anyhow",
  "callout-proto",
@@ -549,7 +549,7 @@ dependencies = [
 
 [[package]]
 name = "callout-core"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "anyhow",
  "bytes",
@@ -569,7 +569,7 @@ dependencies = [
 
 [[package]]
 name = "callout-input"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "thiserror 2.0.21",
  "tracing",
@@ -578,7 +578,7 @@ dependencies = [
 
 [[package]]
 name = "callout-net"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "bytes",
  "callout-proto",
@@ -597,7 +597,7 @@ dependencies = [
 
 [[package]]
 name = "callout-priority"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "thiserror 2.0.21",
  "windows-sys 0.61.2",
@@ -605,7 +605,7 @@ dependencies = [
 
 [[package]]
 name = "callout-proto"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "postcard",
  "proptest",
@@ -616,7 +616,7 @@ dependencies = [
 
 [[package]]
 name = "callout-server"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "anyhow",
  "bytes",
