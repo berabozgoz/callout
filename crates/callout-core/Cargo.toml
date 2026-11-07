@@ -10,6 +10,7 @@ rust-version.workspace = true
 callout-proto.workspace = true
 callout-audio.workspace = true
 callout-net.workspace = true
+callout-priority.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

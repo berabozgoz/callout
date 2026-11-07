@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 pub mod engine;
+mod timing;
 
 use serde::{Deserialize, Serialize};
 

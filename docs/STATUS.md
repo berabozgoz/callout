@@ -15,7 +15,7 @@
   owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated 4 Nov 17:04 UTC, nobody was
   connected, invite link unchanged, 7 rooms loaded). Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main`:** nothing (check `git log v0.1.17..`).
+- **Unreleased on `main`:** audio thread priority (MMCSS) + `audio timing` log line (check `git log v0.1.17..`).
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -40,6 +40,12 @@ items marked **before release** pass.
 - [x] **Reconnect "Stop" button** (before release): pull the cable, press Stop. Back on the connect screen; no
       reconnect when the cable returns.
       ✓ 3 Nov (Bera): Stop returned to the connect screen; no automatic reconnect afterwards.
+- [ ] **Audio thread priority under game load** (next release): the log shows `audio thread priority raised
+      boost="mmcss pro audio"` after joining. In a game session (LoL or CS2, the 7 Nov / 4 Nov players)
+      `out_underrun` and `late` should drop well below 7 Nov (Hallobadi: ~1.2 s underrun in 50 min, 56
+      late), and `audio timing` should show `loop_stalls` near 0 with `loop_max_ms` well under 40. If
+      stalls remain while `playback_max_ms` stays ~10, the game still outruns the thread; if the
+      callbacks' gaps grow too, the whole PC is overloaded. Also: the desktop stays responsive.
 - [ ] **Long outage** : cable out ~1 min. Reconnects within ~15 s of the cable returning.
 - [x] **Listen-only join** (before release; since 53e73f4): Windows Settings → Privacy → Microphone → turn off
       desktop app access, connect. Expected: the microphone error is shown, but you can join a room and hear
@@ -162,15 +168,14 @@ items marked **before release** pass.
   (+10…+11 dB at normal speech, clean). The CS2 complaint was on that same webcam while speaking up in
   game (old AGC still +6…+8 dB there; the band should give ~0 for that level) → field check: Bera on the
   webcam with AGC on in a game with kuzen, no longer too loud.
-- **Audio thread under game load** (CS2 4 Nov, LoL 7 Nov): two players' PCs starved the audio thread
-  (Hallobadi under LoL: ~1.2 s of `out_underrun` in 50 min, worst 17:30–17:33 UTC, matching his `late`
-  bursts while the network was clean; kuzen under CS2: one 0.6 s stall). The thread runs at normal
-  priority and waits with `sleep(2 ms)`, and arrival times are taken in it, so a stall also inflates the
-  jitter estimate. Candidates: raise its priority (MMCSS "Pro Audio" / time-critical; needs Windows API,
-  so an isolated crate per rule 6 or a permissively licensed crate), plus the timing stats below.
-- **Sender-side timing stats** (from the CS2 test): log the largest gap between capture callbacks and the
-  number of frames encoded late, atomics only in the callback (rule 1), so a stalled audio thread on a
-  loaded gaming PC can be told apart from uplink jitter (kuzen → Bera avg 108 ms buffer under CS2).
+- **Audio thread priority + timing stats (unreleased, on `main`):** the engine's audio thread now joins
+  the MMCSS "Pro Audio" task (new crate `callout-priority`, fallback `THREAD_PRIORITY_HIGHEST`), after two
+  players' PCs starved it under game load (Hallobadi under LoL: ~1.2 s of `out_underrun` in 50 min matching
+  his `late` bursts on a clean network; kuzen under CS2: one 0.6 s stall). Every 30 s the log has an
+  `audio timing` line: `loop_max_ms`, `loop_stalls` (loop gaps ≥ 20 ms), `capture_max_ms`,
+  `playback_max_ms`. Checked locally (talk example, local server): `boost="mmcss pro audio"`, loop max
+  3 ms, callbacks 10–11 ms. Next: release, then a game session with the same players and compare
+  `out_underrun` / `late` with the 7 Nov numbers (see Pending manual tests).
 - Field data from friends on v0.1.16: cocart's Wi-Fi jitter (`stats` jitter_ms, expect ~80–100 ms vs ~140 before),
   FEC (`lost` vs `fec` in `sender jitter`), persistent rooms / close room on the real server.
 - **AGC** is released in v0.1.14 (checked on Bera's webcam mic). Field: a loud and a quiet player in one room
@@ -291,6 +296,15 @@ items marked **before release** pass.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 
 ## Last session
+
+- 8 Nov (audio thread priority, from the LoL/CS2 findings): new crate `callout-priority` (unsafe, rule 6;
+  `windows-sys` Threading only, already in the tree) puts the engine audio thread into MMCSS "Pro Audio"
+  for the thread's lifetime (reverted on exit), fallback `THREAD_PRIORITY_HIGHEST`. cpal's own WASAPI
+  callback threads were already time-critical. `timing.rs` in callout-core: `GapMeter` (atomics only,
+  ticked in both cpal callbacks) and `LoopMeter`; one `audio timing` info line every 30 s. The mix
+  branch now sleeps 2 ms when nothing reached the output ring, so a raised-priority thread cannot spin
+  on a resampler error. Tests (5 new), clippy (incl. app), cargo deny clean; tried with the talk example
+  against a local server (MMCSS granted, loop max 3 ms). Not tried in the app UI or a game, not released.
 
 - 7 Nov (LoL field test, Bera + Hallobadi, v0.1.17, both AGC on; results in `GATE_TEST.md`): ~50 min,
   no drops; RTT + buffer ~100 ms both ways; FEC covered 92% of Hallobadi's ~0.5% uplink loss; Bera's

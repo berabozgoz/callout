@@ -38,11 +38,16 @@ Client A (Tauri)             callout-server (VPS / home PC)       Client B…N
 ## Client
 
 - `callout-proto` types · `callout-audio` cpal + Opus + jitter + mixer ·
-  `callout-net` QUIC · `callout-core` state machine · `callout-app` Tauri shell · `ui/` Svelte.
+  `callout-net` QUIC · `callout-core` state machine · `callout-app` Tauri shell · `ui/` Svelte ·
+  `callout-input` push-to-talk listener · `callout-priority` audio thread priority (the two crates with `unsafe`).
 - Send: mic → cpal callback (only a copy into the ring buffer) → audio thread:
   resample to 48 kHz, 20 ms frames, VAD, [Phase 2] noise suppression, Opus → datagram.
 - Receive: datagram → per-sender jitter buffer (60 ms initial, adaptive) → Opus decode + PLC →
   per-user gain → mixer (f32 sum + soft limiter) → cpal playback.
+- The engine's audio thread joins the MMCSS "Pro Audio" task (fallback: `THREAD_PRIORITY_HIGHEST`); cpal
+  already raises its own callback threads. Under a game's CPU load a normal-priority thread was run late
+  (playback underruns, packets that looked late). Every 30 s it logs `audio timing` (largest gaps of the
+  loop and both callbacks) next to the dropout counters.
 - Tauri boundary: the UI sends `Command`, receives `Event`; audio data never crosses into the webview.
 
 ## Server

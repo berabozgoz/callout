@@ -555,6 +555,7 @@ dependencies = [
  "bytes",
  "callout-audio",
  "callout-net",
+ "callout-priority",
  "callout-proto",
  "cpal",
  "ringbuf",
@@ -591,6 +592,14 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "callout-priority"
+version = "0.1.17"
+dependencies = [
+ "thiserror 2.0.21",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

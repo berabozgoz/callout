@@ -1,0 +1,17 @@
+[package]
+name = "callout-priority"
+description = "Raises the audio processing thread's scheduling priority (Windows MMCSS)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+# Already in the tree through Tauri and callout-input; only the features below are added.
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+] }

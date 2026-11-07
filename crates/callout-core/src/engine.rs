@@ -10,6 +10,7 @@
 //! The audio thread lives while connected; while disconnected it only runs when settings are
 //! open (preview: for the level meter and the sound test). It is rebuilt when the device changes.
 
+use crate::timing::{self, GapMeter, LoopMeter};
 use crate::{Command, ConnectionState, ErrorKind, Event, LogUploadOutcome, MicTestState};
 use bytes::Bytes;
 use callout_audio::agc::{self, Agc};
@@ -249,6 +250,19 @@ fn audio_thread(
     ev: mpsc::UnboundedSender<Event>,
     ready: std::sync::mpsc::Sender<Result<(), String>>,
 ) {
+    // Under a game's CPU load a normal-priority thread is run late (playback underruns, packets
+    // that look late); cpal raises its own callback threads, this raises ours. Restored on return.
+    let _priority = match callout_priority::AudioThreadPriority::raise() {
+        Ok(p) => {
+            tracing::info!(boost = p.boost().as_str(), "audio thread priority raised");
+            Some(p)
+        }
+        Err(callout_priority::Error::Unsupported) => None,
+        Err(e) => {
+            tracing::warn!("audio thread priority not raised: {e}");
+            None
+        }
+    };
     // The output is required; the input is optional: without a microphone (missing device, Windows
     // privacy setting denying access, …) the user can still join and listen.
     let output = match find_device(Direction::Output, output_name.as_deref())
@@ -287,6 +301,9 @@ fn audio_thread(
     let in_overrun = Arc::new(AtomicU32::new(0));
     let out_underrun = Arc::new(AtomicU32::new(0));
     let (in_overrun_cb, out_underrun_cb) = (in_overrun.clone(), out_underrun.clone());
+    // How late the callbacks ran (largest gap between calls), logged every 30 s with the loop's.
+    let (in_gaps, out_gaps) = (Arc::new(GapMeter::new()), Arc::new(GapMeter::new()));
+    let (in_gaps_cb, out_gaps_cb) = (in_gaps.clone(), out_gaps.clone());
 
     // Error callbacks only set the flag (logging the first error); the engine handles recovery.
     let (err_in, err_out) = (ctl.clone(), ctl.clone());
@@ -295,6 +312,7 @@ fn audio_thread(
             .build_output_stream(
                 &out_cfg.clone().into(),
                 move |data: &mut [f32], _| {
+                    out_gaps_cb.tick();
                     for frame in data.chunks_mut(out_ch) {
                         let s = out_cons.try_pop().unwrap_or_else(|| {
                             out_underrun_cb.fetch_add(1, Ordering::Relaxed);
@@ -326,6 +344,7 @@ fn audio_thread(
             .build_input_stream(
                 &cfg.into(),
                 move |data: &[f32], _| {
+                    in_gaps_cb.tick();
                     for frame in data.chunks(in_ch) {
                         let mono = frame.iter().sum::<f32>() / in_ch as f32;
                         if in_prod.try_push(mono).is_err() {
@@ -409,6 +428,7 @@ fn audio_thread(
     let mut lost_retired = 0u32;
     let mut last_level = Instant::now();
     let mut xrun_log = Instant::now();
+    let mut loop_meter = LoopMeter::new();
     let mut level_peak = 0f32;
     let mut was_transmitting = false;
     let mut mic_test = MicTest::Off;
@@ -424,6 +444,7 @@ fn audio_thread(
     };
 
     while !ctl.stop.load(Ordering::Relaxed) {
+        loop_meter.tick();
         // 0) Sound test requests
         if ctl.mic_test_stop.swap(false, Ordering::Relaxed) && !matches!(mic_test, MicTest::Off) {
             mic_test = MicTest::Off;
@@ -710,6 +731,11 @@ fn audio_thread(
                     let _ = out_prod.try_push(s);
                 }
             }
+            if out.is_empty() {
+                // Nothing reached the output ring (resampler error or still filling): without a
+                // pause a raised-priority thread would spin here while the ring stays low.
+                std::thread::sleep(Duration::from_millis(2));
+            }
             if last_adapt.elapsed() >= Duration::from_secs(5) {
                 last_adapt = Instant::now();
                 adapt_ticks += 1;
@@ -765,6 +791,16 @@ fn audio_thread(
                     "audio dropouts (samples)"
                 );
             }
+            // Largest gaps in the last 30 s, in ms. Normal: callbacks ~10, loop a few. A loop gap
+            // near 40 ms empties the output reserve (underrun) and makes packets look late.
+            let (loop_max, loop_stalls) = loop_meter.take();
+            tracing::info!(
+                loop_max_ms = loop_max.as_millis() as u64,
+                loop_stalls,
+                capture_max_ms = timing::ms(in_gaps.take_max()).round() as u32,
+                playback_max_ms = timing::ms(out_gaps.take_max()).round() as u32,
+                "audio timing"
+            );
         }
 
         // 4) Level event (~100 ms)
