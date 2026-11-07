@@ -60,13 +60,18 @@ items marked **before release** pass.
       update (unit-tested), a normal headset mic (no other mic at hand). Running an older build after the
       new one drops the flag when it saves (it does not know the field), so the next new start switches AGC
       off once more: harmless, only seen when switching back and forth between builds.
+      ✓ 4 Nov (Bera, v0.1.17 fresh install after uninstall): AGC off. The uninstaller also deleted the app
+      data folder (`device.key`, logs, settings), so Bera got a new device key and lost "Close room" on
+      the six rooms his old key (953462d4…) created: room ownership does not survive "delete app data".
 - [ ] **CS2 test leftovers** (4 Nov, see `GATE_TEST.md`): push-to-talk in CS2 not tried; the mic test was run
       in the room but nobody checked whether the other side heard it; the 1 min cable pull was not done.
       AGC: both players turned it off because it sounded better without; kuzen found Bera too loud with it.
 - [ ] **Adaptive jitter in the field** (since v0.1.10): a Wi-Fi player (cocart) on v0.1.10+ plays a session.
       Expected: `stats` jitter_ms around 80–100 ms instead of ~140 (v0.1.6), late/lost up slightly (~1.5%).
-- [ ] **FEC field data** (since v0.1.7): any session with loss; compare `lost` and `fec` in the `sender jitter`
+- [x] **FEC field data** (since v0.1.7): any session with loss; compare `lost` and `fec` in the `sender jitter`
       lines. A large `lost − fec` means burst loss → consider RED.
+      ✓ 4 Nov (CS2): FEC 77% of kuzen's loss. ✓ 7 Nov (LoL): FEC 443 of 484 from Hallobadi (92%, ~0.5%
+      uplink loss, ~0.04% left for PLC). RED not needed.
 - [x] **Audio device auto-recovery** (since v0.1.6): unplug and replug the headphones while in a room.
       Expected: "Audio device lost; reconnecting…" then audio back; log line `audio pipeline recovered`.
       ✓ 3 Nov: input lost (privacy toggle) → `audio pipeline recovered attempts=1`.
@@ -100,6 +105,9 @@ items marked **before release** pass.
       in Settings takes effect in the mic test and Cancel reverts it.
       ✓ 4 Nov (Bera, release exe): (c) noise between words not louder with AGC on; (f) the switch takes effect
       in the mic test and Cancel reverts it. (a) and (b) need the release and other players; (d) needs such a mic.
+      7 Nov (LoL, v0.1.17, both AGC on): (e) Bera's webcam median +0.2 dB in game (was +6…+8 in CS2),
+      Hallobadi's gated quiet mic median +7.8 dB (cap +12), limiter in 20 of 98 windows. Player
+      impressions for (a)/(b) not recorded yet.
 - [x] **UI fixes before v0.1.14** (since this session): (a) a fresh window opens 780 px tall and centered; the
       settings page fits without scrolling with push-to-talk on and off; on a 1366×768 screen the window
       shrinks to the work area; (b) in a room, "Close room" opens a confirmation strip under the header
@@ -150,6 +158,12 @@ items marked **before release** pass.
   (+10…+11 dB at normal speech, clean). The CS2 complaint was on that same webcam while speaking up in
   game (old AGC still +6…+8 dB there; the band should give ~0 for that level) → field check: Bera on the
   webcam with AGC on in a game with kuzen, no longer too loud.
+- **Audio thread under game load** (CS2 4 Nov, LoL 7 Nov): two players' PCs starved the audio thread
+  (Hallobadi under LoL: ~1.2 s of `out_underrun` in 50 min, worst 17:30–17:33 UTC, matching his `late`
+  bursts while the network was clean; kuzen under CS2: one 0.6 s stall). The thread runs at normal
+  priority and waits with `sleep(2 ms)`, and arrival times are taken in it, so a stall also inflates the
+  jitter estimate. Candidates: raise its priority (MMCSS "Pro Audio" / time-critical; needs Windows API,
+  so an isolated crate per rule 6 or a permissively licensed crate), plus the timing stats below.
 - **Sender-side timing stats** (from the CS2 test): log the largest gap between capture callbacks and the
   number of frames encoded late, atomics only in the callback (rule 1), so a stalled audio thread on a
   loaded gaming PC can be told apart from uplink jitter (kuzen → Bera avg 108 ms buffer under CS2).
@@ -273,6 +287,12 @@ items marked **before release** pass.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 
 ## Last session
+
+- 7 Nov (LoL field test, Bera + Hallobadi, v0.1.17, both AGC on; results in `GATE_TEST.md`): ~50 min,
+  no drops; RTT + buffer ~100 ms both ways; FEC covered 92% of Hallobadi's ~0.5% uplink loss; Bera's
+  webcam AGC gain ≈0 dB (the retune works). Found: playback underruns on Hallobadi's PC under LoL
+  coinciding with his `late` bursts → audio thread starved by the game (see Next). Player impressions
+  (loudness, clarity) still to be written down.
 
 - 4 Nov: **v0.1.17 released** (AGC comfort band, off by default with a one-time switch-off; app only, server
   stays on v0.1.16); `latest.json` serves 0.1.17, release notes carry a "What's new". During the build Bera's

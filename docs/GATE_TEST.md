@@ -302,3 +302,40 @@ Times UTC.
   sent late) so sender-side stalls can be told apart from uplink jitter; (2) FEC covers ~77% of the loss
   from kuzen, burst loss is ~0.13% → RED not needed on this data; (3) an output-device mix-up looks like
   "nobody hears me": the "Play test sound" button in settings is the check to suggest.
+
+### 7 Nov 2026 — League of Legends, two players (v0.1.17: Bera + Hallobadi, different networks)
+
+Source: server journal + both client logs sent with "Send log". Times UTC.
+
+- **Timeline:** Bera in room 9RYJFSXX from 17:03; Hallobadi joins 17:08:33; both switch AGC **on**
+  (17:09:29 Hallobadi, 17:10:01 Bera); ~50 min of play; 17:58:57 / 17:59:01 both send logs; 17:59:24 Bera
+  leaves cleanly. No drops, no reconnects, no pipeline restarts.
+- **Latency:**
+  - Bera listening to Hallobadi: RTT avg 36 ms, jitter buffer avg 64 ms (60 ms 85% of the time, max 140)
+    → **~100 ms**.
+  - Hallobadi listening to Bera: RTT avg 57 ms (max 67), buffer avg 43 ms (40 ms 91% of the time, max 100)
+    → **~100 ms**.
+- **Loss, Hallobadi → Bera:** 484 frames lost of ~96k the server received from him (~0.5%), **443 recovered
+  by FEC (92%)**, 41 by PLC only (~0.04%). Spread evenly over the session (2–22 per 30 s), single packets:
+  his uplink. Server → Bera QUIC loss 0, so nothing was lost on Bera's side. RED not needed.
+- **Loss, Bera → Hallobadi:** 17 frames, FEC 0: not network loss (server → Hallobadi QUIC loss: 1 packet)
+  but frames that were missing at playout together with the next one, i.e. late. They fall in the
+  minutes with `late` counts.
+- **Audio thread stalls on Hallobadi's PC under LoL:** `out_underrun` 59k samples (~1.2 s of silence in
+  ~50 min, in 26 of ~100 30 s windows); worst 17:30:49–17:32:49 (5184, 1056, 7296, 10368, 2304 samples,
+  up to ~0.2 s per 30 s). The same minutes show his `late` counts (17:30–17:33: +6, +4, +2, +5) with the
+  network clean. Arrival time is taken in the audio thread, so a late-running thread also looks like
+  jitter. `in_overrun` stayed 0 (capture fine). Bera: 9.5k samples (~0.2 s, 7 windows; 4800 at 17:39 with
+  his biggest `late` burst). Same pattern as kuzen under CS2 on 4 Nov: the game starves the audio thread.
+- **AGC (retuned v0.1.17, both on):** Bera's webcam gain median **+0.2 dB** (p90 +3, max +9),
+  `limited_frames` 15 in total — inside the comfort band, as intended (the old AGC added +6…+8 dB at this
+  level in CS2). Hallobadi: a quiet mic with its own gate (44.1 kHz stereo, VAD floor −100 dB), gain median
+  +7.8 dB (max +12, the cap), peaks up to −0.2 dBFS, limiter active in 20 of 98 windows (390 frames).
+- **Not in the logs:** player impressions (was Bera too loud? did Hallobadi sound clipped or pumping?),
+  whether push-to-talk was used, Hallobadi's connection type.
+- **Against the criteria:** RTT + buffer < 150 ms ✓ in both directions (~100 / ~100 ms, peaks ~176);
+  drops 0.
+- **Takeaways:** (1) the AGC retune does what it should on Bera's webcam (≈0 dB); (2) audio-thread stalls
+  under game load are now seen on two players' PCs in two games → raise the audio thread's priority
+  (MMCSS "Pro Audio" / time-critical) and/or add the timing stats; (3) FEC covers 92% of a ~0.5% uplink
+  loss → RED still not needed.
