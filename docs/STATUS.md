@@ -15,7 +15,8 @@
   owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated 4 Nov 17:04 UTC, nobody was
   connected, invite link unchanged, 7 rooms loaded). Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main`:** nothing (check `git log v0.1.18..`). v0.1.18 brought the audio thread priority
+- **Unreleased on `main`:** adaptive output reserve (30 ms at start, 20–80 ms, was a fixed
+  40 ms) and latency diagnostics (`audio latency` line, `wait_ms` per sender); see "Last session". v0.1.18 brought the audio thread priority
   (MMCSS) + `audio timing` log line, per-user volume numbers + remembered volumes, join/leave sounds.
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
@@ -58,6 +59,14 @@ items marked **before release** pass.
       late), and `audio timing` should show `loop_stalls` near 0 with `loop_max_ms` well under 40. If
       stalls remain while `playback_max_ms` stays ~10, the game still outruns the thread; if the
       callbacks' gaps grow too, the whole PC is overloaded. Also: the desktop stays responsive.
+- [ ] **Adaptive output reserve under game load** (next release): in a game session the log's `output reserve`
+      lines show where it settles. Expected: on a calm PC `reserve_ms=20` after ~2 min (`audio latency`
+      `out_fill_ms` ~24; with the old fixed 40 ms an estimated ~43, measured 33 at 30); on a loaded PC it rises (`underrun_samples` > 0) and
+      stops at the lowest value that holds, with at most one click per tried value. Nobody should hear
+      more crackling than with v0.1.18 (compare `out_underrun` in `audio dropouts`).
+- [ ] **Latency breakdown in the field** (next release): from a game session's logs, per player: `wait_ms`
+      (jitter buffer), `out_fill_ms`, `out_device_ms`, `in_device_ms`, `rtt_ms`. That tells which part of the
+      delay is worth working on next (ms-precise jitter target, time stretching).
 - [ ] **Long outage** : cable out ~1 min. Reconnects within ~15 s of the cable returning.
 - [x] **Listen-only join** (before release; since 53e73f4): Windows Settings → Privacy → Microphone → turn off
       desktop app access, connect. Expected: the microphone error is shown, but you can join a room and hear
@@ -171,6 +180,15 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
+- **Jitter / latency work (started 8 Nov, committed, not released):** steps 1–2 of the plan are done (latency log,
+  adaptive output reserve). Next, once field logs show the breakdown: (3) an ms-precise jitter target instead
+  of `ceil(spread/20)+1` frames (~10–15 ms on calm links; `tests/jitter_sim.rs` to measure), (4) time
+  stretching (WSOLA, own code or an Apache/MIT library; SoundTouch is LGPL) to shrink/grow the buffer
+  mid-spurt and absorb clock drift, (5) faster recovery after a delay spike (the 20 s window keeps the target
+  high). Later: 10 ms Opus frames, WASAPI low-latency shared mode (IAudioClient3).
+- **Echo cancellation (AEC) is missing:** found in the local test (two clients on one PC howled through the
+  speakers). A player on speakers instead of headphones sends the room's voices back as echo. Candidate for
+  the audio quality list (e.g. the WebRTC audio processing module, BSD; check the Rust binding's license).
 - **Log upload** is out in v0.1.16 (server updated): ask friends to press "Send log" after a session and read
   the logs over SSH in `/var/lib/callout/logs/`. That is the way to get the field data below.
 - **AGC retuned and off by default (unreleased):** after the CS2 test (too loud, both players preferred it
@@ -308,6 +326,24 @@ items marked **before release** pass.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 
 ## Last session
+
+- 8 Nov (latency diagnostics + adaptive output reserve, Bera's go-ahead after the latency discussion): the
+  engine mixed a new frame only when the output ring held < 40 ms, so ~40–60 ms (avg ~43–50) of decoded
+  audio always waited for the device, more than the jitter buffer adds on a wired link. Now
+  `timing::OutputReserve`: starts at 30 ms, after 120 s without underruns tries 10 ms less (min 20), on any
+  underrun +10 ms at once (max 80); a value that fails within 60 s of being tried is not tried again for the
+  pipeline's life. Steps are 10 ms because the device takes ~10 ms periods (a 5 ms step changed nothing in
+  a local run). Underruns in the first 2 s are ignored (ring filling). New log lines: `output reserve`
+  (changes) and every 30 s `audio latency reserve_ms out_fill_ms out_device_ms in_device_ms` (device
+  figures from cpal's callback timestamps, one atomic store in the callback); `sender jitter` gained
+  `wait_ms` (average time played packets spent in the jitter buffer; lone packets > 100 ms after the
+  previous one, e.g. DTX comfort noise every 400 ms, are skipped). `out_underrun` is no longer reset by the
+  log (both readers take deltas). Tests: 4 reserve, fill meter, device latency, 3 jitter wait tests;
+  fmt/clippy (incl. app)/95 tests clean. Local runs (release talk example, local server, Bera's PC):
+  MMCSS on, no underruns after start-up, reserve 30 → 20 after 2 min, `out_fill_ms` 33 → 24, output
+  device 10 ms, input device 5–19 ms, `wait_ms` 19–66 with target 40. The two-client run howled through the
+  speakers (both clients on one PC's mic and speakers, push-to-talk held): use one client, or headphones /
+  separate devices, for local tests. Not tried in the app UI or a game; committed, not released.
 
 - 8 Nov: **v0.1.18 released** (audio thread MMCSS priority + `audio timing`, per-user volume numbers and
   remembered volumes, join/leave sounds; app only, server stays on v0.1.16). Release and CI green; six

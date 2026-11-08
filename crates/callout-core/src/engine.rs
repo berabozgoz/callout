@@ -10,7 +10,7 @@
 //! The audio thread lives while connected; while disconnected it only runs when settings are
 //! open (preview: for the level meter and the sound test). It is rebuilt when the device changes.
 
-use crate::timing::{self, GapMeter, LoopMeter};
+use crate::timing::{self, DeviceLatency, FillMeter, GapMeter, LoopMeter, OutputReserve};
 use crate::{
     Command, ConnectionState, ErrorKind, Event, JoinSound, LogUploadOutcome, MicTestState,
 };
@@ -340,6 +340,12 @@ fn audio_thread(
     // How late the callbacks ran (largest gap between calls), logged every 30 s with the loop's.
     let (in_gaps, out_gaps) = (Arc::new(GapMeter::new()), Arc::new(GapMeter::new()));
     let (in_gaps_cb, out_gaps_cb) = (in_gaps.clone(), out_gaps.clone());
+    // Device buffering as the callbacks report it, for the `audio latency` log line.
+    let (in_dev, out_dev) = (
+        Arc::new(DeviceLatency::new()),
+        Arc::new(DeviceLatency::new()),
+    );
+    let (in_dev_cb, out_dev_cb) = (in_dev.clone(), out_dev.clone());
 
     // Error callbacks only set the flag (logging the first error); the engine handles recovery.
     let (err_in, err_out) = (ctl.clone(), ctl.clone());
@@ -347,8 +353,10 @@ fn audio_thread(
         let out_stream = output
             .build_output_stream(
                 &out_cfg.clone().into(),
-                move |data: &mut [f32], _| {
+                move |data: &mut [f32], info: &cpal::OutputCallbackInfo| {
                     out_gaps_cb.tick();
+                    let ts = info.timestamp();
+                    out_dev_cb.set(ts.playback.duration_since(&ts.callback));
                     for frame in data.chunks_mut(out_ch) {
                         let s = out_cons.try_pop().unwrap_or_else(|| {
                             out_underrun_cb.fetch_add(1, Ordering::Relaxed);
@@ -379,8 +387,10 @@ fn audio_thread(
         let stream = device
             .build_input_stream(
                 &cfg.into(),
-                move |data: &[f32], _| {
+                move |data: &[f32], info: &cpal::InputCallbackInfo| {
                     in_gaps_cb.tick();
+                    let ts = info.timestamp();
+                    in_dev_cb.set(ts.callback.duration_since(&ts.capture));
                     for frame in data.chunks(in_ch) {
                         let mono = frame.iter().sum::<f32>() / in_ch as f32;
                         if in_prod.try_push(mono).is_err() {
@@ -457,7 +467,16 @@ fn audio_thread(
     let mut mix = vec![0f32; FRAME];
     let mut decoded = vec![0f32; FRAME];
     let mut out = Vec::with_capacity(4096);
-    let out_low_water = (out_rate as usize) * 40 / 1000;
+    // Audio kept queued ahead of the playback callback: a new frame is mixed when the output
+    // ring holds less than this. Adapts to underruns (see `OutputReserve`).
+    let reserve_samples = |ms: u32| out_rate as usize * ms as usize / 1000;
+    let mut reserve = OutputReserve::new();
+    let mut out_low_water = reserve_samples(reserve.ms());
+    let mut reserve_check = Instant::now();
+    // `out_underrun` only ever grows; these are the totals last seen by the reserve and the log.
+    let mut underrun_seen = 0u32;
+    let mut underrun_logged = 0u32;
+    let mut out_fill = FillMeter::new();
     let mut last_adapt = Instant::now();
     let mut adapt_ticks = 0u32;
     // Losses of senders removed from the table after going silent (so the total counter never goes down).
@@ -709,6 +728,21 @@ fn audio_thread(
         }
 
         // 3) Mix
+        out_fill.sample(out_prod.occupied_len());
+        if reserve_check.elapsed() >= Duration::from_secs(1) {
+            let elapsed = reserve_check.elapsed();
+            reserve_check = Instant::now();
+            let total = out_underrun.load(Ordering::Relaxed);
+            let new = total.wrapping_sub(underrun_seen);
+            underrun_seen = total;
+            // The first moments of a pipeline underrun while the ring fills: not a scheduling issue.
+            if started.elapsed() >= Duration::from_secs(2) {
+                if let Some(ms) = reserve.update(elapsed, new > 0) {
+                    out_low_water = reserve_samples(ms);
+                    tracing::info!(reserve_ms = ms, underrun_samples = new, "output reserve");
+                }
+            }
+        }
         if out_prod.occupied_len() < out_low_water {
             {
                 let gains = ctl.gains.lock().unwrap();
@@ -722,8 +756,9 @@ fn audio_thread(
                 1.0
             });
             mixer.begin();
+            let now_ms = started.elapsed().as_secs_f64() * 1000.0;
             for (id, r) in receivers.iter_mut() {
-                let ok = match r.jitter.pop() {
+                let ok = match r.jitter.pop_timed(now_ms) {
                     Playout::Packet(pkt) => r.decoder.decode(Some(&pkt), &mut decoded).is_ok(),
                     Playout::Lost { next: Some(nxt) } => {
                         r.decoder.decode_fec(&nxt, &mut decoded).is_ok()
@@ -803,13 +838,15 @@ fn audio_thread(
                 ctl.lost.store(lost, Ordering::Relaxed);
                 // Per-sender diagnostics (every 30 s, cumulative): whose packets arrive
                 // irregularly (buffer target, late/lost/underflow counts). `lost - fec`
-                // is the frames filled by PLC alone (consecutive losses).
+                // is the frames filled by PLC alone (consecutive losses). `wait_ms` is the
+                // average time played packets spent in the buffer over the last 30 s.
                 if adapt_ticks % 6 == 0 {
-                    for (id, r) in &receivers {
+                    for (id, r) in receivers.iter_mut() {
                         let st = r.jitter.stats();
                         tracing::info!(
                             sender = id,
                             target_ms = st.target * 20,
+                            wait_ms = r.jitter.take_wait_ms().map(|w| w.round() as u32),
                             late = st.late,
                             lost = st.lost,
                             fec = st.fec_recovered,
@@ -833,7 +870,9 @@ fn audio_thread(
         if xrun_log.elapsed() >= Duration::from_secs(30) {
             xrun_log = Instant::now();
             let lost_in = in_overrun.swap(0, Ordering::Relaxed);
-            let lost_out = out_underrun.swap(0, Ordering::Relaxed);
+            let total_out = out_underrun.load(Ordering::Relaxed);
+            let lost_out = total_out.wrapping_sub(underrun_logged);
+            underrun_logged = total_out;
             if lost_in > 0 || lost_out > 0 {
                 tracing::warn!(
                     in_overrun = lost_in,
@@ -842,7 +881,8 @@ fn audio_thread(
                 );
             }
             // Largest gaps in the last 30 s, in ms. Normal: callbacks ~10, loop a few. A loop gap
-            // near 40 ms empties the output reserve (underrun) and makes packets look late.
+            // longer than the output reserve (`reserve_ms`) runs the playback dry (underrun) and
+            // makes packets look late.
             let (loop_max, loop_stalls) = loop_meter.take();
             tracing::info!(
                 loop_max_ms = loop_max.as_millis() as u64,
@@ -850,6 +890,16 @@ fn audio_thread(
                 capture_max_ms = timing::ms(in_gaps.take_max()).round() as u32,
                 playback_max_ms = timing::ms(out_gaps.take_max()).round() as u32,
                 "audio timing"
+            );
+            // Local parts of the mouth-to-ear delay, in ms: the output reserve setting and the
+            // ring's measured average fill (decoded audio waiting for the device), and the
+            // device buffers on both sides. The jitter buffer's share is `wait_ms` per sender.
+            tracing::info!(
+                reserve_ms = reserve.ms(),
+                out_fill_ms = out_fill.take_ms(out_rate).map(|f| f.round() as u32),
+                out_device_ms = out_dev.get().map(|d| d.as_millis() as u32),
+                in_device_ms = in_dev.get().map(|d| d.as_millis() as u32),
+                "audio latency"
             );
         }
 

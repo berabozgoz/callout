@@ -132,8 +132,22 @@ pub struct JitterStats {
     pub target: u32,
 }
 
+/// A queued packet and when it arrived, if it is one of a steady stream (`NAN` otherwise: no
+/// timing data, or the first packet after a gap; see [`STEADY_GAP_MS`]).
+struct Slot {
+    opus: Vec<u8>,
+    arrival_ms: f64,
+}
+
+/// A packet arriving this long after the previous one is not counted in the wait time. During
+/// silence Opus DTX still sends a frame every 400 ms (comfort noise); each such lone frame sits in
+/// the buffer until the next one completes the prefill, which says nothing about the latency of
+/// speech. Speech packets come every 20 ms, so only the first one of a talk spurt is skipped (the
+/// following ones wait just as long).
+const STEADY_GAP_MS: f64 = 100.0;
+
 pub struct JitterBuffer {
-    packets: BTreeMap<u64, Vec<u8>>,
+    packets: BTreeMap<u64, Slot>,
     /// Unwrapped sequence counter; `None` = idle.
     next: Option<u64>,
     last_unwrapped: Option<u64>,
@@ -154,6 +168,13 @@ pub struct JitterBuffer {
     quiet_windows: u32,
     delay: DelayEstimator,
     stats: JitterStats,
+    /// Arrival time of the packet the last [`JitterBuffer::pop`] returned.
+    popped_arrival_ms: f64,
+    /// Arrival time of the previous timed packet.
+    last_arrival_ms: f64,
+    /// Time played packets spent queued (arrival → playout), since the last [`JitterBuffer::take_wait_ms`].
+    wait_sum_ms: f64,
+    wait_n: u32,
 }
 
 /// With no packet for this many consecutive ticks the sender is considered quiet (PLC stops).
@@ -184,6 +205,10 @@ impl JitterBuffer {
                 target,
                 ..Default::default()
             },
+            popped_arrival_ms: f64::NAN,
+            last_arrival_ms: f64::NAN,
+            wait_sum_ms: 0.0,
+            wait_n: 0,
         }
     }
 
@@ -202,6 +227,19 @@ impl JitterBuffer {
     /// A packet from the network. `talk_start` (the TALK_START flag) marks the start
     /// of a new talk spurt; the buffer is reset and prefilled again.
     pub fn push(&mut self, seq: u16, talk_start: bool, opus: &[u8]) {
+        self.push_at(seq, talk_start, opus, f64::NAN)
+    }
+
+    fn push_at(&mut self, seq: u16, talk_start: bool, opus: &[u8], arrival_ms: f64) {
+        // NaN compares false: untimed packets and the first timed one are not steady.
+        let steady = arrival_ms - self.last_arrival_ms < STEADY_GAP_MS;
+        if arrival_ms.is_finite() {
+            self.last_arrival_ms = arrival_ms;
+        }
+        let slot = Slot {
+            opus: opus.to_vec(),
+            arrival_ms: if steady { arrival_ms } else { f64::NAN },
+        };
         if talk_start || self.next.is_none() {
             // New talk spurt: the previous gap was the sender going quiet, no penalty. Without
             // TALK_START the sender never stopped: we went idle because the network stalled.
@@ -213,7 +251,7 @@ impl JitterBuffer {
             self.prefilling = true;
             self.misses = 0;
             self.pending_misses = 0;
-            self.packets.insert(u, opus.to_vec());
+            self.packets.insert(u, slot);
             return;
         }
         let u = self.unwrap_seq(seq);
@@ -232,7 +270,7 @@ impl JitterBuffer {
             self.window_late += 1;
             return;
         }
-        self.packets.insert(u, opus.to_vec());
+        self.packets.insert(u, slot);
         // Overflow: if far above the target, drop the oldest (bounds latency).
         let limit = (self.target + OVERFLOW_MARGIN) as usize;
         while self.packets.len() > limit {
@@ -254,7 +292,28 @@ impl JitterBuffer {
         arrival_ms: f64,
     ) {
         self.delay.observe(timestamp, arrival_ms, talk_start);
-        self.push(seq, talk_start, opus)
+        self.push_at(seq, talk_start, opus, arrival_ms)
+    }
+
+    /// [`JitterBuffer::pop`] at local time `now_ms` (same origin as `push_timed`'s `arrival_ms`):
+    /// also measures how long the played packet was queued (see [`JitterBuffer::take_wait_ms`]).
+    pub fn pop_timed(&mut self, now_ms: f64) -> Playout {
+        let p = self.pop();
+        if matches!(p, Playout::Packet(_)) && self.popped_arrival_ms.is_finite() {
+            self.wait_sum_ms += (now_ms - self.popped_arrival_ms).max(0.0);
+            self.wait_n += 1;
+        }
+        p
+    }
+
+    /// Average time (ms) played packets spent in the buffer since the previous call: the
+    /// latency this buffer actually added (in a steady stream every packet waits about as long as
+    /// the prefill made the first one wait). `None` if no packet of a steady stream was played.
+    pub fn take_wait_ms(&mut self) -> Option<f64> {
+        let r = (self.wait_n > 0).then(|| self.wait_sum_ms / self.wait_n as f64);
+        self.wait_sum_ms = 0.0;
+        self.wait_n = 0;
+        r
     }
 
     /// Called on every 20 ms playout tick.
@@ -283,10 +342,11 @@ impl JitterBuffer {
             return Playout::Idle;
         };
 
-        if let Some(p) = self.packets.remove(&next) {
+        if let Some(slot) = self.packets.remove(&next) {
             self.next = Some(next + 1);
             self.misses = 0;
-            return Playout::Packet(p);
+            self.popped_arrival_ms = slot.arrival_ms;
+            return Playout::Packet(slot.opus);
         }
 
         // The next one is missing.
@@ -308,7 +368,7 @@ impl JitterBuffer {
         // A later packet exists: this frame is really lost.
         self.stats.lost += 1;
         self.next = Some(next + 1);
-        let fec_src = self.packets.get(&(next + 1)).cloned();
+        let fec_src = self.packets.get(&(next + 1)).map(|s| s.opus.clone());
         if fec_src.is_some() {
             self.stats.fec_recovered += 1;
         }
@@ -505,6 +565,62 @@ mod tests {
             est.observe(i * 960, 100_000.0 + i as f64 * 20.0, false);
         }
         assert!(est.spread_ms().unwrap() < 1.0);
+    }
+
+    #[test]
+    fn wait_time_covers_prefill_and_queueing() {
+        let mut jb = JitterBuffer::new(3);
+        // Packets arrive every 20 ms (t = 0, 20, 40, …); a playout tick right after each one.
+        let mut played = 0;
+        for i in 0..10u32 {
+            let t = i as f64 * 20.0;
+            jb.push_timed(i as u16, i * 960, i == 0, &pkt(1), t);
+            if matches!(jb.pop_timed(t + 1.0), Playout::Packet(_)) {
+                played += 1;
+            }
+        }
+        // Prefill of 3: packet 0 plays at t = 41 (waited 41 ms), and so does every later one.
+        assert_eq!(played, 8);
+        assert_eq!(jb.take_wait_ms(), Some(41.0));
+        assert_eq!(jb.take_wait_ms(), None, "starts over");
+    }
+
+    #[test]
+    fn untimed_packets_are_not_counted_as_waiting() {
+        let mut jb = JitterBuffer::new(1);
+        jb.push(1, true, &pkt(1));
+        assert_eq!(jb.pop_timed(500.0), Playout::Packet(pkt(1)));
+        assert_eq!(jb.take_wait_ms(), None);
+        // FEC and PLC frames are not played packets either.
+        jb.push_timed(2, 960, false, &pkt(2), 0.0); // first timed one: not steady yet
+        jb.push_timed(3, 1920, false, &pkt(3), 5.0);
+        jb.push_timed(5, 3840, false, &pkt(5), 10.0);
+        assert_eq!(jb.pop_timed(15.0), Playout::Packet(pkt(2)));
+        assert_eq!(jb.pop_timed(35.0), Playout::Packet(pkt(3)));
+        assert_eq!(jb.pop_timed(55.0), Playout::Lost { next: Some(pkt(5)) });
+        assert_eq!(jb.pop_timed(75.0), Playout::Packet(pkt(5)));
+        assert_eq!(jb.take_wait_ms(), Some(47.5)); // (30 + 65) / 2
+    }
+
+    #[test]
+    fn lone_comfort_noise_frames_are_not_counted_as_waiting() {
+        // DTX silence: one frame every 400 ms, each waiting for the next to fill the prefill.
+        let mut jb = JitterBuffer::new(2);
+        let mut played = 0;
+        for i in 0..10u32 {
+            let t = i as f64 * 400.0;
+            jb.push_timed(i as u16, i * 20 * 960, i == 0, &pkt(1), t);
+            for tick in 0..20 {
+                if matches!(
+                    jb.pop_timed(t + 1.0 + tick as f64 * 20.0),
+                    Playout::Packet(_)
+                ) {
+                    played += 1;
+                }
+            }
+        }
+        assert!(played > 0);
+        assert_eq!(jb.take_wait_ms(), None);
     }
 
     #[test]
