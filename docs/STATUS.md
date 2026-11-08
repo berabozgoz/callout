@@ -9,16 +9,15 @@
   adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (v0.1.14; retuned to a comfort band and
   off by default in v0.1.17 after the CS2 test). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
-- **Released:** v0.1.18 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
+- **Released:** v0.1.19 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
-- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.16** (v0.1.17 and v0.1.18 are app-only, no server update needed) (persistent rooms in `/var/lib/callout/rooms.tsv`,
+- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.16** (v0.1.17–v0.1.19 are app-only, no server update needed) (persistent rooms in `/var/lib/callout/rooms.tsv`,
   owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated 4 Nov 17:04 UTC, nobody was
   connected, invite link unchanged, 7 rooms loaded). Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main`:** adaptive output reserve (30 ms at start, 20–80 ms, was a fixed
-  40 ms) and latency diagnostics (`audio latency` line, `wait_ms` per sender), committed; **echo cancellation**
-  (AEC3, on by default), committed; see "Last session". v0.1.18 brought the audio thread priority
-  (MMCSS) + `audio timing` log line, per-user volume numbers + remembered volumes, join/leave sounds.
+- **Unreleased on `main`:** nothing (check `git log v0.1.19..`). v0.1.19 brought **echo cancellation** (AEC3,
+  on by default), the adaptive output reserve (30 ms at start, 20–80 ms, was a fixed 40 ms) and latency
+  diagnostics (`audio latency`, `wait_ms`, `echo` log lines); see "Last session".
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -194,13 +193,13 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- **Jitter / latency work (started 8 Nov, committed, not released):** steps 1–2 of the plan are done (latency log,
+- **Jitter / latency work (started 8 Nov, released in v0.1.19):** steps 1–2 of the plan are done (latency log,
   adaptive output reserve). Next, once field logs show the breakdown: (3) an ms-precise jitter target instead
   of `ceil(spread/20)+1` frames (~10–15 ms on calm links; `tests/jitter_sim.rs` to measure), (4) time
   stretching (WSOLA, own code or an Apache/MIT library; SoundTouch is LGPL) to shrink/grow the buffer
   mid-spurt and absorb clock drift, (5) faster recovery after a delay spike (the 20 s window keeps the target
   high). Later: 10 ms Opus frames, WASAPI low-latency shared mode (IAudioClient3).
-- **Echo cancellation (done, unreleased):** Bera heard himself as an echo from kuzen's and Hallobadi's
+- **Echo cancellation (released in v0.1.19):** Bera heard himself as an echo from kuzen's and Hallobadi's
   headphones in the LoL/CS2 sessions. The echo is made at the listener's PC, so it only goes away once
   **they** run the new version. Field check: see Pending manual tests.
 - **Log upload** is out in v0.1.16 (server updated): ask friends to press "Send log" after a session and read
@@ -341,6 +340,13 @@ items marked **before release** pass.
 
 ## Last session
 
+- 8 Nov: **v0.1.19 released** (echo cancellation, adaptive output reserve, latency diagnostics; app only,
+  server stays on v0.1.16). Release and CI green; six assets (installer + `.sig`, portable exe, both
+  servers, `latest.json` serving 0.1.19); release notes carry a "What's new" that tells players everyone
+  in the room has to update for the echo to go away. Next: a game session with kuzen and Hallobadi on
+  v0.1.19 (echo gone? `echo` and `audio latency` lines in their logs) and the other v0.1.19 items in
+  "Pending manual tests".
+
 - 8 Nov (echo cancellation, Bera's request: he heard his own voice from kuzen's and Hallobadi's
   headphones): new `callout-audio::aec` wraps `sonora` 0.3 (pure-Rust port of WebRTC audio processing,
   BSD-3-Clause, `cargo deny` clean), echo canceller only (RNNoise/VAD/AGC stay ours). The engine feeds the
@@ -358,7 +364,7 @@ items marked **before release** pass.
   turned on two clippy lints (`as_chunks`, `is_multiple_of`; fixed). fmt/clippy (incl. app)/98 + 7 app
   tests/svelte-check/`cargo deny` clean. Local smoke run (one client, release): pipeline fine with AEC on
   (loop max 3 ms), `echo delay_ms=76` vs a hint of ~72. Not tried with real echo yet (needs speakers or a
-  friend), not in the app UI; committed, not released.
+  friend), not in the app UI; released in v0.1.19.
 
 - 8 Nov (latency diagnostics + adaptive output reserve, Bera's go-ahead after the latency discussion): the
   engine mixed a new frame only when the output ring held < 40 ms, so ~40–60 ms (avg ~43–50) of decoded
@@ -376,7 +382,7 @@ items marked **before release** pass.
   MMCSS on, no underruns after start-up, reserve 30 → 20 after 2 min, `out_fill_ms` 33 → 24, output
   device 10 ms, input device 5–19 ms, `wait_ms` 19–66 with target 40. The two-client run howled through the
   speakers (both clients on one PC's mic and speakers, push-to-talk held): use one client, or headphones /
-  separate devices, for local tests. Not tried in the app UI or a game; committed, not released.
+  separate devices, for local tests. Not tried in the app UI or a game; released in v0.1.19.
 
 - 8 Nov: **v0.1.18 released** (audio thread MMCSS priority + `audio timing`, per-user volume numbers and
   remembered volumes, join/leave sounds; app only, server stays on v0.1.16). Release and CI green; six
