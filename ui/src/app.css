@@ -31,6 +31,7 @@ label .lbl { display: inline-flex; align-items: center; gap: 6px; }
 .withbtn { display: flex; gap: 6px; min-width: 0; }
 .withbtn select { flex: 1; }
 label.row { flex-direction: row; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
+.toggles { display: flex; flex-wrap: wrap; column-gap: 20px; row-gap: 8px; }
 input[type="text"], select {
   background: var(--panel2); color: var(--text); border: 1px solid #343941; border-radius: 6px;
   padding: 8px 10px; font-size: 14px; outline: none; user-select: text;

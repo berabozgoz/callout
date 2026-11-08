@@ -4,7 +4,8 @@ Low-latency voice chat for gamers: a small Windows app and a server you can host
 
 - **Low latency:** Opus at 48 kHz in 20 ms frames over QUIC, an adaptive jitter buffer that follows
   your network, and a server that only forwards packets (it never decodes audio).
-- **Clean voice:** RNNoise noise suppression (fans, hum, room noise), voice activity detection with
+- **Clean voice:** RNNoise noise suppression (fans, hum, room noise), echo cancellation (the others
+  never hear themselves through your headphones or speakers), voice activity detection with
   an adjustable sensitivity, or push-to-talk with a global shortcut.
 - **Your own server:** one binary and one UDP port; friends join with a `callout://` invite link.
 - **11 languages:** English, Deutsch, Español, Français, Português (Brasil), Русский, Türkçe, العربية,
@@ -27,7 +28,8 @@ Before your first session, open **Settings (⚙)**:
 
 - Pick your microphone and speaker, then run the **sound test**: speak for 5 seconds and hear yourself
   the way others will. The line on the level meter is the voice activity threshold.
-- Leave **noise suppression** on unless you have a studio-quiet mic.
+- Leave **noise suppression** on unless you have a studio-quiet mic, and **echo cancellation** on: it
+  keeps the others' voices that leak from your headphones or speakers out of your microphone.
 - Choose **push-to-talk** if you prefer it to voice activity; CallOut then asks for a key, a combination
   or a mouse button (middle or side buttons). CallOut listens for it only while you are in a room and
   never blocks it, so it also does what it does in your game: pick one the game doesn't use (F9, for

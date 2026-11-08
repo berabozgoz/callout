@@ -5,13 +5,14 @@
 //! into the ring buffer: memory allocation, locks, I/O, logging and encoding
 //! are forbidden. Break this rule and crackling is inevitable.
 //!
-//! Modules: [`codec`] (Opus), [`resample`] (device rate ↔ 48 kHz), [`framer`] (20 ms frames),
+//! Modules: [`aec`] (echo cancellation), [`codec`] (Opus), [`resample`] (device rate ↔ 48 kHz), [`framer`] (20 ms frames),
 //! [`vad`] (voice activity detection), [`agc`] (automatic gain control),
 //! [`jitter`] (per-sender jitter buffer), [`mixer`] (mixer), [`cues`] (join/leave sounds).
 //! Loopback example: `cargo run -p callout-audio --example loopback`.
 
 #![forbid(unsafe_code)]
 
+pub mod aec;
 pub mod agc;
 pub mod codec;
 pub mod cues;

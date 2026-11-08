@@ -11,6 +11,7 @@ cpal.workspace = true
 ringbuf.workspace = true
 opus.workspace = true
 nnnoiseless.workspace = true
+sonora.workspace = true
 rubato.workspace = true
 callout-proto.workspace = true
 thiserror.workspace = true

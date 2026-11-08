@@ -15,6 +15,7 @@ use crate::{
     Command, ConnectionState, ErrorKind, Event, JoinSound, LogUploadOutcome, MicTestState,
 };
 use bytes::Bytes;
+use callout_audio::aec::EchoCanceller;
 use callout_audio::agc::{self, Agc};
 use callout_audio::codec::{Decoder, Encoder, EncoderConfig, FRAME};
 use callout_audio::cues::{self, Cue};
@@ -77,6 +78,8 @@ pub struct EngineConfig {
     pub agc: bool,
     /// Sound for joins and leaves (see `Command::SetJoinSound`).
     pub join_sound: JoinSound,
+    /// Echo cancellation on the microphone signal (see `Command::SetEchoCancellation`).
+    pub echo_cancellation: bool,
     /// Never set up the audio pipeline (for test environments without audio devices).
     pub no_audio: bool,
 }
@@ -92,6 +95,7 @@ impl Default for EngineConfig {
             vad_sensitivity_db: 0.0,
             agc: false,
             join_sound: JoinSound::default(),
+            echo_cancellation: true,
             no_audio: false,
         }
     }
@@ -144,6 +148,7 @@ struct AudioControl {
     /// `f32::to_bits` of the VAD sensitivity in dB.
     vad_sensitivity: AtomicU32,
     agc: AtomicBool,
+    echo_cancellation: AtomicBool,
     /// Set by the cpal stream error callback (device unplugged/lost); the engine rebuilds the audio pipeline.
     stream_error: AtomicBool,
     /// Audio is sent only while in a room (outside a room the server drops it anyway; keep it off the network).
@@ -171,6 +176,7 @@ impl AudioControl {
             noise_suppression: AtomicBool::new(noise_suppression),
             vad_sensitivity: AtomicU32::new(vad_sensitivity_db.to_bits()),
             agc: AtomicBool::new(agc),
+            echo_cancellation: AtomicBool::new(true),
             stop: AtomicBool::new(false),
             muted: AtomicBool::new(false),
             deafened: AtomicBool::new(false),
@@ -445,6 +451,11 @@ fn audio_thread(
     let mut ns_active = ctl.noise_suppression.load(Ordering::Relaxed);
     let mut agc = Agc::new();
     agc.set_max_gain_db(agc_max_gain_db(ns_active));
+    // Echo cancellation: fed with the final mix as it goes to the device, applied first on the
+    // microphone (before noise suppression, the VAD and the AGC).
+    let mut aec = EchoCanceller::new();
+    let mut aec_active = ctl.echo_cancellation.load(Ordering::Relaxed);
+    let mut aec_rendered = false;
     let mut agc_active = ctl.agc.load(Ordering::Relaxed);
     let mut agc_log = Instant::now();
     let mut agc_spoke = false;
@@ -545,6 +556,16 @@ fn audio_thread(
             }
             framer.push(&at48);
             while framer.next_frame(&mut frame) {
+                let ec = ctl.echo_cancellation.load(Ordering::Relaxed);
+                if ec != aec_active {
+                    aec_active = ec;
+                    // Start learning the echo path afresh rather than from a stale state.
+                    aec = EchoCanceller::new();
+                    tracing::info!(enabled = ec, "echo cancellation");
+                }
+                if aec_active {
+                    aec.capture(&mut frame);
+                }
                 let ns = ctl.noise_suppression.load(Ordering::Relaxed);
                 if ns != ns_active {
                     // Denoised and raw audio have very different noise floors: re-measure the threshold.
@@ -810,6 +831,15 @@ fn audio_thread(
                 }
                 cue_pos += FRAME;
             }
+            if aec_active {
+                // Delay from here to the echo reaching `capture`: what is queued for the device
+                // plus both device buffers and about half a frame waiting in the framer.
+                let queued_ms = out_prod.occupied_len() * 1000 / out_rate as usize;
+                let dev_ms = timing::ms(out_dev.get()) + timing::ms(in_dev.get());
+                aec.set_delay_ms(queued_ms as u32 + dev_ms as u32 + 10);
+                aec.render(&mix);
+                aec_rendered |= mix.iter().any(|&s| s != 0.0);
+            }
             out.clear();
             if down.process(&mix, &mut out).is_ok() {
                 for &s in &out {
@@ -840,7 +870,7 @@ fn audio_thread(
                 // irregularly (buffer target, late/lost/underflow counts). `lost - fec`
                 // is the frames filled by PLC alone (consecutive losses). `wait_ms` is the
                 // average time played packets spent in the buffer over the last 30 s.
-                if adapt_ticks % 6 == 0 {
+                if adapt_ticks.is_multiple_of(6) {
                     for (id, r) in receivers.iter_mut() {
                         let st = r.jitter.stats();
                         tracing::info!(
@@ -901,6 +931,18 @@ fn audio_thread(
                 in_device_ms = in_dev.get().map(|d| d.as_millis() as u32),
                 "audio latency"
             );
+            // Echo cancellation, when something was played: `erl_db` is how much quieter the
+            // echo is than what was played (headphones high, speakers low), `erle_db` how much
+            // of it the canceller removed, `delay_ms` its estimate of the echo delay.
+            if aec_active && std::mem::take(&mut aec_rendered) {
+                let st = aec.stats();
+                tracing::info!(
+                    erl_db = st.erl_db.map(|v| v.round() as i32),
+                    erle_db = st.erle_db.map(|v| v.round() as i32),
+                    delay_ms = st.delay_ms,
+                    "echo"
+                );
+            }
         }
 
         // 4) Level event (~100 ms)
@@ -1042,6 +1084,8 @@ async fn run(
     );
     ctl.join_sound
         .store(cfg.join_sound.to_u8(), Ordering::Relaxed);
+    ctl.echo_cancellation
+        .store(cfg.echo_cancellation, Ordering::Relaxed);
     // The UI asks for a preview while on the settings screen; it persists after a disconnect too.
     let mut preview_wanted = false;
     // Set after an involuntary disconnect: retry with backoff until it works or the user cancels.
@@ -1131,6 +1175,9 @@ async fn run(
                     ctl.vad_sensitivity.store(db.to_bits(), Ordering::Relaxed)
                 }
                 Some(Command::SetAgc { enabled }) => ctl.agc.store(enabled, Ordering::Relaxed),
+                Some(Command::SetEchoCancellation { enabled }) => {
+                    ctl.echo_cancellation.store(enabled, Ordering::Relaxed)
+                }
                 Some(Command::SetJoinSound { sound }) => {
                     ctl.join_sound.store(sound.to_u8(), Ordering::Relaxed)
                 }
@@ -1365,6 +1412,7 @@ async fn run(
                         Command::SetNoiseSuppression { enabled } => { ctl.noise_suppression.store(enabled, Ordering::Relaxed); Ok(()) }
                         Command::SetVadSensitivity { db } => { ctl.vad_sensitivity.store(db.to_bits(), Ordering::Relaxed); Ok(()) }
                         Command::SetAgc { enabled } => { ctl.agc.store(enabled, Ordering::Relaxed); Ok(()) }
+                        Command::SetEchoCancellation { enabled } => { ctl.echo_cancellation.store(enabled, Ordering::Relaxed); Ok(()) }
                         Command::SetJoinSound { sound } => { ctl.join_sound.store(sound.to_u8(), Ordering::Relaxed); Ok(()) }
                         Command::PreviewJoinSound { sound, leave } => {
                             if let Some(r) = cue_request(sound, if leave { Cue::Leave } else { Cue::Join }) {
@@ -1514,7 +1562,7 @@ async fn run(
                     };
                     // Session log: every 10 s (every 5th 2 s tick).
                     stats_ticks += 1;
-                    if stats_ticks % 5 == 0 {
+                    if stats_ticks.is_multiple_of(5) {
                         if let Event::Stats { rtt_ms, jitter_ms, lost, sent, received } = &ev {
                             tracing::info!(rtt_ms, jitter_ms, lost, sent, received, "stats (last 2 s: sent/received)");
                         }

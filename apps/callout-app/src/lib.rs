@@ -52,6 +52,8 @@ pub struct Settings {
     pub user_volumes: BTreeMap<String, f32>,
     /// Sound when someone joins or leaves the room (and when we join one).
     pub join_sound: JoinSound,
+    /// Echo cancellation on the microphone; on if missing from older settings files.
+    pub echo_cancellation: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -78,6 +80,7 @@ impl Default for Settings {
             recent_rooms: Vec::new(),
             installer_language_seen: None,
             user_volumes: BTreeMap::new(),
+            echo_cancellation: true,
             join_sound: JoinSound::default(),
         }
     }
@@ -138,6 +141,7 @@ struct AppliedAudio {
     noise_suppression: bool,
     vad_sensitivity: f32,
     agc: bool,
+    echo_cancellation: bool,
 }
 
 struct AppState {
@@ -332,6 +336,14 @@ fn save_settings(
             },
         );
     }
+    if applied.echo_cancellation != settings.echo_cancellation {
+        send_command(
+            &state,
+            Command::SetEchoCancellation {
+                enabled: settings.echo_cancellation,
+            },
+        );
+    }
     if old.join_sound != settings.join_sound {
         state.engine.send(Command::SetJoinSound {
             sound: settings.join_sound,
@@ -389,6 +401,9 @@ fn send_command(state: &AppState, command: Command) {
                 state.applied.lock().unwrap().vad_sensitivity = *db
             }
             Command::SetAgc { enabled } => state.applied.lock().unwrap().agc = *enabled,
+            Command::SetEchoCancellation { enabled } => {
+                state.applied.lock().unwrap().echo_cancellation = *enabled
+            }
             _ => {}
         }
     }
@@ -737,6 +752,7 @@ pub fn run() {
                 vad_sensitivity_db: settings.vad_sensitivity,
                 agc: settings.agc,
                 join_sound: settings.join_sound,
+                echo_cancellation: settings.echo_cancellation,
                 no_audio: false,
             });
 
@@ -785,6 +801,7 @@ pub fn run() {
                     noise_suppression: settings.noise_suppression,
                     vad_sensitivity: settings.vad_sensitivity,
                     agc: settings.agc,
+                    echo_cancellation: settings.echo_cancellation,
                 }),
                 settings: Mutex::new(settings),
                 data_dir,
@@ -932,6 +949,13 @@ mod tests {
             callout_core::JoinSound::Chime,
             "older files get the default"
         );
+        assert!(
+            s.echo_cancellation,
+            "echo cancellation is on for older files"
+        );
+        let s: Settings =
+            serde_json::from_str(r#"{"nickname":"bera","echo_cancellation":false}"#).unwrap();
+        assert!(!s.echo_cancellation, "a saved choice is kept");
         let s: Settings = serde_json::from_str(r#"{"user_volumes":{"kuzen":0.7}}"#).unwrap();
         assert_eq!(s.user_volumes.get("kuzen"), Some(&0.7));
     }

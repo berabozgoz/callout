@@ -41,7 +41,8 @@ Client A (Tauri)             callout-server (VPS / home PC)       Client B…N
   `callout-net` QUIC · `callout-core` state machine · `callout-app` Tauri shell · `ui/` Svelte ·
   `callout-input` push-to-talk listener · `callout-priority` audio thread priority (the two crates with `unsafe`).
 - Send: mic → cpal callback (only a copy into the ring buffer) → audio thread:
-  resample to 48 kHz, 20 ms frames, VAD, [Phase 2] noise suppression, Opus → datagram.
+  resample to 48 kHz, 20 ms frames, echo cancellation (WebRTC AEC3 via `sonora`, pure Rust; reference =
+  the final mix as it goes to the device), noise suppression, VAD, AGC, Opus → datagram.
 - Receive: datagram → per-sender jitter buffer (60 ms initial, adaptive) → Opus decode + PLC →
   per-user gain → mixer (f32 sum + soft limiter) → output ring → cpal playback. The ring keeps an adaptive
   reserve (20–80 ms, starts at 30) ahead of the device: it grows on underruns and shrinks slowly while

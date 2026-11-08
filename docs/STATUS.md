@@ -16,7 +16,8 @@
   connected, invite link unchanged, 7 rooms loaded). Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
 - **Unreleased on `main`:** adaptive output reserve (30 ms at start, 20–80 ms, was a fixed
-  40 ms) and latency diagnostics (`audio latency` line, `wait_ms` per sender); see "Last session". v0.1.18 brought the audio thread priority
+  40 ms) and latency diagnostics (`audio latency` line, `wait_ms` per sender), committed; **echo cancellation**
+  (AEC3, on by default), committed; see "Last session". v0.1.18 brought the audio thread priority
   (MMCSS) + `audio timing` log line, per-user volume numbers + remembered volumes, join/leave sounds.
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
@@ -67,6 +68,19 @@ items marked **before release** pass.
 - [ ] **Latency breakdown in the field** (next release): from a game session's logs, per player: `wait_ms`
       (jitter buffer), `out_fill_ms`, `out_device_ms`, `in_device_ms`, `rtt_ms`. That tells which part of the
       delay is worth working on next (ms-precise jitter target, time stretching).
+- [ ] **Echo cancellation in the field** (next release; the others must update too): Bera plays with kuzen
+      and Hallobadi as in the LoL/CS2 sessions and should no longer hear himself. Their logs (Send log)
+      show an `echo erl_db erle_db delay_ms` line every 30 s while something plays: a working canceller
+      shows `erle_db` well above 0 when there is echo, and `delay_ms` near the `audio latency` sum
+      (`out_fill_ms + out_device_ms + in_device_ms`, ~60–80 ms). Also check that nobody's voice got
+      choppy while both talk, and that `audio timing` stays as before (CPU: ~1% of a core in the
+      simulation). Settings → "Echo cancellation" off brings the echo back (A/B).
+- [ ] **Echo cancellation on speakers** (next release): one player on laptop speakers instead of headphones;
+      the others hear no echo after the first few seconds of talk (AEC3 learns in seconds when one side
+      talks, ~20–30 s when both talk all the time).
+- [ ] **Settings row** (next release): "Noise suppression" and "Echo cancellation" share one line (short
+      labels, details in tooltips); the page still fits without scrolling in all languages with push-to-talk
+      on and off (checked in the browser preview without Tauri: never taller than before).
 - [ ] **Long outage** : cable out ~1 min. Reconnects within ~15 s of the cable returning.
 - [x] **Listen-only join** (before release; since 53e73f4): Windows Settings → Privacy → Microphone → turn off
       desktop app access, connect. Expected: the microphone error is shown, but you can join a room and hear
@@ -186,9 +200,9 @@ items marked **before release** pass.
   stretching (WSOLA, own code or an Apache/MIT library; SoundTouch is LGPL) to shrink/grow the buffer
   mid-spurt and absorb clock drift, (5) faster recovery after a delay spike (the 20 s window keeps the target
   high). Later: 10 ms Opus frames, WASAPI low-latency shared mode (IAudioClient3).
-- **Echo cancellation (AEC) is missing:** found in the local test (two clients on one PC howled through the
-  speakers). A player on speakers instead of headphones sends the room's voices back as echo. Candidate for
-  the audio quality list (e.g. the WebRTC audio processing module, BSD; check the Rust binding's license).
+- **Echo cancellation (done, unreleased):** Bera heard himself as an echo from kuzen's and Hallobadi's
+  headphones in the LoL/CS2 sessions. The echo is made at the listener's PC, so it only goes away once
+  **they** run the new version. Field check: see Pending manual tests.
 - **Log upload** is out in v0.1.16 (server updated): ask friends to press "Send log" after a session and read
   the logs over SSH in `/var/lib/callout/logs/`. That is the way to get the field data below.
 - **AGC retuned and off by default (unreleased):** after the CS2 test (too loud, both players preferred it
@@ -326,6 +340,25 @@ items marked **before release** pass.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 
 ## Last session
+
+- 8 Nov (echo cancellation, Bera's request: he heard his own voice from kuzen's and Hallobadi's
+  headphones): new `callout-audio::aec` wraps `sonora` 0.3 (pure-Rust port of WebRTC audio processing,
+  BSD-3-Clause, `cargo deny` clean), echo canceller only (RNNoise/VAD/AGC stay ours). The engine feeds the
+  final mix (voices, cues, test sounds; what the device plays) as the render reference and runs the
+  canceller first on every microphone frame (before RNNoise, VAD, AGC); the delay hint is the output
+  ring's fill + both device buffers + 10 ms (AEC3 finds the real delay itself). On by default
+  (`Settings.echo_cancellation`, `Command::SetEchoCancellation`, `EngineConfig.echo_cancellation`; older
+  settings files get it on), switching restarts it; talk example `--no-aec`. Log every 30 s while
+  something played: `echo erl_db erle_db delay_ms`. UI: "Noise suppression" and "Echo cancellation" as two
+  short toggles on one line (details as tooltips) so the settings page does not grow; 11 languages.
+  `tests/echo_sim.rs` (synthetic speech, delayed reverberant echo path): speakers −12 dB echo 41 dB
+  removed, a −32 dB headphone leak ends below the mic noise, the player's own voice −0.3 dB alone and
+  −1.5 dB during double talk, 38 dB echo removed in pauses after ~25 s of constant double talk; CPU
+  0.008 s per s of audio (release). sonora needs Rust 1.91: workspace `rust-version` 1.80 → 1.91, which
+  turned on two clippy lints (`as_chunks`, `is_multiple_of`; fixed). fmt/clippy (incl. app)/98 + 7 app
+  tests/svelte-check/`cargo deny` clean. Local smoke run (one client, release): pipeline fine with AEC on
+  (loop max 3 ms), `echo delay_ms=76` vs a hint of ~72. Not tried with real echo yet (needs speakers or a
+  friend), not in the app UI; committed, not released.
 
 - 8 Nov (latency diagnostics + adaptive output reserve, Bera's go-ahead after the latency discussion): the
   engine mixed a new frame only when the output ring held < 40 ms, so ~40–60 ms (avg ~43–50) of decoded

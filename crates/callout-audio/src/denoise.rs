@@ -40,7 +40,7 @@ impl Denoiser {
     /// two halves (0.0–1.0). Output is delayed by RNNoise's window overlap (~10 ms).
     pub fn process(&mut self, frame: &mut [f32]) -> f32 {
         let mut prob = 0f32;
-        for half in frame.chunks_exact_mut(HALF) {
+        for half in frame.as_chunks_mut::<HALF>().0 {
             for (d, s) in self.inp.iter_mut().zip(half.iter()) {
                 *d = s * SCALE;
             }

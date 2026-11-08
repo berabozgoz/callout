@@ -83,6 +83,12 @@ pub enum Command {
     SetAgc {
         enabled: bool,
     },
+    /// Echo cancellation: removes what this PC plays (the others' voices leaking from
+    /// headphones or speakers into the microphone) before it is sent, so the others do not hear
+    /// themselves as an echo.
+    SetEchoCancellation {
+        enabled: bool,
+    },
     /// Close the current room for everyone and delete it (only its creator's device may).
     CloseRoom,
     /// Send a diagnostic log to the server's operator (the user agreed in the UI). The app reads

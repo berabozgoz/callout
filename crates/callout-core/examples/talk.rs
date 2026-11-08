@@ -5,6 +5,7 @@
 //!   cargo run -p callout-core --example talk -- "callout://IP:4433#FINGERPRINT" Nickname --create [--name RoomName]
 //!   cargo run -p callout-core --example talk -- "callout://IP:4433#FINGERPRINT" Nickname --room CODE
 //! Extra: [--ptt] (push-to-talk: pressing Enter sends for 3 s) [--volume ID=GAIN] [--input NAME] [--output NAME]
+//!        [--no-aec] (echo cancellation off)
 
 use anyhow::{Context, Result};
 use callout_core::{Command, Engine, EngineConfig, Event};
@@ -22,6 +23,7 @@ struct Args {
     room: RoomArg,
     volumes: Vec<(u32, f32)>,
     ptt: bool,
+    aec: bool,
     input: Option<String>,
     output: Option<String>,
 }
@@ -33,6 +35,7 @@ fn parse_args() -> Result<Args> {
     let mut room = None;
     let mut volumes = Vec::new();
     let mut ptt = false;
+    let mut aec = true;
     let (mut input, mut output) = (None, None);
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -51,6 +54,7 @@ fn parse_args() -> Result<Args> {
                 volumes.push((id.parse()?, g.parse()?));
             }
             "--ptt" => ptt = true,
+            "--no-aec" => aec = false,
             "--input" => input = Some(it.next().context("--input NAME")?),
             "--output" => output = Some(it.next().context("--output NAME")?),
             other => anyhow::bail!("unknown argument: {other}"),
@@ -63,6 +67,7 @@ fn parse_args() -> Result<Args> {
         room,
         volumes,
         ptt,
+        aec,
         input,
         output,
     })
@@ -84,6 +89,7 @@ async fn main() -> Result<()> {
         vad_sensitivity_db: 0.0,
         agc: false,
         join_sound: callout_core::JoinSound::default(),
+        echo_cancellation: args.aec,
         no_audio: false,
     });
     engine.send(Command::Connect {
