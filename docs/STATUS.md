@@ -44,6 +44,10 @@ items marked **before release** pass.
       ✓ CI part, 11 Nov (run 43052387197 on PR #1, head 0c4a453): `app-macos` (clippy incl. the app,
       library tests) and `macOS test DMG` green on the first try; the universal DMG artifact is ~12.9 MB.
       The release part waits for the first tag with the macOS job.
+- [ ] **macOS: old WebKit** (before release): 11 Nov, the first test DMG showed only an empty window on
+      the owner's 2014 MacBook Air (Intel, macOS 11 Big Sur at most). The UI was built for `chrome105`
+      only and contained private class methods (`#m()`, Safari 15+); the build now also targets
+      `safari14`. Expected: the new DMG shows the UI on that MacBook. Note its macOS and Safari versions.
 - [ ] **macOS: install and first start** (before release; Apple Silicon Mac): download the DMG (before a
       release: the `CallOut-macOS-<sha>` artifact of the "macOS test DMG" CI job on a PR or a manual
       "Run workflow"; unzip it), drag to
