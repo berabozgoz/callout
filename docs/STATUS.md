@@ -41,6 +41,9 @@ items marked **before release** pass.
       macOS) is green. Then a release dry run is the tag itself: the `macos` job must upload
       `CallOut_<v>_universal.dmg` and `CallOut_universal.app.tar.gz` (+ `.sig`), and `latest.json` must
       list `darwin-aarch64` and `darwin-x86_64` next to `windows-x86_64`.
+      ✓ CI part, 11 Nov (run 43052387197 on PR #1, head 0c4a453): `app-macos` (clippy incl. the app,
+      library tests) and `macOS test DMG` green on the first try; the universal DMG artifact is ~12.9 MB.
+      The release part waits for the first tag with the macOS job.
 - [ ] **macOS: install and first start** (before release; Apple Silicon Mac): download the DMG (before a
       release: the `CallOut-macOS-<sha>` artifact of the "macOS test DMG" CI job on a PR or a manual
       "Run workflow"; unzip it), drag to
@@ -228,9 +231,8 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- **macOS app (11 Nov, unreleased):** get the `app-macos` CI job green (it has never run: the code was only
-  checked from Windows with `cargo clippy --target aarch64-apple-darwin` for `callout-input` and
-  `callout-priority`), then the macOS items in "Pending manual tests" on the owner's Apple Silicon Mac,
+- **macOS app (11 Nov, unreleased, draft PR #1 on branch `macos`):** macOS CI is green and the PR's
+  "macOS test DMG" artifact is ready; next the macOS items in "Pending manual tests" on the owner's Apple Silicon Mac,
   then release. Known gaps: no Apple Developer ID (Gatekeeper "Open Anyway", permissions may reset on
   update; signing + notarization are prepared in `release.yml` comments), a denied microphone gives
   silence instead of the "microphone access denied" error (needs an AVCaptureDevice check), the icon is
