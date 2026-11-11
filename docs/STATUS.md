@@ -9,20 +9,19 @@
   adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (v0.1.14; retuned to a comfort band and
   off by default in v0.1.17 after the CS2 test). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
-- **Released:** v0.1.19 on GitHub Releases (installer, portable exe, both servers, `latest.json`). Installed
+- **Released:** v0.1.20 on GitHub Releases (Windows installer, portable exe, **macOS universal DMG** + updater
+  bundle, both servers, `latest.json` with Windows and macOS entries). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
-- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.16** (v0.1.17–v0.1.19 are app-only, no server update needed) (persistent rooms in `/var/lib/callout/rooms.tsv`,
+- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.16** (v0.1.17–v0.1.20 are app-only, no server update needed) (persistent rooms in `/var/lib/callout/rooms.tsv`,
   owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated 4 Nov 17:04 UTC, nobody was
   connected, invite link unchanged, 7 rooms loaded). Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **macOS app (11 Nov, not released yet):** universal DMG (Apple Silicon + Intel, macOS 11+), outside the
-  App Store, ad-hoc signed (no Apple Developer ID; users click "Open Anyway" once). Push-to-talk via a
-  listen-only Quartz event tap (needs Input Monitoring), audio thread at QoS user-interactive, in-app
-  updates through the same `latest.json`. Built in CI only (`app-macos` job, release `macos` job); never run
-  on a real Mac yet: see "Pending manual tests" → macOS.
-- **Unreleased on `main`:** the macOS app (above); otherwise nothing since v0.1.19 (check `git log v0.1.19..`). v0.1.19 brought **echo cancellation** (AEC3,
-  on by default), the adaptive output reserve (30 ms at start, 20–80 ms, was a fixed 40 ms) and latency
-  diagnostics (`audio latency`, `wait_ms`, `echo` log lines); see "Last session".
+- **macOS app (released in v0.1.20, 11 Nov):** universal DMG (Apple Silicon + Intel, macOS 11+), outside the
+  App Store, ad-hoc signed (no Apple Developer ID; users click "Open Anyway" once, and macOS may drop the
+  microphone / Input Monitoring permission on every update). Push-to-talk via a listen-only Quartz event
+  tap, audio thread at QoS user-interactive, in-app updates through the same `latest.json`. Tested on the
+  owner's 2014 MacBook Air (Intel, macOS 11.7.11); no Apple Silicon Mac yet.
+- **Unreleased on `main`:** nothing (check `git log v0.1.20..`).
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -37,10 +36,13 @@ Things that passed automated checks but still need a person, a real Windows PC o
 Tick and move the result to "Last session" (or `GATE_TEST.md`) when done; release only after the
 items marked **before release** pass.
 
-- [ ] **macOS: CI build** (before release): the `app-macos` CI job (clippy incl. the app, library tests on
+- [x] **macOS: CI build** (before release): the `app-macos` CI job (clippy incl. the app, library tests on
       macOS) is green. Then a release dry run is the tag itself: the `macos` job must upload
       `CallOut_<v>_universal.dmg` and `CallOut_universal.app.tar.gz` (+ `.sig`), and `latest.json` must
       list `darwin-aarch64` and `darwin-x86_64` next to `windows-x86_64`.
+      ✓ release part, 11 Nov (v0.1.20, run 43077641548): `CallOut_0.1.20_universal.dmg`,
+      `CallOut_universal.app.tar.gz` + `.sig` uploaded; `latest.json` lists `darwin-aarch64`,
+      `darwin-x86_64` (+ `-app`) next to `windows-x86_64`.
       ✓ CI part, 11 Nov (run 43052387197 on PR #1, head 0c4a453): `app-macos` (clippy incl. the app,
       library tests) and `macOS test DMG` green on the first try; the universal DMG artifact is ~12.9 MB.
       The release part waits for the first tag with the macOS job.
@@ -49,6 +51,11 @@ items marked **before release** pass.
       never ran (log: only `CallOut started`). The UI was built for `chrome105` only and contained private
       class methods (`#m()`); the app's WKWebView evidently runs an older WebKit than the installed Safari.
       ✓ 11 Nov: with the Vite target `["chrome105", "safari14"]` (DMG dcb1227) the UI shows on that Mac.
+- [ ] **macOS with the release** (v0.1.20, owner's wish): (a) a proper listening test, Mac and Windows in
+      different rooms (or one on headphones): voices clean both ways; (b) push-to-talk on a mouse side
+      button (Mouse 4/5) on the Mac; (c) in-app update: the test DMG on the MacBook calls itself 0.1.19, so
+      it should offer 0.1.20 → "Update and restart" replaces it in Applications (see the in-app update item
+      below for what to watch: microphone / Input Monitoring permissions afterwards).
 - [x] **macOS: install and first start** (before release; Apple Silicon Mac): download the DMG (before a
       release: the `CallOut-macOS-<sha>` artifact of the "macOS test DMG" CI job on a PR or a manual
       "Run workflow"; unzip it), drag to
@@ -77,7 +84,7 @@ items marked **before release** pass.
       (the built-in mic delivers digital silence for its first ~1.5 s; threshold ends at the -60 dB clamp,
       as on Windows, so harmless but the calibration means nothing on this Mac) and a smaller start-up
       underrun (512–28160 samples). The owner found the Mac mic quiet; AGC on made it better (+7…+11 dB).
-      Worth deciding: AGC on by default on macOS, or a higher mic gain there.
+      Decided (owner, 11 Nov): AGC stays off by default on macOS too.
 - [x] **macOS: quitting leaves the server politely** (before release; since the commit after 5bc0a37): all
       5 Mac quits on 11 Nov ended as `close_reason=TimedOut` on the server (Windows: 62 of 63 `bye`), so
       the old connection stayed in the room ~5–10 s (members=3 after a restart). Cmd+Q, the app menu and the
@@ -279,8 +286,7 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- **macOS app (11 Nov, unreleased, draft PR #1 on branch `macos`):** macOS CI is green and the PR's
-  "macOS test DMG" artifact is ready; next the macOS items in "Pending manual tests" on the owner's Apple Silicon Mac,
+- **macOS app (released in v0.1.20):** next the open macOS items in "Pending manual tests" on the owner's Apple Silicon Mac,
   then release. Known gaps: no Apple Developer ID (Gatekeeper "Open Anyway", permissions may reset on
   update; signing + notarization are prepared in `release.yml` comments), a denied microphone gives
   silence instead of the "microphone access denied" error (needs an AVCaptureDevice check); Caps Lock cannot be a push-to-talk key on macOS.
@@ -432,6 +438,18 @@ items marked **before release** pass.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 
 ## Last session
+
+- 11 Nov: **v0.1.20 released** (the macOS app; app only, server stays on v0.1.16). PR #1 (`macos`)
+  fast-forwarded into `main`; Release run 43077641548 green (windows, macos, linux-server); assets: Windows
+  installer + `.sig`, portable exe, `CallOut_0.1.20_universal.dmg`, `CallOut_universal.app.tar.gz` + `.sig`,
+  both servers, `latest.json` (served at releases/latest: version 0.1.20, Windows + darwin entries).
+  Release notes got a "What's new" (CallOut for Mac; nothing new on Windows). Before the release, on the
+  owner's MacBook with CI test DMGs: blank window fixed (`safari14` UI target), quit now leaves the server
+  (`RunEvent::Exit`), Dock icon on Apple's grid (`icon.icns`), flat drop-downs on macOS; the test DMG no
+  longer opens the Web Inspector. CI: Linux apt falls back to the kernel.org mirror (the runners could not
+  resolve *.ubuntu.com for an hour), Mac jobs do not wait for Linux. `main` has a ruleset (no deletion, no
+  force push). Owner: sound clean, AGC stays off by default; listening test and mouse side button with the
+  release.
 
 - 11 Nov (macOS app, owner's request "release CallOut for macOS outside the App Store"; owner chose:
   unsigned for now, push-to-talk in the first Mac release, testing on an Apple Silicon Mac):
