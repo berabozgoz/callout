@@ -88,6 +88,9 @@ items marked **before release** pass.
       `listener active`: the ad-hoc signature changed, so macOS no longer matches the old entry. This is
       what every in-app update will do to push-to-talk until there is an Apple Developer ID (fix for the
       user: Input Monitoring → remove CallOut with "−", reopen CallOut, allow again).
+- [ ] **macOS: Dock icon size** (since the commit after 94175fe): the owner saw CallOut larger than the other
+      Dock icons (the icon filled the whole canvas). Now `icons/icon.icns` on Apple's grid (824 px body in
+      1024, soft shadow; made by `make_mac.py` outside the repo). Check: same size as its Dock neighbours.
 - [x] **macOS: push-to-talk** (before release): turn on push-to-talk in Settings: the yellow "Input
       Monitoring" note with its button shows; the button brings the macOS prompt / System Settings with
       CallOut listed; after allowing and reopening CallOut the note is gone. In a room: holding a key
@@ -269,9 +272,7 @@ items marked **before release** pass.
   "macOS test DMG" artifact is ready; next the macOS items in "Pending manual tests" on the owner's Apple Silicon Mac,
   then release. Known gaps: no Apple Developer ID (Gatekeeper "Open Anyway", permissions may reset on
   update; signing + notarization are prepared in `release.yml` comments), a denied microphone gives
-  silence instead of the "microphone access denied" error (needs an AVCaptureDevice check), the icon is
-  built from the 512 px PNG (no 1024 px retina size) and is a full-bleed square, not the macOS rounded
-  shape; Caps Lock cannot be a push-to-talk key on macOS.
+  silence instead of the "microphone access denied" error (needs an AVCaptureDevice check); Caps Lock cannot be a push-to-talk key on macOS.
 - **Jitter / latency work (started 8 Nov, released in v0.1.19):** steps 1–2 of the plan are done (latency log,
   adaptive output reserve). Next, once field logs show the breakdown: (3) an ms-precise jitter target instead
   of `ceil(spread/20)+1` frames (~10–15 ms on calm links; `tests/jitter_sim.rs` to measure), (4) time
