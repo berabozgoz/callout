@@ -41,7 +41,9 @@ items marked **before release** pass.
       macOS) is green. Then a release dry run is the tag itself: the `macos` job must upload
       `CallOut_<v>_universal.dmg` and `CallOut_universal.app.tar.gz` (+ `.sig`), and `latest.json` must
       list `darwin-aarch64` and `darwin-x86_64` next to `windows-x86_64`.
-- [ ] **macOS: install and first start** (before release; Apple Silicon Mac): download the DMG, drag to
+- [ ] **macOS: install and first start** (before release; Apple Silicon Mac): download the DMG (before a
+      release: the `CallOut-macOS-<sha>` artifact of the "macOS test DMG" CI job on a PR or a manual
+      "Run workflow"; unzip it), drag to
       Applications, start: blocked → System Settings → Privacy & Security → "Open Anyway" opens it (if
       macOS says "damaged" instead, `xattr -cr /Applications/CallOut.app` must fix it; note which one
       happened, it goes into the release notes). Microphone prompt shows the Info.plist text; after
@@ -376,6 +378,8 @@ items marked **before release** pass.
   `Cargo.toml` version in the repo with the latest tag (the version shown in local runs).
 - Server update: push a tag (`git tag v0.1.x && git push origin v0.1.x`), and once Actions finishes run
   `curl -fsSL https://raw.githubusercontent.com/berabozgoz/callout/main/deploy/install.sh | sudo bash` on the server.
+- macOS test DMG without a release: open a PR (or Actions → CI → "Run workflow"); the `dmg-macos` job
+  uploads `CallOut-macOS-<sha>` (a zip with the universal DMG, kept 7 days). It has no updater bundle.
 - After code changes: `cargo fmt && cargo clippy --workspace --exclude callout-app --all-targets -- -D warnings && cargo test`.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 

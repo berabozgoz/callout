@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # "Run workflow" in the Actions tab: also builds the macOS test DMG (job `dmg-macos`).
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -78,3 +80,39 @@ jobs:
         working-directory: ui
       - run: cargo clippy --workspace --all-targets
       - run: cargo test --workspace --exclude callout-app
+
+  # A macOS DMG to try without a release: built for pull requests and manual runs (not on every
+  # push to main; a universal release build takes a while), downloadable from the run's
+  # "Artifacts" for 7 days. Same app as the release minus the updater bundle (no signing key
+  # needed); Gatekeeper treats it like the released DMG ("Open Anyway").
+  dmg-macos:
+    name: macOS test DMG
+    if: github.event_name != 'push'
+    runs-on: macos-latest
+    needs: lib
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: universal-dmg
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+        working-directory: ui
+      - name: Universal DMG (Apple Silicon + Intel)
+        working-directory: apps/callout-app
+        run: >
+          npx --yes @tauri-apps/cli@2.12.4 build --target universal-apple-darwin --bundles dmg
+          --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CallOut-macOS-${{ github.event.pull_request.head.sha || github.sha }}
+          path: target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 7
