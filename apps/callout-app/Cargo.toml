@@ -10,6 +10,11 @@ rust-version.workspace = true
 name = "callout_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# Web Inspector in a release build, opened at start. Only for diagnostic builds (CI's macOS test
+# DMG); never in a release (on macOS it uses private WebKit API).
+devtools = ["tauri/devtools"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

@@ -790,6 +790,9 @@ pub fn run() {
                 if let Err(e) = fit_window_to_screen(&w) {
                     tracing::warn!("window size: {e}");
                 }
+                // Diagnostic builds only (feature `devtools`): show the UI's console and errors.
+                #[cfg(feature = "devtools")]
+                w.open_devtools();
             }
             if let Some((lcid, code)) = installer_language() {
                 if settings.installer_language_seen != Some(lcid) {
