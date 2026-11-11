@@ -49,7 +49,7 @@ items marked **before release** pass.
       never ran (log: only `CallOut started`). The UI was built for `chrome105` only and contained private
       class methods (`#m()`); the app's WKWebView evidently runs an older WebKit than the installed Safari.
       ✓ 11 Nov: with the Vite target `["chrome105", "safari14"]` (DMG dcb1227) the UI shows on that Mac.
-- [ ] **macOS: install and first start** (before release; Apple Silicon Mac): download the DMG (before a
+- [x] **macOS: install and first start** (before release; Apple Silicon Mac): download the DMG (before a
       release: the `CallOut-macOS-<sha>` artifact of the "macOS test DMG" CI job on a PR or a manual
       "Run workflow"; unzip it), drag to
       Applications, start: blocked → System Settings → Privacy & Security → "Open Anyway" opens it (if
@@ -57,7 +57,10 @@ items marked **before release** pass.
       happened, it goes into the release notes). Microphone prompt shows the Info.plist text; after
       "Allow" the sound test shows a level and plays back. Settings, languages, tray (menu bar) icon work;
       closing the window hides it, clicking the Dock icon brings it back, Quit in the menu bar icon quits.
-- [ ] **macOS: talk with Windows** (before release): Mac and a Windows PC in one room on the Oracle server
+      ✓ 11 Nov (owner, 2014 MacBook Air, macOS 11.7.11): installs from the test DMG and opens via
+      Privacy & Security; microphone allowed, talks with Windows; settings, Dock, quit fine (after the
+      `safari14` UI target and the quit fix). Not yet: an Apple Silicon Mac.
+- [x] **macOS: talk with Windows** (before release): Mac and a Windows PC in one room on the Oracle server
       for ~10 min: both hear each other, no crackle; the Mac log
       (`~/Library/Logs/io.github.berabozgoz.callout/callout.log`) shows
       `audio thread priority raised boost="qos user interactive"` and sane `audio timing` / `audio latency`
@@ -67,7 +70,7 @@ items marked **before release** pass.
       no stalls, callbacks 12 ms; `out_device_ms=11 in_device_ms=11`, reserve settled at 20 ms
       (`out_fill_ms` 28): ~50 ms device side, lower than Windows. RTT 39–45 ms, no loss after the join
       (6/8 packets lost right at the join on both sides), Windows saw `late=0 underflow=0` from the Mac.
-      Open: (a) how it sounded (owner's ear); (b) the Mac's first 30 s had `out_underrun=119808` samples
+      ✓ (a) sound clean to the owner (11 Nov; a proper listening test with the release, two rooms apart); (b) the Mac's first 30 s had `out_underrun=119808` samples
       (~1.4 s) and `VAD calibrated floor=-100`, before joining a room: probably the microphone permission
       prompt (no input while it was up); check that a second start has no such underrun.
       Second log (4 more starts, 17:31–17:35): not the prompt. Every start has `VAD calibrated floor=-100`
