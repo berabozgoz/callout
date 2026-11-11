@@ -95,8 +95,8 @@ jobs:
   # A macOS DMG to try without a release: built for pull requests and manual runs (not on every
   # push to main; a universal release build takes a while), downloadable from the run's
   # "Artifacts" for 7 days. Same app as the release minus the updater bundle (no signing key
-  # needed) plus the Web Inspector (feature `devtools`, opens at start) for diagnosing the UI;
-  # Gatekeeper treats it like the released DMG ("Open Anyway").
+  # needed); Gatekeeper treats it like the released DMG ("Open Anyway"). To diagnose the UI, add
+  # `--features devtools` below: the Web Inspector then opens at start.
   dmg-macos:
     name: macOS test DMG
     if: github.event_name != 'push'
@@ -120,7 +120,7 @@ jobs:
         working-directory: apps/callout-app
         run: >
           npx --yes @tauri-apps/cli@2.12.4 build --target universal-apple-darwin --bundles dmg
-          --features devtools --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - uses: actions/upload-artifact@v4
         with:
           name: CallOut-macOS-${{ github.event.pull_request.head.sha || github.sha }}
