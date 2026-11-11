@@ -7,7 +7,8 @@ This file is the summary kept in the repo; for protocol details **the code (`cra
 ## Product
 
 Players meet with a room code and talk with under 150 ms end-to-end latency.
-MVP is Windows only. Target room size 5–10 people (hard limit 16).
+MVP was Windows only; the macOS app (11+, universal, outside the App Store) was added on 11 Nov 2026.
+Target room size 5–10 people (hard limit 16).
 
 ## Key decisions
 
@@ -16,7 +17,7 @@ MVP is Windows only. Target room size 5–10 people (hard limit 16).
 | Topology | Server-based SFU | Client uploads 1 stream, downloads N-1; NAT problems are solved at the server |
 | Transport | QUIC (quinn + rustls) | One connection: reliable control stream + unreliable audio datagrams; TLS 1.3 built in |
 | Codec | Opus 48 kHz, 20 ms, 24–32 kbps, FEC + DTX | Transparent for speech, loss-resilient |
-| Audio I/O | cpal (WASAPI) | Pure Rust; exclusive mode via the `windows` crate if needed |
+| Audio I/O | cpal (WASAPI, CoreAudio on macOS) | Pure Rust; exclusive mode via the `windows` crate if needed |
 | UI | Tauri 2 + Svelte 5 | Audio and networking stay in Rust; the UI gets fast iteration |
 | Identity | Ed25519 device key + nickname | No passwords; email accounts in Phase 3 |
 | Hosting | Self-host friendly | Same binary; self-signed certificate + fingerprint; `callout://IP:port#fingerprint` invite |
@@ -80,7 +81,7 @@ Encryption: in the MVP, QUIC/TLS transport encryption; the `flags::E2E` bit is r
 | 3 Social layer (4 weeks) | accounts, friends, presence, text, persistent rooms | add friend → see online → invite to room |
 | 4 Release (3 weeks) | signed NSIS, auto-update, crash reporting, closed beta | 20 users for 2 weeks; crashes < 1% |
 
-Later: Linux/macOS, in-game overlay, end-to-end encryption, browser bridge, regional servers,
+Later: Linux desktop app, Mac App Store, in-game overlay, end-to-end encryption, browser bridge, regional servers,
 one-click self-host setup tool.
 
 ## Risks

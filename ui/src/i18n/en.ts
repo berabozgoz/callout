@@ -43,6 +43,8 @@ export const en = {
   "settings.pttUnassigned": "Not set — click, then press a key or mouse button",
   "settings.pttHint":
     "Active only while you are in a room. CallOut doesn't block the key, so it still works in your game too: pick one the game doesn't use, or a mouse side button. If the game runs as administrator, run CallOut as administrator too.",
+  "settings.pttHintMac":
+    "Active only while you are in a room. CallOut doesn't block the key, so it still works in your game too: pick one the game doesn't use, or a mouse side button.",
   "settings.save": "Save",
   "settings.cancel": "Cancel",
 
@@ -108,6 +110,9 @@ export const en = {
   "room.lost": "lost {n}",
   "room.pttHint": "Push-to-talk: sending while {key} is held.",
   "room.pttNoKey": "Push-to-talk is on but no key is set; pick one in Settings.",
+  "ptt.inputAccess":
+    "macOS hasn't allowed CallOut to see your push-to-talk key yet. Turn on CallOut under System Settings → Privacy & Security → Input Monitoring, then quit and reopen CallOut.",
+  "ptt.openSettings": "Open Input Monitoring",
   "footer.muted": "muted",
   "logs.link": "Send log",
   "logs.ask": "Send CallOut's diagnostic log to the operator of this server? It holds connection quality, audio levels and errors (no audio, no conversations) and is kept for 30 days.",

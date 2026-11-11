@@ -1,7 +1,7 @@
 name: Release
 
-# On a `v*` tag: builds the Windows installer (NSIS), the portable exe and the server exe
-# and uploads them to GitHub Releases.
+# On a `v*` tag: builds the Windows installer (NSIS), the portable exe and the server exe, the
+# macOS app (universal DMG) and the Linux server, and uploads them to GitHub Releases.
 #   git tag v0.1.0 && git push origin v0.1.0
 
 on:
@@ -48,9 +48,16 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "CallOut ${{ github.ref_name }}"
           releaseBody: |
-            **For friends:** download and install `CallOut_*_x64-setup.exe` (on the SmartScreen warning, choose
+            **For friends (Windows):** download and install `CallOut_*_x64-setup.exe` (on the SmartScreen warning, choose
             "More info → Run anyway"). If you'd rather not install, you can run `callout-app.exe` directly.
             When the app opens, enter a nickname and the `callout://` invite link you were sent.
+
+            **For friends (Mac, macOS 11 or newer, Apple Silicon or Intel):** download `CallOut_*_universal.dmg`, open it
+            and drag CallOut into Applications. CallOut is not signed by Apple yet, so the first start is blocked: open
+            System Settings → Privacy & Security, scroll down and click "Open Anyway" next to CallOut. (If macOS says the
+            app is damaged, run `xattr -cr /Applications/CallOut.app` in Terminal once.) Allow the microphone when asked;
+            for push-to-talk also allow CallOut under Privacy & Security → Input Monitoring. After an in-app update
+            macOS may ask for both again.
 
             **For whoever hosts the server:**
             - Linux VPS (x64, e.g. Ubuntu 24.04), as root:
@@ -70,6 +77,54 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload ${{ github.ref_name }} callout-server.exe callout-app.exe --clobber
+
+  macos:
+    # Universal app (Apple Silicon + Intel): CallOut.app in a DMG, plus the updater bundle
+    # (CallOut.app.tar.gz + signature). Runs after the Windows job, which creates the release and
+    # latest.json; tauri-action adds the macOS entries to that latest.json (running both at once
+    # could lose one side's entries).
+    # Ad-hoc signed ("-" in tauri.macos.conf.json): no Apple Developer ID yet. To sign and notarize,
+    # add the secrets APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD,
+    # APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD (app-specific) and APPLE_TEAM_ID, and pass
+    # them in the tauri-action step's env below.
+    runs-on: macos-latest
+    needs: windows
+    steps:
+      - uses: actions/checkout@v4
+      - name: Take version from tag
+        shell: bash
+        run: |
+          # Same as the Windows job (BSD sed needs a suffix for -i).
+          tag="${GITHUB_REF_NAME}"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "tag must be vX.Y.Z: $tag"; exit 1; }
+          v="${tag#v}"
+          sed -i.bak -E '/^\[workspace\.package\]/,/^version/ s/^version = .*/version = "'"$v"'"/' Cargo.toml && rm Cargo.toml.bak
+          grep -q "^version = \"$v\"" Cargo.toml || { echo "failed to write version to Cargo.toml"; exit 1; }
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+        working-directory: ui
+      - name: Tauri app (universal DMG)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/callout-app
+          args: --target universal-apple-darwin
+          includeUpdaterJson: true
+          tagName: ${{ github.ref_name }}
+          releaseName: "CallOut ${{ github.ref_name }}"
+          releaseDraft: false
+          prerelease: false
 
   linux-server:
     # Built against an older glibc so it runs on any Ubuntu 22.04+ / Debian 12+ VPS.

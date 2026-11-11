@@ -2,8 +2,13 @@
 # Run: cargo deny check licenses sources   (CI runs it on every push)
 
 [graph]
-# Only the platforms we ship: the Windows app/server and the Linux server.
-targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
+# Only the platforms we ship: the Windows app/server, the macOS app and the Linux server.
+targets = [
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+]
 
 [licenses]
 # Permissive licenses only. Add to this list deliberately, never a copyleft license.

@@ -4,6 +4,7 @@
   import {
     send, getSettings, saveSettings, listDevices, appVersion, onEngine, onPtt, prettyCode,
     engineSnapshot, pttCapture, prettyShortcut, setTrayLabels, isInstalled, openReleasesPage, sendLog,
+    pttInputAccess, openInputMonitoringSettings, isMac,
     type Settings, type Device, type Member, type JoinSound, JOIN_SOUNDS, type RoomInfo, type ConnectionState, type MicTestState,
     type ErrorKind, type LogUploadOutcome,
   } from "./engine";
@@ -83,6 +84,13 @@
   let updatePct = $state(0);
   // Portable exe: the updater would install a second copy instead of replacing this one.
   let installed = $state(true);
+  // macOS: push-to-talk needs Input Monitoring; checked again whenever the window gets focus
+  // (the user comes back from System Settings).
+  let inputAccess = $state(true);
+  async function refreshInputAccess() {
+    try { inputAccess = await pttInputAccess(); } catch { inputAccess = true; }
+  }
+  $effect(() => { if (settings.push_to_talk) refreshInputAccess(); });
   async function checkForUpdate() {
     try {
       const u = await check();
@@ -390,8 +398,17 @@
   const formatDb = (db: number) => (db > 0 ? `+${db} dB` : `${db} dB`);
 </script>
 
-<svelte:window onkeydowncapture={onWindowKey} oncontextmenu={onContextMenu}
+<svelte:window onkeydowncapture={onWindowKey} oncontextmenu={onContextMenu} onfocus={refreshInputAccess}
   onmousedowncapture={captureMouse} onmouseup={blockSideButton} onauxclick={blockSideButton} />
+
+{#snippet inputAccessHint()}
+  {#if settings.push_to_talk && !inputAccess}
+    <p class="hint warn">
+      {t("ptt.inputAccess")}
+      <button type="button" class="linkbtn" onclick={() => openInputMonitoringSettings()}>{t("ptt.openSettings")}</button>
+    </p>
+  {/if}
+{/snippet}
 
 {#snippet inputHint()}
   {#if inputRate === null}
@@ -549,7 +566,8 @@
             {capturing ? t("settings.pttCapturing") : settings.ptt_shortcut ? prettyShortcut(settings.ptt_shortcut) : t("settings.pttUnassigned")}
           </button>
         </div>
-        <p class="hint">{t("settings.pttHint")}</p>
+        <p class="hint">{t(isMac ? "settings.pttHintMac" : "settings.pttHint")}</p>
+        {@render inputAccessHint()}
       {/if}
 
       <div class="soundtest">
@@ -709,6 +727,7 @@
       {:else}
         <p class="hint warn">{t("room.pttNoKey")}</p>
       {/if}
+      {@render inputAccessHint()}
     {/if}
   {/if}
 

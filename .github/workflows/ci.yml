@@ -54,3 +54,27 @@ jobs:
       - run: npm run build
         working-directory: ui
       - run: cargo build -p callout-app
+
+  # macOS app: the platform crates (push-to-talk event tap, QoS) and the Tauri shell, built and
+  # linted on Apple Silicon; the library tests run here too (CoreAudio instead of ALSA).
+  app-macos:
+    name: Tauri app (macOS)
+    runs-on: macos-latest
+    needs: lib
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+        working-directory: ui
+      - run: npm run build
+        working-directory: ui
+      - run: cargo clippy --workspace --all-targets
+      - run: cargo test --workspace --exclude callout-app

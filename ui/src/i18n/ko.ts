@@ -41,6 +41,8 @@ export const ko: Messages = {
   "settings.pttUnassigned": "설정 안 됨 — 클릭한 뒤 키나 마우스 버튼을 누르세요",
   "settings.pttHint":
     "방에 있는 동안에만 작동해요. CallOut은 키를 막지 않아서 게임에서도 그 키가 그대로 동작해요. 게임에서 쓰지 않는 키나 마우스 측면 버튼을 고르세요. 게임을 관리자 권한으로 실행한다면 CallOut도 관리자 권한으로 실행하세요.",
+  "settings.pttHintMac":
+    "방에 있는 동안에만 작동해요. CallOut은 키를 막지 않아서 게임에서도 그 키가 그대로 동작해요. 게임에서 쓰지 않는 키나 마우스 측면 버튼을 고르세요.",
   "settings.save": "저장",
   "settings.cancel": "취소",
 
@@ -100,6 +102,9 @@ export const ko: Messages = {
   "room.lost": "손실 {n}",
   "room.pttHint": "눌러서 말하기: {key} 키를 누르고 있는 동안 전송해요.",
   "room.pttNoKey": "눌러서 말하기가 켜져 있지만 키가 없어요. 설정에서 키를 고르세요.",
+  "ptt.inputAccess":
+    "macOS가 아직 CallOut이 눌러서 말하기 키를 보도록 허용하지 않았어요. 시스템 설정 → 개인정보 보호 및 보안 → 입력 모니터링에서 CallOut을 켠 뒤, CallOut을 종료했다가 다시 여세요.",
+  "ptt.openSettings": "입력 모니터링 열기",
   "footer.muted": "음소거됨",
   "logs.link": "로그 보내기",
   "logs.ask": "CallOut 진단 로그를 이 서버 운영자에게 보낼까요? 연결 품질, 오디오 레벨, 오류가 담겨 있어요(음성·대화 내용 없음). 30일 동안 보관돼요.",

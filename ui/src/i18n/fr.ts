@@ -41,6 +41,8 @@ export const fr: Messages = {
   "settings.pttUnassigned": "Non défini — cliquez puis appuyez sur une touche ou un bouton de souris",
   "settings.pttHint":
     "Actif uniquement dans un salon. CallOut ne bloque pas la touche, elle agit donc aussi dans le jeu : choisissez-en une que le jeu n'utilise pas, ou un bouton latéral de la souris. Si le jeu tourne en administrateur, lancez aussi CallOut en administrateur.",
+  "settings.pttHintMac":
+    "Actif uniquement dans un salon. CallOut ne bloque pas la touche, elle agit donc aussi dans le jeu : choisissez-en une que le jeu n'utilise pas, ou un bouton latéral de la souris.",
   "settings.save": "Enregistrer",
   "settings.cancel": "Annuler",
 
@@ -101,6 +103,9 @@ export const fr: Messages = {
   "room.lost": "{n} perdus",
   "room.pttHint": "Appuyer pour parler : envoi tant que la touche {key} est maintenue.",
   "room.pttNoKey": "Appuyer pour parler est activé, mais aucune touche n'est définie ; choisissez-en une dans les Paramètres.",
+  "ptt.inputAccess":
+    "macOS n'autorise pas encore CallOut à voir votre touche Appuyer pour parler. Activez CallOut dans Réglages Système → Confidentialité et sécurité → Surveillance de l'entrée, puis quittez et rouvrez CallOut.",
+  "ptt.openSettings": "Ouvrir Surveillance de l'entrée",
   "footer.muted": "muet",
   "logs.link": "Envoyer le journal",
   "logs.ask": "Envoyer le journal de diagnostic de CallOut à l'administrateur de ce serveur ? Il contient la qualité de connexion, les niveaux audio et les erreurs (ni audio ni conversations) et est conservé 30 jours.",

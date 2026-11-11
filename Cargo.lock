@@ -586,6 +586,8 @@ dependencies = [
 name = "callout-input"
 version = "0.1.19"
 dependencies = [
+ "objc2-core-foundation",
+ "objc2-core-graphics",
  "thiserror 2.0.21",
  "tracing",
  "windows-sys 0.61.2",
@@ -614,6 +616,7 @@ dependencies = [
 name = "callout-priority"
 version = "0.1.19"
 dependencies = [
+ "libc",
  "thiserror 2.0.21",
  "windows-sys 0.61.2",
 ]

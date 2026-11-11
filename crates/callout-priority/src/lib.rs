@@ -8,10 +8,15 @@
 //! thread cannot freeze the desktop. If MMCSS is unavailable the thread falls back to
 //! `THREAD_PRIORITY_HIGHEST` (still in the normal range, below cpal's time-critical threads).
 //!
+//! On macOS the thread joins the "user interactive" quality-of-service class, the one the system
+//! keeps for work the user is waiting on right now (CoreAudio's own I/O threads run real-time
+//! already). It is a scheduling hint, not a real-time contract, so a busy thread cannot starve the
+//! rest of the system.
+//!
 //! Like callout-input, this crate holds `unsafe` code (CLAUDE.md rule 6), all of it in the
-//! Windows module below.
+//! platform modules below.
 
-#![cfg_attr(not(windows), forbid(unsafe_code))]
+#![cfg_attr(not(any(windows, target_os = "macos")), forbid(unsafe_code))]
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use std::marker::PhantomData;
@@ -20,7 +25,7 @@ use std::marker::PhantomData;
 pub enum Error {
     #[error("thread priority: {0}")]
     Os(String),
-    #[error("thread priority is only raised on Windows")]
+    #[error("thread priority is only raised on Windows and macOS")]
     Unsupported,
 }
 
@@ -31,6 +36,8 @@ pub enum Boost {
     Mmcss,
     /// MMCSS failed; `THREAD_PRIORITY_HIGHEST` instead.
     ThreadPriority,
+    /// macOS: the "user interactive" QoS class.
+    QosUserInteractive,
 }
 
 impl Boost {
@@ -38,6 +45,7 @@ impl Boost {
         match self {
             Boost::Mmcss => "mmcss pro audio",
             Boost::ThreadPriority => "thread priority highest",
+            Boost::QosUserInteractive => "qos user interactive",
         }
     }
 }
@@ -112,13 +120,42 @@ mod imp {
                     Boost::ThreadPriority => {
                         SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
                     }
+                    Boost::QosUserInteractive => {}
                 }
             }
         }
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+mod imp {
+    use super::{AudioThreadPriority, Boost, Error, PhantomData};
+    use libc::qos_class_t::{QOS_CLASS_DEFAULT, QOS_CLASS_USER_INTERACTIVE};
+
+    pub(super) fn raise() -> Result<AudioThreadPriority, Error> {
+        // SAFETY: changes only the calling thread's QoS class; no pointers involved.
+        let rc = unsafe { libc::pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0) };
+        if rc != 0 {
+            return Err(Error::Os(format!(
+                "pthread_set_qos_class_self_np: {}",
+                std::io::Error::from_raw_os_error(rc)
+            )));
+        }
+        Ok(AudioThreadPriority {
+            boost: Boost::QosUserInteractive,
+            _not_send: PhantomData,
+        })
+    }
+
+    impl Drop for AudioThreadPriority {
+        fn drop(&mut self) {
+            // SAFETY: as in `raise`; this runs on the same thread (the type is not Send).
+            unsafe { libc::pthread_set_qos_class_self_np(QOS_CLASS_DEFAULT, 0) };
+        }
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 mod imp {
     use super::{AudioThreadPriority, Error};
 
@@ -131,12 +168,15 @@ mod imp {
 mod tests {
     use super::*;
 
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     #[test]
     fn raises_and_restores_on_the_same_thread() {
         std::thread::spawn(|| {
             let p = AudioThreadPriority::raise().expect("raise");
-            assert!(matches!(p.boost(), Boost::Mmcss | Boost::ThreadPriority));
+            assert!(matches!(
+                p.boost(),
+                Boost::Mmcss | Boost::ThreadPriority | Boost::QosUserInteractive
+            ));
             drop(p);
             // Raising again after the restore works (the MMCSS slot was released).
             let again = AudioThreadPriority::raise().expect("raise again");
@@ -146,7 +186,7 @@ mod tests {
         .unwrap();
     }
 
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     #[test]
     fn unsupported_elsewhere() {
         assert!(matches!(

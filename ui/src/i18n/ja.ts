@@ -41,6 +41,8 @@ export const ja: Messages = {
   "settings.pttUnassigned": "未設定 — クリックしてキーまたはマウスボタンを押してください",
   "settings.pttHint":
     "ルームにいる間だけ有効です。CallOut はキーをブロックしないため、ゲーム内でもそのキーは機能します。ゲームで使わないキーかマウスのサイドボタンを選んでください。ゲームを管理者として実行している場合は、CallOut も管理者として実行してください。",
+  "settings.pttHintMac":
+    "ルームにいる間だけ有効です。CallOut はキーをブロックしないため、ゲーム内でもそのキーは機能します。ゲームで使わないキーかマウスのサイドボタンを選んでください。",
   "settings.save": "保存",
   "settings.cancel": "キャンセル",
 
@@ -101,6 +103,9 @@ export const ja: Messages = {
   "room.lost": "ロス {n}",
   "room.pttHint": "プッシュトゥトーク：{key} を押している間だけ送信します。",
   "room.pttNoKey": "プッシュトゥトークがオンですがキーが未設定です。設定で選んでください。",
+  "ptt.inputAccess":
+    "macOS がまだ CallOut にプッシュトゥトークのキーの検出を許可していません。システム設定 → プライバシーとセキュリティ → 入力監視 で CallOut をオンにし、CallOut を終了して開き直してください。",
+  "ptt.openSettings": "入力監視を開く",
   "footer.muted": "ミュート中",
   "logs.link": "ログを送信",
   "logs.ask": "CallOut の診断ログをこのサーバーの管理者に送信しますか？接続品質、音量レベル、エラーが含まれます（音声や会話は含まれません）。30 日間保存されます。",

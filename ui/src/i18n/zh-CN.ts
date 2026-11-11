@@ -41,6 +41,8 @@ export const zhCN: Messages = {
   "settings.pttUnassigned": "未设置 — 点击后按下按键或鼠标按钮",
   "settings.pttHint":
     "仅在房间内生效。CallOut 不会拦截该键，它在游戏中依然有效：请选择游戏不使用的键，或鼠标侧键。如果游戏以管理员身份运行，请也以管理员身份运行 CallOut。",
+  "settings.pttHintMac":
+    "仅在房间内生效。CallOut 不会拦截该键，它在游戏中依然有效：请选择游戏不使用的键，或鼠标侧键。",
   "settings.save": "保存",
   "settings.cancel": "取消",
 
@@ -100,6 +102,9 @@ export const zhCN: Messages = {
   "room.lost": "丢包 {n}",
   "room.pttHint": "按键说话：按住 {key} 时发送语音。",
   "room.pttNoKey": "按键说话已开启，但未设置按键；请在设置中选择。",
+  "ptt.inputAccess":
+    "macOS 尚未允许 CallOut 检测你的按键说话键。请在“系统设置 → 隐私与安全性 → 输入监控”中开启 CallOut，然后退出并重新打开 CallOut。",
+  "ptt.openSettings": "打开输入监控",
   "footer.muted": "已静音",
   "logs.link": "发送日志",
   "logs.ask": "将 CallOut 的诊断日志发送给此服务器的管理员？其中包含连接质量、音量和错误信息（不含音频和对话），保存 30 天。",

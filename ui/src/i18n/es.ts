@@ -41,6 +41,8 @@ export const es: Messages = {
   "settings.pttUnassigned": "Sin asignar — haz clic y pulsa una tecla o un botón del ratón",
   "settings.pttHint":
     "Solo funciona mientras estás en una sala. CallOut no bloquea la tecla, así que también actúa en el juego: elige una que el juego no use o un botón lateral del ratón. Si el juego se ejecuta como administrador, ejecuta CallOut también como administrador.",
+  "settings.pttHintMac":
+    "Solo funciona mientras estás en una sala. CallOut no bloquea la tecla, así que también actúa en el juego: elige una que el juego no use o un botón lateral del ratón.",
   "settings.save": "Guardar",
   "settings.cancel": "Cancelar",
 
@@ -101,6 +103,9 @@ export const es: Messages = {
   "room.lost": "{n} perdidos",
   "room.pttHint": "Pulsar para hablar: se envía mientras mantengas pulsada la tecla {key}.",
   "room.pttNoKey": "Pulsar para hablar está activado, pero no hay tecla; elige una en Ajustes.",
+  "ptt.inputAccess":
+    "macOS aún no permite que CallOut vea tu tecla de pulsar para hablar. Activa CallOut en Ajustes del Sistema → Privacidad y seguridad → Monitorización de entrada; luego cierra CallOut y vuelve a abrirlo.",
+  "ptt.openSettings": "Abrir Monitorización de entrada",
   "footer.muted": "silenciado",
   "logs.link": "Enviar registro",
   "logs.ask": "¿Enviar el registro de diagnóstico de CallOut al administrador de este servidor? Contiene calidad de conexión, niveles de audio y errores (sin audio ni conversaciones) y se conserva 30 días.",

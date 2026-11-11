@@ -41,6 +41,8 @@ export const tr: Messages = {
   "settings.pttUnassigned": "Atanmamış — tıkla, sonra bir tuşa ya da mouse tuşuna bas",
   "settings.pttHint":
     "Sadece odadayken etkindir. CallOut tuşu engellemez, tuş oyunda da çalışmaya devam eder: oyunun kullanmadığı bir tuş ya da mouse yan tuşu seç. Oyun yönetici olarak çalışıyorsa CallOut'u da yönetici olarak çalıştır.",
+  "settings.pttHintMac":
+    "Sadece odadayken etkindir. CallOut tuşu engellemez, tuş oyunda da çalışmaya devam eder: oyunun kullanmadığı bir tuş ya da mouse yan tuşu seç.",
   "settings.save": "Kaydet",
   "settings.cancel": "Vazgeç",
 
@@ -100,6 +102,9 @@ export const tr: Messages = {
   "room.lost": "kayıp {n}",
   "room.pttHint": "Bas-konuş: {key} basılıyken gönderilir.",
   "room.pttNoKey": "Bas-konuş açık ama tuş seçilmemiş; Ayarlar'dan bir tuş seç.",
+  "ptt.inputAccess":
+    "macOS, CallOut'un bas-konuş tuşunu görmesine henüz izin vermedi. Sistem Ayarları → Gizlilik ve Güvenlik → Girdi İzleme'de CallOut'u aç, sonra CallOut'tan çıkıp yeniden aç.",
+  "ptt.openSettings": "Girdi İzleme'yi aç",
   "footer.muted": "sessiz",
   "logs.link": "Log gönder",
   "logs.ask": "CallOut'un tanılama logu bu sunucunun yöneticisine gönderilsin mi? Bağlantı kalitesi, ses seviyeleri ve hataları içerir (ses kaydı ve konuşma yok), 30 gün saklanır.",

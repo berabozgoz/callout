@@ -1,6 +1,6 @@
 # CallOut
 
-Low-latency voice chat for gamers: a small Windows app and a server you can host yourself.
+Low-latency voice chat for gamers: a small Windows and macOS app and a server you can host yourself.
 
 - **Low latency:** Opus at 48 kHz in 20 ms frames over QUIC, an adaptive jitter buffer that follows
   your network, and a server that only forwards packets (it never decodes audio).
@@ -11,7 +11,7 @@ Low-latency voice chat for gamers: a small Windows app and a server you can host
 - **11 languages:** English, Deutsch, Español, Français, Português (Brasil), Русский, Türkçe, العربية,
   中文（简体）, 日本語, 한국어.
 
-Status: **Phase 2 (audio quality) in progress.** Rooms for 5–10 people, Windows only. See
+Status: **Phase 2 (audio quality) in progress.** Rooms for 5–10 people, Windows and macOS (11 or newer). See
 [`docs/STATUS.md`](docs/STATUS.md) for where things stand.
 
 ## For players
@@ -19,6 +19,12 @@ Status: **Phase 2 (audio quality) in progress.** Rooms for 5–10 people, Window
 1. Download `CallOut_<version>_x64-setup.exe` (installer) or `callout-app.exe` (portable) from the
    [Releases](https://github.com/berabozgoz/callout/releases) page. The app is not code-signed yet, so
    Windows SmartScreen shows "unknown publisher": choose **More info → Run anyway**.
+
+   **On a Mac** (Apple Silicon or Intel), download `CallOut_<version>_universal.dmg`, open it and drag
+   CallOut into Applications. It is not signed by Apple yet, so macOS blocks the first start: open
+   **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to CallOut. If macOS
+   says the app is damaged, run `xattr -cr /Applications/CallOut.app` in Terminal once. Allow the
+   microphone when asked.
 2. Get an invite link (`callout://…`) from whoever runs the server, enter a nickname and connect.
 3. Create a room and share its code, or join a room with a code. Rooms are permanent: the same code
    works next time (rooms unused for 30 days are removed), and the lobby lists your recent rooms.
@@ -34,7 +40,9 @@ Before your first session, open **Settings (⚙)**:
   or a mouse button (middle or side buttons). CallOut listens for it only while you are in a room and
   never blocks it, so it also does what it does in your game: pick one the game doesn't use (F9, for
   example, pauses Dota 2), or a mouse side button. If the game runs as administrator, run CallOut as
-  administrator too (Windows hides input in such a game from normal apps).
+  administrator too (Windows hides input in such a game from normal apps). On a Mac, allow CallOut under
+  **System Settings → Privacy & Security → Input Monitoring** (CallOut shows a button that opens it),
+  then quit and reopen CallOut.
 
 If the connection drops, CallOut reconnects on its own and puts you back in your room.
 
@@ -45,7 +53,11 @@ If the connection drops, CallOut reconnects on its own and puts you back in your
 - **Bluetooth headset warning:** when a Bluetooth headset's microphone is in use, Windows switches it to
   a low-quality hands-free mode. A wired or USB mic sounds much better; keep the headset for listening.
 - **Choppy or late audio on Wi-Fi:** use a cable or 5 GHz Wi-Fi if you can.
-- **Logs:** `%APPDATA%\io.github.berabozgoz.callout\logs\callout.log`. While connected, **Send log**
+- **Mac: nobody hears me / push-to-talk does nothing:** System Settings → Privacy & Security →
+  Microphone (and Input Monitoring for push-to-talk): turn on CallOut. CallOut is not signed by Apple yet,
+  so after an update macOS may ask again, or need CallOut switched off and on again in that list.
+- **Logs:** `%APPDATA%\io.github.berabozgoz.callout\logs\callout.log` (Mac:
+  `~/Library/Logs/io.github.berabozgoz.callout/callout.log`). While connected, **Send log**
   (bottom left) sends it to the operator of your server, only after you agree: connection quality, audio
   levels and errors, no audio or conversations; your Windows user name and the invite fingerprint are
   removed first, and the server keeps it for 30 days. After a dropped connection or an audio device
@@ -77,8 +89,9 @@ group. Run the same command again to update.
 
 ## For developers
 
-Requirements: Rust (stable), `cargo install tauri-cli --version "^2"`, Node.js 22+, and on Windows the
-[Tauri prerequisites](https://v2.tauri.app/start/prerequisites/). On Linux (libraries and server only):
+Requirements: Rust (stable), `cargo install tauri-cli --version "^2"`, Node.js 22+, and on Windows or
+macOS the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (macOS: Xcode command line
+tools and CMake, for the bundled Opus). On Linux (libraries and server only):
 `libasound2-dev`.
 
 ```sh

@@ -3,7 +3,7 @@
 > Read this file at the start of every session; at the end of a session update the "Last session" and "Next" sections.
 > Private details such as the server address and invite link are not written here but in `CLAUDE.local.md`, which is not in git.
 
-## Where we left off (8 Nov 2026)
+## Where we left off (11 Nov 2026)
 
 - **Phases 0–1 done; Phase 2 (audio quality) mostly done:** FEC/PLC measured, noise suppression (RNNoise),
   adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (v0.1.14; retuned to a comfort band and
@@ -15,7 +15,12 @@
   owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated 4 Nov 17:04 UTC, nobody was
   connected, invite link unchanged, 7 rooms loaded). Details in
   `CLAUDE.local.md`; update with `install.sh` (see Workflow).
-- **Unreleased on `main`:** nothing (check `git log v0.1.19..`). v0.1.19 brought **echo cancellation** (AEC3,
+- **macOS app (11 Nov, not released yet):** universal DMG (Apple Silicon + Intel, macOS 11+), outside the
+  App Store, ad-hoc signed (no Apple Developer ID; users click "Open Anyway" once). Push-to-talk via a
+  listen-only Quartz event tap (needs Input Monitoring), audio thread at QoS user-interactive, in-app
+  updates through the same `latest.json`. Built in CI only (`app-macos` job, release `macos` job); never run
+  on a real Mac yet: see "Pending manual tests" → macOS.
+- **Unreleased on `main`:** the macOS app (above); otherwise nothing since v0.1.19 (check `git log v0.1.19..`). v0.1.19 brought **echo cancellation** (AEC3,
   on by default), the adaptive output reserve (30 ms at start, 20–80 ms, was a fixed 40 ms) and latency
   diagnostics (`audio latency`, `wait_ms`, `echo` log lines); see "Last session".
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
@@ -31,6 +36,34 @@
 Things that passed automated checks but still need a person, a real Windows PC or a real network.
 Tick and move the result to "Last session" (or `GATE_TEST.md`) when done; release only after the
 items marked **before release** pass.
+
+- [ ] **macOS: CI build** (before release): the `app-macos` CI job (clippy incl. the app, library tests on
+      macOS) is green. Then a release dry run is the tag itself: the `macos` job must upload
+      `CallOut_<v>_universal.dmg` and `CallOut_universal.app.tar.gz` (+ `.sig`), and `latest.json` must
+      list `darwin-aarch64` and `darwin-x86_64` next to `windows-x86_64`.
+- [ ] **macOS: install and first start** (before release; Apple Silicon Mac): download the DMG, drag to
+      Applications, start: blocked → System Settings → Privacy & Security → "Open Anyway" opens it (if
+      macOS says "damaged" instead, `xattr -cr /Applications/CallOut.app` must fix it; note which one
+      happened, it goes into the release notes). Microphone prompt shows the Info.plist text; after
+      "Allow" the sound test shows a level and plays back. Settings, languages, tray (menu bar) icon work;
+      closing the window hides it, clicking the Dock icon brings it back, Quit in the menu bar icon quits.
+- [ ] **macOS: talk with Windows** (before release): Mac and a Windows PC in one room on the Oracle server
+      for ~10 min: both hear each other, no crackle; the Mac log
+      (`~/Library/Logs/io.github.berabozgoz.callout/callout.log`) shows
+      `audio thread priority raised boost="qos user interactive"` and sane `audio timing` / `audio latency`
+      lines (CoreAudio buffer sizes are new territory); echo cancellation on MacBook speakers.
+- [ ] **macOS: push-to-talk** (before release): turn on push-to-talk in Settings: the yellow "Input
+      Monitoring" note with its button shows; the button brings the macOS prompt / System Settings with
+      CallOut listed; after allowing and reopening CallOut the note is gone. In a room: holding a key
+      (also a combination with Cmd/Option, shown as "Cmd"/"Option") and a mouse side button transmits only
+      while held, the key still types in other apps, and nothing sticks after release (also when releasing
+      inside a password field). The log has `push-to-talk listener active`.
+- [ ] **macOS: in-app update** (after the first macOS release, with the next one): the update banner
+      shows, "Update and restart" replaces the app in Applications and restarts it. Check whether
+      microphone and Input Monitoring still work afterwards (ad-hoc signatures change with every build, so
+      macOS may ask again or need CallOut toggled off/on in Input Monitoring; this decides whether an Apple
+      Developer ID is worth it). Started from the DMG window instead of Applications: the banner offers
+      "Download" instead.
 
 - [x] **Automatic reconnect, room survives** (before release; since 0d98bc3): two people in a room, pull one
       PC's ethernet for ~5 s. Expected: "Reconnecting…" card within ~10 s, back in the same room after the
@@ -193,6 +226,14 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
+- **macOS app (11 Nov, unreleased):** get the `app-macos` CI job green (it has never run: the code was only
+  checked from Windows with `cargo clippy --target aarch64-apple-darwin` for `callout-input` and
+  `callout-priority`), then the macOS items in "Pending manual tests" on the owner's Apple Silicon Mac,
+  then release. Known gaps: no Apple Developer ID (Gatekeeper "Open Anyway", permissions may reset on
+  update; signing + notarization are prepared in `release.yml` comments), a denied microphone gives
+  silence instead of the "microphone access denied" error (needs an AVCaptureDevice check), the icon is
+  built from the 512 px PNG (no 1024 px retina size) and is a full-bleed square, not the macOS rounded
+  shape; Caps Lock cannot be a push-to-talk key on macOS.
 - **Jitter / latency work (started 8 Nov, released in v0.1.19):** steps 1–2 of the plan are done (latency log,
   adaptive output reserve). Next, once field logs show the breakdown: (3) an ms-precise jitter target instead
   of `ceil(spread/20)+1` frames (~10–15 ms on calm links; `tests/jitter_sim.rs` to measure), (4) time
@@ -339,6 +380,26 @@ items marked **before release** pass.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 
 ## Last session
+
+- 11 Nov (macOS app, owner's request "release CallOut for macOS outside the App Store"; owner chose:
+  unsigned for now, push-to-talk in the first Mac release, testing on an Apple Silicon Mac):
+  `callout-input` got `mac.rs`, a listen-only Quartz event tap (objc2-core-graphics/-foundation, already in
+  the tree via Tauri) on its own thread with a 100 ms run-loop slice (commands, "still held?" check via
+  `CGEventSourceKeyState`, retry until Input Monitoring is allowed; the tap is re-enabled when macOS
+  disables it), and `mac_keys.rs`, the `kVK_*` ↔ set-1 scan code table following WebKit's
+  `KeyboardEvent.code` mapping (tested on every platform). `has_input_access` / `request_input_access`;
+  app commands `ptt_input_access`, `open_input_monitoring_settings`; UI shows a warning with a button
+  while access is missing (rechecked on window focus), a Mac variant of the push-to-talk hint (no
+  administrator sentence) and Cmd/Option key names; 3 new keys in all 11 languages. `callout-priority`:
+  macOS joins QoS user-interactive (`libc::pthread_set_qos_class_self_np`). App: log at
+  `~/Library/Logs/io.github.berabozgoz.callout/`, `is_installed` = inside an `.app` not under `/Volumes`,
+  Dock click reopens the hidden window (`RunEvent::Reopen`), log scrub test covers `/Users/<name>/`.
+  Bundle: `tauri.macos.conf.json` (app + dmg, macOS 11+, ad-hoc `signingIdentity "-"`, hardened runtime,
+  `Entitlements.plist` with audio-input), `Info.plist` (microphone text). CI: `app-macos` job; release:
+  `macos` job after the Windows job (universal target; tauri-action merges the darwin entries into the
+  existing `latest.json`, checked in its source); `deny.toml` covers the Apple targets. README, CLAUDE.md,
+  ARCHITECTURE updated. Windows: fmt/clippy (incl. app)/tests/svelte-check/`cargo deny` clean; macOS: only
+  the two platform crates were checked (from Windows); nothing has run on a Mac.
 
 - 8 Nov: **v0.1.19 released** (echo cancellation, adaptive output reserve, latency diagnostics; app only,
   server stays on v0.1.16). Release and CI green; six assets (installer + `.sig`, portable exe, both

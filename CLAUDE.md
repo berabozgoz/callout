@@ -1,7 +1,8 @@
 # CallOut — developer rules
 
 Low-latency voice chat for gamers. Rust core, Tauri 2 + Svelte 5 UI,
-our own SFU server (QUIC). MVP is Windows only. Full architecture: `docs/ARCHITECTURE.md`.
+our own SFU server (QUIC). Ships for Windows and macOS (11+, universal DMG outside the App Store,
+ad-hoc signed until there is an Apple Developer ID). Full architecture: `docs/ARCHITECTURE.md`.
 
 ## Session workflow
 
@@ -23,8 +24,8 @@ crates/callout-audio   cpal capture/playback, Opus, jitter, mixer
 crates/callout-net     quinn QUIC: control stream + audio datagrams
 crates/callout-core    Engine: Command/Event engine (audio thread + network tasks); examples/talk.rs headless client
 crates/callout-server  SFU + rooms + identity, single binary
-crates/callout-input   push-to-talk listener (Windows Raw Input, never swallows the key); holds unsafe
-crates/callout-priority  raises the engine audio thread's priority (Windows MMCSS "Pro Audio"); holds unsafe
+crates/callout-input   push-to-talk listener (Windows Raw Input / macOS listen-only event tap, never swallows the key); holds unsafe
+crates/callout-priority  raises the engine audio thread's priority (Windows MMCSS "Pro Audio", macOS QoS); holds unsafe
 apps/callout-app       Tauri shell: engine_command/get_settings/save_settings, "engine" event channel, PTT listener, tray
 ui/                    Svelte 5 (runes) + TypeScript + Vite
 ```
@@ -64,7 +65,10 @@ cargo run -p callout-core --example talk -- "<invite>" Name --room CODE # join a
 cd ui && npm install && cd ../apps/callout-app && cargo tauri dev   # app
 ```
 
-On Linux `libasound2-dev` is required; `callout-app` is built/tested in CI on Windows only.
+On Linux `libasound2-dev` is required; `callout-app` is built/tested in CI on Windows and macOS.
+macOS-only config lives in `apps/callout-app/tauri.macos.conf.json`, `Info.plist` and `Entitlements.plist`.
+From Windows, `cargo clippy -p callout-input -p callout-priority --target aarch64-apple-darwin` checks the
+macOS code (the other crates need a C toolchain for that target; CI covers them).
 
 ## Phase status
 
@@ -76,7 +80,7 @@ On Linux `libasound2-dev` is required; `callout-app` is built/tested in CI on Wi
 
 ## Decisions (26 Oct 2026)
 
-SFU, QUIC/quinn, Opus 48 kHz 20 ms, cpal/WASAPI, Tauri+Svelte, Windows only,
+SFU, QUIC/quinn, Opus 48 kHz 20 ms, cpal/WASAPI, Tauri+Svelte, Windows only (macOS added 11 Nov 2026),
 device key + nickname identity (accounts in Phase 3), self-host friendly server
 (self-signed certificate + fingerprint, `callout://` invite link), MIT/Apache-2.0,
 target room 5–10 people (hard limit 16).

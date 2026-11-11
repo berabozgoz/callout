@@ -442,12 +442,25 @@ fn set_tray_labels(app: AppHandle, show: String, quit: String) -> Result<(), Str
 /// `true` when running from an installation (the NSIS installer puts `uninstall.exe` next to the
 /// app), `false` for the portable exe. The updater replaces only installed copies; a portable exe
 /// would just get a second, installed copy, so the UI offers a download link instead.
+#[cfg(not(target_os = "macos"))]
 #[tauri::command]
 fn is_installed() -> bool {
     std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(|dir| dir.join("uninstall.exe").exists()))
         .unwrap_or(false)
+}
+
+/// macOS: `true` inside an app bundle that is not on a mounted disk image. Started straight from
+/// the DMG the bundle is read-only, so the updater could not replace it; the UI offers the
+/// download link instead (and the user should drag CallOut to Applications first).
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn is_installed() -> bool {
+    std::env::current_exe().is_ok_and(|exe| {
+        let p = exe.to_string_lossy();
+        p.contains(".app/Contents/MacOS/") && !p.starts_with("/Volumes/")
+    })
 }
 
 /// Opens the GitHub Releases page in the default browser (portable users update by hand).
@@ -502,6 +515,37 @@ fn sync_ptt(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// `false` while macOS has not allowed CallOut to observe keystrokes in other apps (Input
+/// Monitoring); push-to-talk cannot work until the user allows it. Always `true` on Windows.
+#[tauri::command]
+fn ptt_input_access() -> bool {
+    callout_input::has_input_access()
+}
+
+/// Asks macOS for Input Monitoring (so CallOut is listed there) and opens System Settings →
+/// Privacy & Security → Input Monitoring. Does nothing elsewhere.
+#[tauri::command]
+fn open_input_monitoring_settings(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        if callout_input::request_input_access() {
+            return Ok(());
+        }
+        app.opener()
+            .open_url(
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+                None::<&str>,
+            )
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Ok(())
+    }
+}
+
 /// Starts the listener; its callback runs on the listener's own thread.
 fn start_ptt_listener(app: &AppHandle) -> Option<callout_input::Listener> {
     let handle = app.clone();
@@ -524,7 +568,8 @@ fn start_ptt_listener(app: &AppHandle) -> Option<callout_input::Listener> {
 // Setup
 // ---------------------------------------------------------------------------
 
-/// Log file: `%APPDATA%/io.github.berabozgoz.callout/logs/callout.log`.
+/// Log file: `%APPDATA%/io.github.berabozgoz.callout/logs/callout.log` on Windows,
+/// `~/Library/Logs/io.github.berabozgoz.callout/callout.log` on macOS.
 /// Moved to `callout.old.log` when it exceeds 2 MB. Falls back to stderr if it cannot be opened.
 fn open_log_file() -> Option<std::fs::File> {
     let dir = log_dir()?;
@@ -543,11 +588,21 @@ fn open_log_file() -> Option<std::fs::File> {
         .ok()
 }
 
+#[cfg(not(target_os = "macos"))]
 fn log_dir() -> Option<PathBuf> {
     Some(
         PathBuf::from(std::env::var_os("APPDATA")?)
             .join("io.github.berabozgoz.callout")
             .join("logs"),
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn log_dir() -> Option<PathBuf> {
+    Some(
+        PathBuf::from(std::env::var_os("HOME")?)
+            .join("Library/Logs")
+            .join("io.github.berabozgoz.callout"),
     )
 }
 
@@ -588,8 +643,9 @@ fn tail_lines(text: &str, max: usize) -> &str {
     }
 }
 
-/// Removes what the log could reveal beyond CallOut itself: the Windows user name in paths
-/// (`C:\Users\<name>\…`, also with doubled or forward slashes, as in panic messages) and long
+/// Removes what the log could reveal beyond CallOut itself: the user name in paths
+/// (`C:\Users\<name>\…`, also with doubled or forward slashes, as in panic messages; macOS
+/// `/Users/<name>/…`) and long
 /// hex strings (the server's certificate fingerprint in an invite link).
 fn scrub_log(text: &str) -> String {
     mask_hex_runs(&mask_user_dirs(text))
@@ -721,7 +777,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            // Data folder: %APPDATA%/io.github.berabozgoz.callout
+            // Data folder: %APPDATA%/io.github.berabozgoz.callout on Windows,
+            // ~/Library/Application Support/io.github.berabozgoz.callout on macOS.
             let data_dir = app
                 .path()
                 .app_data_dir()
@@ -882,10 +939,23 @@ pub fn run() {
             set_tray_labels,
             is_installed,
             open_releases_page,
-            send_log
+            send_log,
+            ptt_input_access,
+            open_input_monitoring_settings
         ])
-        .run(tauri::generate_context!())
-        .expect("failed to start tauri");
+        .build(tauri::generate_context!())
+        .expect("failed to start tauri")
+        .run(|_app, _event| {
+            // macOS: the window hides on close but the app keeps running; clicking the Dock icon
+            // brings it back (on Windows the tray icon does that).
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = _event {
+                if let Some(w) = _app.get_webview_window("main") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            }
+        });
 }
 
 #[allow(dead_code)]
@@ -988,6 +1058,7 @@ mod tests {
             "panic at C:\\Users\\Bera Bozgöz\\AppData\\x.rs:1\n",
             "path=\"C:\\\\Users\\\\bera\\\\AppData\" also c:/users/bera/Desktop\n",
             "invite callout://1.2.3.4:4433#b759212b66bd0a423dbed978e0bde842b4ca0d65a5b96fea746063848e8424a4\n",
+            "mac panic at /Users/bera/Library/Logs/callout.log\n",
             "users=3 rtt_ms=40 seq=deadbeef\n",
         );
         let s = scrub_log(log);
@@ -995,6 +1066,7 @@ mod tests {
         assert!(s.contains(r"C:\Users\<user>\AppData\x.rs"), "{s}");
         assert!(s.contains(r#"path="C:\\Users\\<user>\\AppData""#), "{s}");
         assert!(s.contains("c:/users/<user>/Desktop"), "{s}");
+        assert!(s.contains("/Users/<user>/Library/Logs"), "{s}");
         assert!(s.contains("callout://1.2.3.4:4433#<fingerprint>"), "{s}");
         // Words and short hex values stay as they are.
         assert!(s.contains("users=3 rtt_ms=40 seq=deadbeef"), "{s}");

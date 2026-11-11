@@ -41,6 +41,8 @@ export const de: Messages = {
   "settings.pttUnassigned": "Nicht festgelegt — klicken, dann eine Taste oder Maustaste drücken",
   "settings.pttHint":
     "Nur aktiv, solange du in einem Raum bist. CallOut blockiert die Taste nicht, sie wirkt also auch im Spiel: Wähle eine, die das Spiel nicht nutzt, oder eine Maus-Seitentaste. Läuft das Spiel als Administrator, starte auch CallOut als Administrator.",
+  "settings.pttHintMac":
+    "Nur aktiv, solange du in einem Raum bist. CallOut blockiert die Taste nicht, sie wirkt also auch im Spiel: Wähle eine, die das Spiel nicht nutzt, oder eine Maus-Seitentaste.",
   "settings.save": "Speichern",
   "settings.cancel": "Abbrechen",
 
@@ -101,6 +103,9 @@ export const de: Messages = {
   "room.lost": "{n} verloren",
   "room.pttHint": "Push-to-Talk: Gesendet wird, solange {key} gedrückt ist.",
   "room.pttNoKey": "Push-to-Talk ist an, aber keine Taste festgelegt; wähle eine in den Einstellungen.",
+  "ptt.inputAccess":
+    "macOS erlaubt CallOut noch nicht, deine Push-to-Talk-Taste zu sehen. Aktiviere CallOut unter Systemeinstellungen → Datenschutz & Sicherheit → Eingabeüberwachung, beende CallOut und öffne es erneut.",
+  "ptt.openSettings": "Eingabeüberwachung öffnen",
   "footer.muted": "stumm",
   "logs.link": "Log senden",
   "logs.ask": "Das Diagnoseprotokoll von CallOut an den Betreiber dieses Servers senden? Es enthält Verbindungsqualität, Audiopegel und Fehler (keine Aufnahmen, keine Gespräche) und wird 30 Tage aufbewahrt.",

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Merged into the bundle's Info.plist by the Tauri CLI (macOS). -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CallOut sends your voice to the people in your voice room.</string>
+</dict>
+</plist>

@@ -103,6 +103,9 @@ export const saveSettings = (settings: Settings) => invoke<void>("save_settings"
 export const engineSnapshot = () => invoke<Snapshot>("engine_snapshot");
 /** Pauses push-to-talk during key capture (pressing the old key there must not transmit). */
 export const pttCapture = (active: boolean) => invoke<void>("ptt_capture", { active });
+/** `false` while macOS has not allowed Input Monitoring (push-to-talk cannot see the key); always `true` on Windows. */
+export const pttInputAccess = () => invoke<boolean>("ptt_input_access");
+export const openInputMonitoringSettings = () => invoke<void>("open_input_monitoring_settings");
 export const listDevices = () => invoke<Device[]>("list_audio_devices");
 /** Sends the end of the app's log (cleaned) to the server's operator; only after the user agreed. */
 export const sendLog = () => invoke<void>("send_log");
@@ -122,12 +125,17 @@ export function onPtt(handler: (pressed: boolean) => void): Promise<UnlistenFn> 
 }
 
 /** `Ctrl+KeyT` → `Ctrl + T`, `Alt+ArrowUp` → `Alt + ↑`, `Mouse4` → `Mouse 4` */
+/** Running on macOS (WKWebView). */
+export const isMac = navigator.userAgent.includes("Mac OS X");
+
 export function prettyShortcut(s: string): string {
-  const arrows: Record<string, string> = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
+  const names: Record<string, string> = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
+  // Stored as Ctrl/Alt/Super everywhere; shown with the Mac key names on macOS.
+  if (isMac) Object.assign(names, { Super: "Cmd", Alt: "Option" });
   return s
     .split("+")
     .filter(Boolean)
-    .map((p) => arrows[p] ?? p.replace(/^Key/, "").replace(/^Digit/, "").replace(/^Mouse(\d)$/, "Mouse $1"))
+    .map((p) => names[p] ?? p.replace(/^Key/, "").replace(/^Digit/, "").replace(/^Mouse(\d)$/, "Mouse $1"))
     .join(" + ");
 }
 
