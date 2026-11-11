@@ -896,12 +896,7 @@ pub fn run() {
                         }
                     }
                     "quit" => {
-                        if let Some(state) = app.try_state::<AppState>() {
-                            state.engine.send(Command::Disconnect);
-                            // Give the engine time to send the close frame (at most ~500 ms);
-                            // if the process exits immediately the server only drops the connection on a ~10 s timeout.
-                            std::thread::sleep(std::time::Duration::from_millis(700));
-                        }
+                        disconnect_before_exit(app);
                         app.exit(0);
                     }
                     _ => {}
@@ -948,17 +943,36 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("failed to start tauri")
-        .run(|_app, _event| {
+        .run(|app, event| match event {
+            // Every way out ends here, also those that skip the tray menu: Cmd+Q, the app menu
+            // and the Dock's Quit on macOS, logging out.
+            tauri::RunEvent::Exit => disconnect_before_exit(app),
             // macOS: the window hides on close but the app keeps running; clicking the Dock icon
             // brings it back (on Windows the tray icon does that).
             #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Reopen { .. } = _event {
-                if let Some(w) = _app.get_webview_window("main") {
+            tauri::RunEvent::Reopen { .. } => {
+                if let Some(w) = app.get_webview_window("main") {
                     let _ = w.show();
                     let _ = w.set_focus();
                 }
             }
+            _ => {}
         });
+}
+
+/// Leaves the server politely before the process ends: without the close frame the server keeps
+/// the connection (and the user in the room) until a ~10 s timeout. Runs once, whichever way the
+/// app is quit.
+fn disconnect_before_exit(app: &AppHandle) {
+    static DONE: AtomicBool = AtomicBool::new(false);
+    if DONE.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    if let Some(state) = app.try_state::<AppState>() {
+        state.engine.send(Command::Disconnect);
+        // Give the engine time to send the close frame (at most ~500 ms).
+        std::thread::sleep(std::time::Duration::from_millis(700));
+    }
 }
 
 #[allow(dead_code)]

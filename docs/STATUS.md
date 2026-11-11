@@ -70,12 +70,26 @@ items marked **before release** pass.
       Open: (a) how it sounded (owner's ear); (b) the Mac's first 30 s had `out_underrun=119808` samples
       (~1.4 s) and `VAD calibrated floor=-100`, before joining a room: probably the microphone permission
       prompt (no input while it was up); check that a second start has no such underrun.
-- [ ] **macOS: push-to-talk** (before release): turn on push-to-talk in Settings: the yellow "Input
+      Second log (4 more starts, 17:31–17:35): not the prompt. Every start has `VAD calibrated floor=-100`
+      (the built-in mic delivers digital silence for its first ~1.5 s; threshold ends at the -60 dB clamp,
+      as on Windows, so harmless but the calibration means nothing on this Mac) and a smaller start-up
+      underrun (512–28160 samples). The owner found the Mac mic quiet; AGC on made it better (+7…+11 dB).
+      Worth deciding: AGC on by default on macOS, or a higher mic gain there.
+- [ ] **macOS: quitting leaves the server politely** (before release; since the commit after 5bc0a37): all
+      5 Mac quits on 11 Nov ended as `close_reason=TimedOut` on the server (Windows: 62 of 63 `bye`), so
+      the old connection stayed in the room ~5–10 s (members=3 after a restart). Cmd+Q, the app menu and the
+      Dock's Quit skipped the tray "Quit" handler that sends the close frame; `RunEvent::Exit` now does it
+      too. Check: quit the Mac app with Cmd+Q while in a room; the server log shows
+      `close_reason=...ApplicationClosed...bye` and the others see the leave at once.
+- [x] **macOS: push-to-talk** (before release): turn on push-to-talk in Settings: the yellow "Input
       Monitoring" note with its button shows; the button brings the macOS prompt / System Settings with
       CallOut listed; after allowing and reopening CallOut the note is gone. In a room: holding a key
       (also a combination with Cmd/Option, shown as "Cmd"/"Option") and a mouse side button transmits only
       while held, the key still types in other apps, and nothing sticks after release (also when releasing
       inside a password field). The log has `push-to-talk listener active`.
+      ✓ 11 Nov (owner, 2014 MacBook Air): works; log shows `push-to-talk needs Input Monitoring access;
+      asking macOS`, then after reopening `push-to-talk listener active mouse=false`. Not yet tried: a
+      mouse side button, release inside a password field.
 - [ ] **macOS: in-app update** (after the first macOS release, with the next one): the update banner
       shows, "Update and restart" replaces the app in Applications and restarts it. Check whether
       microphone and Input Monitoring still work afterwards (ad-hoc signatures change with every build, so
