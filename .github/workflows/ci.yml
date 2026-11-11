@@ -22,7 +22,18 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - name: ALSA headers
+        # The runners' Azure Ubuntu mirror is sometimes unreachable (DNS); retry, then fall back
+        # to archive.ubuntu.com.
+        run: |
+          for i in 1 2 3; do
+            sudo apt-get update && sudo apt-get install -y libasound2-dev && exit 0
+            echo "apt failed (attempt $i); using archive.ubuntu.com"
+            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' \
+              /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+            sleep 10
+          done
+          exit 1
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --exclude callout-app --all-targets
       - run: cargo test --workspace --exclude callout-app
