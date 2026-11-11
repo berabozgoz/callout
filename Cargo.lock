@@ -527,7 +527,7 @@ dependencies = [
 
 [[package]]
 name = "callout-app"
-version = "0.1.19"
+version = "0.1.20"
 dependencies = [
  "callout-core",
  "callout-input",
@@ -547,7 +547,7 @@ dependencies = [
 
 [[package]]
 name = "callout-audio"
-version = "0.1.19"
+version = "0.1.20"
 dependencies = [
  "anyhow",
  "callout-proto",
@@ -564,7 +564,7 @@ dependencies = [
 
 [[package]]
 name = "callout-core"
-version = "0.1.19"
+version = "0.1.20"
 dependencies = [
  "anyhow",
  "bytes",
@@ -584,7 +584,7 @@ dependencies = [
 
 [[package]]
 name = "callout-input"
-version = "0.1.19"
+version = "0.1.20"
 dependencies = [
  "objc2-core-foundation",
  "objc2-core-graphics",
@@ -595,7 +595,7 @@ dependencies = [
 
 [[package]]
 name = "callout-net"
-version = "0.1.19"
+version = "0.1.20"
 dependencies = [
  "bytes",
  "callout-proto",
@@ -614,7 +614,7 @@ dependencies = [
 
 [[package]]
 name = "callout-priority"
-version = "0.1.19"
+version = "0.1.20"
 dependencies = [
  "libc",
  "thiserror 2.0.21",
@@ -623,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "callout-proto"
-version = "0.1.19"
+version = "0.1.20"
 dependencies = [
  "postcard",
  "proptest",
@@ -634,7 +634,7 @@ dependencies = [
 
 [[package]]
 name = "callout-server"
-version = "0.1.19"
+version = "0.1.20"
 dependencies = [
  "anyhow",
  "bytes",
