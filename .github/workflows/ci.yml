@@ -23,13 +23,13 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - name: ALSA headers
-        # The runners' Azure Ubuntu mirror is sometimes unreachable (DNS); retry, then fall back
-        # to archive.ubuntu.com.
+        # The runners sometimes cannot resolve *.ubuntu.com (DNS); retry, then switch apt to the
+        # kernel.org Ubuntu mirror.
         run: |
           for i in 1 2 3; do
             sudo apt-get update && sudo apt-get install -y libasound2-dev && exit 0
-            echo "apt failed (attempt $i); using archive.ubuntu.com"
-            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' \
+            echo "apt failed (attempt $i); using mirrors.edge.kernel.org"
+            sudo sed -i -E 's#https?://[a-z.]*ubuntu\.com/ubuntu/?#http://mirrors.edge.kernel.org/ubuntu/#g' \
               /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
             sleep 10
           done
@@ -69,11 +69,11 @@ jobs:
       - run: cargo build -p callout-app
 
   # macOS app: the platform crates (push-to-talk event tap, QoS) and the Tauri shell, built and
-  # linted on Apple Silicon; the library tests run here too (CoreAudio instead of ALSA).
+  # linted on Apple Silicon; the library tests run here too (CoreAudio instead of ALSA). Does not
+  # wait for the Linux job (no apt here, so its mirror trouble cannot block the Mac builds).
   app-macos:
     name: Tauri app (macOS)
     runs-on: macos-latest
-    needs: lib
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -100,7 +100,6 @@ jobs:
     name: macOS test DMG
     if: github.event_name != 'push'
     runs-on: macos-latest
-    needs: lib
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
