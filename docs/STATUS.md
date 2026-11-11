@@ -62,6 +62,14 @@ items marked **before release** pass.
       (`~/Library/Logs/io.github.berabozgoz.callout/callout.log`) shows
       `audio thread priority raised boost="qos user interactive"` and sane `audio timing` / `audio latency`
       lines (CoreAudio buffer sizes are new territory); echo cancellation on MacBook speakers.
+      Logs ✓ 11 Nov (2014 MacBook Air "macBera" + Windows "bera", room 9RYJFSXX, ~6 min, both logs sent):
+      Mac `boost="qos user interactive"`, device 44.1 kHz stereo in/out (resampled), `loop_max_ms` 4–7,
+      no stalls, callbacks 12 ms; `out_device_ms=11 in_device_ms=11`, reserve settled at 20 ms
+      (`out_fill_ms` 28): ~50 ms device side, lower than Windows. RTT 39–45 ms, no loss after the join
+      (6/8 packets lost right at the join on both sides), Windows saw `late=0 underflow=0` from the Mac.
+      Open: (a) how it sounded (owner's ear); (b) the Mac's first 30 s had `out_underrun=119808` samples
+      (~1.4 s) and `VAD calibrated floor=-100`, before joining a room: probably the microphone permission
+      prompt (no input while it was up); check that a second start has no such underrun.
 - [ ] **macOS: push-to-talk** (before release): turn on push-to-talk in Settings: the yellow "Input
       Monitoring" note with its button shows; the button brings the macOS prompt / System Settings with
       CallOut listed; after allowing and reopening CallOut the note is gone. In a room: holding a key
