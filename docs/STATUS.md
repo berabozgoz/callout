@@ -44,12 +44,11 @@ items marked **before release** pass.
       ✓ CI part, 11 Nov (run 43052387197 on PR #1, head 0c4a453): `app-macos` (clippy incl. the app,
       library tests) and `macOS test DMG` green on the first try; the universal DMG artifact is ~12.9 MB.
       The release part waits for the first tag with the macOS job.
-- [ ] **macOS: empty window** (before release): 11 Nov, the first test DMG showed only an empty window on
-      the owner's 2014 MacBook Air (Intel, macOS 11.7.11, Safari 16.6.1). Cause unknown. First guess was
-      old WebKit syntax (private methods); the build now also targets `safari14`, but Safari 16.6 already
-      supports them, so it is probably something else. The test DMG now opens the Web Inspector at start
-      (feature `devtools`): read its Console, note whether the empty window is white or dark (dark = CSS
-      loaded, script failed), and check `~/Library/Logs/io.github.berabozgoz.callout/callout.log`.
+- [x] **macOS: empty window** (before release): 11 Nov, the first test DMG showed only an empty dark
+      window on the owner's 2014 MacBook Air (Intel, macOS 11.7.11, Safari 16.6.1): CSS loaded, the script
+      never ran (log: only `CallOut started`). The UI was built for `chrome105` only and contained private
+      class methods (`#m()`); the app's WKWebView evidently runs an older WebKit than the installed Safari.
+      ✓ 11 Nov: with the Vite target `["chrome105", "safari14"]` (DMG dcb1227) the UI shows on that Mac.
 - [ ] **macOS: install and first start** (before release; Apple Silicon Mac): download the DMG (before a
       release: the `CallOut-macOS-<sha>` artifact of the "macOS test DMG" CI job on a PR or a manual
       "Run workflow"; unzip it), drag to
