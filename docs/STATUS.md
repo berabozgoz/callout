@@ -75,12 +75,19 @@ items marked **before release** pass.
       as on Windows, so harmless but the calibration means nothing on this Mac) and a smaller start-up
       underrun (512–28160 samples). The owner found the Mac mic quiet; AGC on made it better (+7…+11 dB).
       Worth deciding: AGC on by default on macOS, or a higher mic gain there.
-- [ ] **macOS: quitting leaves the server politely** (before release; since the commit after 5bc0a37): all
+- [x] **macOS: quitting leaves the server politely** (before release; since the commit after 5bc0a37): all
       5 Mac quits on 11 Nov ended as `close_reason=TimedOut` on the server (Windows: 62 of 63 `bye`), so
       the old connection stayed in the room ~5–10 s (members=3 after a restart). Cmd+Q, the app menu and the
       Dock's Quit skipped the tray "Quit" handler that sends the close frame; `RunEvent::Exit` now does it
       too. Check: quit the Mac app with Cmd+Q while in a room; the server log shows
       `close_reason=...ApplicationClosed...bye` and the others see the leave at once.
+      ✓ 11 Nov (DMG 19fe0b7): two Mac quits, both `ApplicationClosed ... bye` on the server, Mac log
+      `closing connection reason="user disconnected"` first.
+      Also seen with that DMG (it replaced the previous build in Applications): Input Monitoring was lost.
+      Every start logs `push-to-talk needs Input Monitoring access; asking macOS` and never
+      `listener active`: the ad-hoc signature changed, so macOS no longer matches the old entry. This is
+      what every in-app update will do to push-to-talk until there is an Apple Developer ID (fix for the
+      user: Input Monitoring → remove CallOut with "−", reopen CallOut, allow again).
 - [x] **macOS: push-to-talk** (before release): turn on push-to-talk in Settings: the yellow "Input
       Monitoring" note with its button shows; the button brings the macOS prompt / System Settings with
       CallOut listed; after allowing and reopening CallOut the note is gone. In a room: holding a key
