@@ -91,6 +91,11 @@ items marked **before release** pass.
 - [ ] **macOS: Dock icon size** (since the commit after 94175fe): the owner saw CallOut larger than the other
       Dock icons (the icon filled the whole canvas). Now `icons/icon.icns` on Apple's grid (824 px body in
       1024, soft shadow; made by `make_mac.py` outside the repo). Check: same size as its Dock neighbours.
+- [ ] **macOS: flat drop-downs** (since the commit after cd79424): WKWebView drew the selects (microphone,
+      audio output, join sound, language) as glossy Aqua controls. On macOS (`html.mac`, set in `main.ts`)
+      they now use `appearance: none` with the app's colours and a gradient arrow (checked in the browser
+      preview, also right-to-left; Windows unchanged). Check on the Mac: flat like on Windows, the list still
+      opens and picks.
 - [x] **macOS: push-to-talk** (before release): turn on push-to-talk in Settings: the yellow "Input
       Monitoring" note with its button shows; the button brings the macOS prompt / System Settings with
       CallOut listed; after allowing and reopening CallOut the note is gone. In a room: holding a key
