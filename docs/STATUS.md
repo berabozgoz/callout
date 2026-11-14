@@ -21,7 +21,8 @@
   microphone / Input Monitoring permission on every update). Push-to-talk via a listen-only Quartz event
   tap, audio thread at QoS user-interactive, in-app updates through the same `latest.json`. Tested on the
   owner's 2014 MacBook Air (Intel, macOS 11.7.11); no Apple Silicon Mac yet.
-- **Unreleased on `main`:** nothing (check `git log v0.1.20..`).
+- **Unreleased on `main`:** the Bluetooth mic warning now fires up to 24 kHz (AirPods on macOS); check
+  `git log v0.1.20..`.
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -56,6 +57,12 @@ items marked **before release** pass.
       button (Mouse 4/5) on the Mac; (c) in-app update: the test DMG on the MacBook calls itself 0.1.19, so
       it should offer 0.1.20 → "Update and restart" replaces it in Applications (see the in-app update item
       below for what to watch: microphone / Input Monitoring permissions afterwards).
+      ✓ (a) 14 Nov: "cakal" (a second Mac, v0.1.20, AirPods) + Windows "bera" (same home network) in room
+      8LLBVGX7, ~4 min, both logs sent: voices clean (owner). Details in "Last session". Open: (b), (c).
+- [ ] **Bluetooth mic warning at 24 kHz** (unreleased, since the commit after 136690b): AirPods on macOS
+      capture at 24 kHz, which the old `<= 16000` limit missed; now `<= 24000` (`ui/src/App.svelte`). Check
+      on a Mac with AirPods as the microphone: the warning shows "24 kHz" in settings and in the room; a
+      48 kHz built-in or USB mic shows none (Windows AirPods at 16 kHz still warn).
 - [x] **macOS: install and first start** (before release; Apple Silicon Mac): download the DMG (before a
       release: the `CallOut-macOS-<sha>` artifact of the "macOS test DMG" CI job on a PR or a manual
       "Run workflow"; unzip it), drag to
@@ -290,6 +297,8 @@ items marked **before release** pass.
   then release. Known gaps: no Apple Developer ID (Gatekeeper "Open Anyway", permissions may reset on
   update; signing + notarization are prepared in `release.yml` comments), a denied microphone gives
   silence instead of the "microphone access denied" error (needs an AVCaptureDevice check); Caps Lock cannot be a push-to-talk key on macOS.
+  AirPods on macOS capture at **24 kHz**; the Bluetooth mic warning now fires up to 24 kHz (unreleased,
+  see Pending manual tests).
 - **Jitter / latency work (started 8 Nov, released in v0.1.19):** steps 1–2 of the plan are done (latency log,
   adaptive output reserve). Next, once field logs show the breakdown: (3) an ms-precise jitter target instead
   of `ceil(spread/20)+1` frames (~10–15 ms on calm links; `tests/jitter_sim.rs` to measure), (4) time
@@ -439,6 +448,19 @@ items marked **before release** pass.
 
 ## Last session
 
+- 14 Nov: **macOS field test with v0.1.20** (logs only, no code change): "cakal" on a second Mac with
+  AirPods + Windows "bera", same home network, room 8LLBVGX7 15:21–15:27 UTC, both sent logs; the owner says
+  the voices were clean. Server: no loss, both left with `bye`. RTT bera 37 ms steady, cakal 44–62 ms; the
+  jitter target went to 100 ms both ways (the Mac's link, probably Wi-Fi), `late` 42–52 per side (<1% of
+  frames), `lost` 2–4 (on the home network, the server saw none). Mac: `boost="qos user interactive"`,
+  `loop_max_ms` 5–9, no stalls, input **24 kHz** (AirPods hands-free; the Bluetooth warning only fires at
+  ≤16 kHz), output 48 kHz at first; at 15:22:49 and 15:22:57 the device changed and the pipeline
+  `recovered attempts=1/2 fallback=true` with output now 24 kHz (macOS moving output to the AirPods): the
+  first real-world sign that device recovery works on macOS. One start-up underrun (6656 samples, ~0.14 s)
+  before the room, none after. AEC showed ERLE ~0 on both sides (headphones, nothing to cancel).
+  Then (owner's choice): the Bluetooth mic warning's limit went from 16 to 24 kHz (`App.svelte`, comment
+  in `callout-core` `AudioStarted`); svelte-check clean, not seen in the app yet (the browser preview has
+  no engine to report an input rate).
 - 11 Nov: **v0.1.20 released** (the macOS app; app only, server stays on v0.1.16). PR #1 (`macos`)
   fast-forwarded into `main`; Release run 43077641548 green (windows, macos, linux-server); assets: Windows
   installer + `.sig`, portable exe, `CallOut_0.1.20_universal.dmg`, `CallOut_universal.app.tar.gz` + `.sig`,

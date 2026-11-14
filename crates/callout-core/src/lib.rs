@@ -201,7 +201,8 @@ pub enum Event {
         transmitted_pct: Option<u8>,
     },
     /// The audio pipeline (re)started. Input fields are `None` without a microphone (listening
-    /// only). A 16 kHz mono input usually means a Bluetooth headset in its hands-free profile.
+    /// only). A 16 kHz (Windows) or 24 kHz (macOS, AirPods) mono input usually means a Bluetooth
+    /// headset in its hands-free profile.
     AudioStarted {
         input_rate: Option<u32>,
         input_channels: Option<u16>,

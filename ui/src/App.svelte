@@ -413,7 +413,8 @@
 {#snippet inputHint()}
   {#if inputRate === null}
     <p class="hint warn">{t("audio.listenOnly")}</p>
-  {:else if inputRate !== undefined && inputRate <= 16000}
+  {:else if inputRate !== undefined && inputRate <= 24000}
+    <!-- Hands-free Bluetooth: 8/16 kHz on Windows, 24 kHz for AirPods on macOS. -->
     <p class="hint warn">{t("audio.bluetoothMic", { khz: inputRate / 1000 })}</p>
   {/if}
 {/snippet}
