@@ -305,6 +305,8 @@ items marked **before release** pass.
   stretching (WSOLA, own code or an Apache/MIT library; SoundTouch is LGPL) to shrink/grow the buffer
   mid-spurt and absorb clock drift, (5) faster recovery after a delay spike (the 20 s window keeps the target
   high). Later: 10 ms Opus frames, WASAPI low-latency shared mode (IAudioClient3).
+  Canada test (16 Nov, see "Last session"): 118 ms RTT is fine; the sender's Wi-Fi stalls (0.5–1 s) cause
+  most concealment and FEC cannot help there, so (5) matters more than (3) for such players.
 - **Echo cancellation (released in v0.1.19):** Bera heard himself as an echo from kuzen's and Hallobadi's
   headphones in the LoL/CS2 sessions. The echo is made at the listener's PC, so it only goes away once
   **they** run the new version. Field check: see Pending manual tests.
@@ -448,6 +450,27 @@ items marked **before release** pass.
 
 ## Last session
 
+- 16 Nov: **first long-distance field test** (logs only, no code change): "Furkan" in Canada (macOS,
+  v0.1.20, ISP Bell) + Windows "bera" in Turkey, room GX4ANAKQ 17:29–19:16 UTC (~107 min), both sent logs,
+  both left with `bye`. Owner: Furkan's voice clean. RTT Furkan ↔ Frankfurt **118 ms** median (bera 38 ms),
+  with four short spikes to 600–930 ms on Furkan's side (18:31, 18:56, 19:15; server saw 907 ms once).
+  - **Server → Furkan (Furkan hears bera):** server `lost_packets` 391 of ~84k datagrams (0.5%), but almost
+    all in the first 3 minutes (~5–10% per 10 s at 17:29–17:32, quinn's cwnd sat at its 2904-byte floor),
+    then near zero. Furkan's buffer: lost 372, **FEC recovered 237 (64%)**, late 479, underflow 511;
+    target median 40 ms (max 200), wait median 31 ms. Concealed ~1% of frames, mostly in that first burst.
+  - **Furkan → bera (bera hears Furkan):** lost 609 but **FEC only 2**, late 751, underflow 763; target
+    median 60 ms (p90 80, max 240), wait median 51 ms. The losses are not random drops but stalls: the
+    stream goes quiet, a clump arrives and the resync trims it (big `lost` steps with few `late`, e.g.
+    18:17 lost 47, 18:57 lost 56 with target 240), so there is never a next packet to take FEC from.
+    Fits the RTT spikes: Furkan's uplink stalls for ~0.5–1 s now and then (he was on Wi-Fi; on a Mac
+    possibly AWDL / background scans). ~2% of frames concealed overall; the owner did not notice.
+  - Furkan's Mac: `boost="qos user interactive"`, `loop_max_ms` ≤ 14, no loop stalls, output 44.1 kHz
+    (resampled), reserve 20 ms (`out_fill_ms` 28), one start-up underrun (1536 samples) only; AEC ERLE ~0
+    (headphones). bera: `loop_max_ms` ≤ 5, a few 96–576-sample underruns each followed by the reserve
+    stepping 20 → 30 → 20 ms.
+  - Takeaway: 118 ms of distance is fine for voice; the weak spot is the sender's Wi-Fi stalls, which
+    neither FEC nor the jitter buffer can hide (only a bigger buffer, at a latency cost). Confirmed: Furkan
+    was on Wi-Fi.
 - 14 Nov: **macOS field test with v0.1.20** (logs only, no code change): "cakal" on a second Mac with
   AirPods + Windows "bera", same home network, room 8LLBVGX7 15:21–15:27 UTC, both sent logs; the owner says
   the voices were clean. Server: no loss, both left with `bye`. RTT bera 37 ms steady, cakal 44–62 ms; the
