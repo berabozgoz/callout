@@ -23,7 +23,9 @@
   microphone / Input Monitoring permission on every update). Push-to-talk via a listen-only Quartz event
   tap, audio thread at QoS user-interactive, in-app updates through the same `latest.json`. Tested on the
   owner's 2014 MacBook Air (Intel, macOS 11.7.11); no Apple Silicon Mac yet.
-- **Unreleased on `main`:** nothing (check `git log v0.1.21..`).
+- **Unreleased (working tree, not committed yet, 18 Nov):** the **redesign**: new app icon (plum + honey headset with
+  mic), the UI themed from it, an own title bar on Windows (no system decorations there), and a per-player
+  mute button (speaker next to the volume slider). See "Last session" and "Pending manual tests".
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -134,6 +136,26 @@ items marked **before release** pass.
       `listener active`: the ad-hoc signature changed, so macOS no longer matches the old entry. This is
       what every in-app update will do to push-to-talk until there is an Apple Developer ID (fix for the
       user: Input Monitoring → remove CallOut with "−", reopen CallOut, allow again).
+- [ ] **Redesign: own title bar on Windows** (v0.1.22; released before this was tried, owner's call): `cargo tauri dev` on Windows. The window
+      has no system frame (`tauri.windows.conf.json`, `decorations: false`); the plum strip on top has the
+      icon, minimize and close (**no maximize**: the window is `maximizable: false`, owner's wish). Check:
+      dragging the strip moves the window, a double click does nothing, Win+Up and dragging to the top edge
+      do not maximize, minimize works, **close hides to the tray** like before (tray "Show" brings it back;
+      "Quit" quits). The window can be **resized from its edges** and still has its shadow. macOS: the
+      native title bar stays (no plum strip); the green button must not zoom or go full screen.
+- [ ] **Redesign: per-player mute** (v0.1.22; not tried before the release): in a room with two people, the speaker button next
+      to the other player's slider mutes them for you only (red icon, slider locked, the percentage
+      struck through, no speaking ring); unmuting brings back the same volume (try at 50 %). Pulling the
+      slider to 0 shows the speaker as muted; the speaker then brings it back to 100 %. The mute survives
+      leaving and rejoining the room and an app restart (`muted_users` in `settings.json`), and the
+      saved volume is not overwritten with 0.
+- [ ] **Redesign: look** (v0.1.22; tried by the owner on Windows in `cargo tauri dev` before the height/no-maximize change; the Mac is open): connect, home (Server Lobby card, recent rooms), room, settings
+      (switches, groups) in the real app on Windows and on the old Mac (Safari 14 WebKit: switches drawn,
+      no blank page). New icon on the taskbar, tray (16 px), installer, Dock. **Settings fit without
+      scrolling** at the default size (Windows 420×920 incl. the bar, macOS 420×890), with push-to-talk on
+      and off (measured in the mocked UI for all 11 languages; the longest is Japanese with push-to-talk,
+      915 px). On a screen shorter than that the window shrinks to the work area (`fit_window_to_screen`)
+      and the settings scroll again.
 - [x] **macOS: Dock icon size** (since the commit after 94175fe): the owner saw CallOut larger than the other
       Dock icons (the icon filled the whole canvas). Now `icons/icon.icns` on Apple's grid (824 px body in
       1024, soft shadow; made by `make_mac.py` outside the repo). Check: same size as its Dock neighbours.
@@ -322,6 +344,9 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
+- **Redesign (18 Nov, in the working tree):** commit when the owner asks, then the three "Redesign" items in
+  "Pending manual tests" (title bar and window behaviour on Windows first). Source of the icon:
+  `make_flat.py B` in the icon work folder outside the repo.
 - **Server Lobby (released in v0.1.21, 18 Nov; old/new versions checked by the owner):** left is the lobby
   with friends (several people talking in it). Ideas the owner may want later (not built): member count of the lobby on the home screen before joining (needs
   a new server message), a server setting to turn the lobby off for self-hosters.
@@ -482,6 +507,28 @@ items marked **before release** pass.
 
 ## Last session
 
+- 18 Nov: **redesign** (owner's request, after previews outside the repo). New icon: plum rounded square
+  (`#4a3468` → `#34244a`), honey (`#e8ba46`) headset with a mic boom, thin dark outline (`#14101a`), a bolder
+  drawing for 16–48 px; all seven files in `apps/callout-app/icons/` replaced, `ui/public/logo*.png` for the
+  UI. UI (`ui/src/app.css`, `App.svelte`, `Icon.svelte`): theme from the icon (honey primary buttons with the
+  dark outline, plum cards), header with the logo, connect screen with the big icon, Server Lobby card in the
+  icon's colours, inline create/join fields, recent rooms with initials, members with initial avatars and a
+  honey speaking ring, a bottom dock with round mic/deafen/leave buttons, settings in groups with switches.
+  **Windows title bar:** `tauri.windows.conf.json` (window without decorations), new window permissions in
+  `capabilities/default.json`, the bar in `App.svelte` (drag region, minimize / close → CloseRequested →
+  tray as before); macOS keeps its own bar. Then (owner, after trying it): the settings page scrolled, and
+  no full screen wanted: the settings card is more compact (smaller paddings, footer hidden there), the
+  default height is 920 on Windows / 890 on macOS (was 780; measured so every language fits with
+  push-to-talk on), and the window is `maximizable: false` everywhere (maximize button and its i18n keys
+  removed; `allow-internal-toggle-maximize` stays so the drag region's double click does not error, Tauri
+  checks `is_maximizable` there). **Per-player
+  mute:** new `muted_users` (nicknames) in `Settings`, owned by the app like `user_volumes`; new command
+  `set_user_muted` sends gain 0 or the saved volume straight to the engine (so 0 is never saved as the
+  volume); `saved_volumes_for` sends 0 for muted players on every room update. New i18n keys in all 11
+  dictionaries (`window.*`, `room.muteUser`/`unmuteUser`); the mic test hint now says yellow, not green.
+  Checks: svelte-check, `npm run build`, clippy (incl. the app), `cargo test -p callout-app` (8 tests, one
+  new), fmt. Checked in the browser with a mocked Tauri layer (title bar, mute commands, Turkish/Arabic);
+  **not run as the real app yet**, nothing committed.
 - 18 Nov: **v0.1.21 released** (Server Lobby + the 24 kHz Bluetooth warning). The first CI run on the lobby
   commit failed on Linux: a race in the new e2e test (A's leave and B's join on two connections; the server
   took B's join first), fixed in a376edf (A leaves and rejoins on its own connection), CI green. Tag

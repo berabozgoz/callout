@@ -5,6 +5,8 @@ export const zhCN: Messages = {
   "header.connecting": "正在连接…",
   "header.reconnecting": "正在重新连接…",
   "header.settings": "设置",
+  "window.minimize": "最小化",
+  "window.close": "关闭",
 
   "update.available": "CallOut {version} 已发布。",
   "update.availablePortable": "CallOut {version} 已发布。请下载新的 callout-app.exe 并替换当前文件。",
@@ -60,7 +62,7 @@ export const zhCN: Messages = {
   "test.hintPtt":
     "请说话 5 秒；录音将按房间内其他人听到的效果回放。开启按键说话时，测试录音无需按键。",
   "test.hintVad":
-    "请说话 5 秒；录音将按房间内其他人听到的效果回放。这条线是语音激活阈值：音量条越过它时，你的声音就会被发送（绿色）。",
+    "请说话 5 秒；录音将按房间内其他人听到的效果回放。这条线是语音激活阈值：音量条越过它时，你的声音就会被发送（黄色）。",
 
   "connect.title": "连接到服务器",
   "connect.nickname": "昵称",
@@ -98,6 +100,8 @@ export const zhCN: Messages = {
   "room.volume": "音量：{pct}%",
   "room.volumePct": "{pct}%",
   "room.volumeReset": "重置为 100%",
+  "room.muteUser": "将 {name} 静音",
+  "room.unmuteUser": "取消 {name} 的静音",
   "room.mute": "麦克风静音",
   "room.deafen": "关闭声音",
   "room.stats": "{rtt} ms · 缓冲 {jitter} ms",

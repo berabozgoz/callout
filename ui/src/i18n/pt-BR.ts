@@ -5,6 +5,8 @@ export const ptBR: Messages = {
   "header.connecting": "conectando…",
   "header.reconnecting": "reconectando…",
   "header.settings": "Configurações",
+  "window.minimize": "Minimizar",
+  "window.close": "Fechar",
 
   "update.available": "CallOut {version} está disponível.",
   "update.availablePortable": "CallOut {version} está disponível. Baixe o novo callout-app.exe e substitua este.",
@@ -60,7 +62,7 @@ export const ptBR: Messages = {
   "test.hintPtt":
     "Fale por 5 s; a gravação é reproduzida do jeito que os outros na sala vão ouvir. Com o pressione para falar ativado, o teste grava sem precisar da tecla.",
   "test.hintVad":
-    "Fale por 5 s; a gravação é reproduzida do jeito que os outros na sala vão ouvir. A linha é o limite de detecção de voz: quando a barra passa dela, sua voz é enviada (verde).",
+    "Fale por 5 s; a gravação é reproduzida do jeito que os outros na sala vão ouvir. A linha é o limite de detecção de voz: quando a barra passa dela, sua voz é enviada (amarelo).",
 
   "connect.title": "Conectar a um servidor",
   "connect.nickname": "Apelido",
@@ -99,6 +101,8 @@ export const ptBR: Messages = {
   "room.volume": "Volume: {pct}%",
   "room.volumePct": "{pct}%",
   "room.volumeReset": "Voltar para 100%",
+  "room.muteUser": "Silenciar {name}",
+  "room.unmuteUser": "Reativar o som de {name}",
   "room.mute": "Silenciar microfone",
   "room.deafen": "Desativar áudio",
   "room.stats": "{rtt} ms · buffer {jitter} ms",

@@ -83,6 +83,9 @@ export type Settings = {
   /** Volumes set for other players by nickname (1 = normal; only other values are kept). The app
    * owns this: it saves it when a slider moves and ignores it in `save_settings`. */
   user_volumes: Record<string, number>;
+  /** Players muted with the speaker button, by nickname. Owned by the app like `user_volumes`:
+   * changed only through `setUserMuted`, ignored in `save_settings`. */
+  muted_users: string[];
   /** Sound when someone joins or leaves the room (and when we join one). */
   join_sound: JoinSound;
 };
@@ -115,6 +118,8 @@ export const openInputMonitoringSettings = () => invoke<void>("open_input_monito
 export const listDevices = () => invoke<Device[]>("list_audio_devices");
 /** Sends the end of the app's log (cleaned) to the server's operator; only after the user agreed. */
 export const sendLog = () => invoke<void>("send_log");
+/** Mutes or unmutes a player for us only (the speaker button); remembered by nickname. */
+export const setUserMuted = (userId: number, muted: boolean) => invoke<void>("set_user_muted", { userId, muted });
 export const appVersion = () => invoke<string>("app_version");
 /** Installed (updatable in place) or portable exe. */
 export const isInstalled = () => invoke<boolean>("is_installed");
@@ -133,6 +138,8 @@ export function onPtt(handler: (pressed: boolean) => void): Promise<UnlistenFn> 
 /** `Ctrl+KeyT` → `Ctrl + T`, `Alt+ArrowUp` → `Alt + ↑`, `Mouse4` → `Mouse 4` */
 /** Running on macOS (WKWebView). */
 export const isMac = navigator.userAgent.includes("Mac OS X");
+/** Running on Windows (WebView2): the window has no system title bar there, the UI draws its own. */
+export const isWindows = navigator.userAgent.includes("Windows");
 
 export function prettyShortcut(s: string): string {
   const names: Record<string, string> = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };

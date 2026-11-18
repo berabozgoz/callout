@@ -6,6 +6,8 @@ export const en = {
   "header.connecting": "connecting…",
   "header.reconnecting": "reconnecting…",
   "header.settings": "Settings",
+  "window.minimize": "Minimize",
+  "window.close": "Close",
 
   "update.available": "CallOut {version} is available.",
   "update.availablePortable": "CallOut {version} is available. Download the new callout-app.exe and replace this one.",
@@ -63,7 +65,7 @@ export const en = {
   "test.hintPtt":
     "Speak for 5 s; the recording plays back the way others in the room will hear it. With push-to-talk on, the test records without the key.",
   "test.hintVad":
-    "Speak for 5 s; the recording plays back the way others in the room will hear it. The line is the voice activity threshold: when the bar crosses it, your voice is sent (green).",
+    "Speak for 5 s; the recording plays back the way others in the room will hear it. The line is the voice activity threshold: when the bar crosses it, your voice is sent (yellow).",
 
   // connect
   "connect.title": "Connect to a server",
@@ -106,6 +108,8 @@ export const en = {
   "room.volume": "Volume: {pct}%",
   "room.volumePct": "{pct}%",
   "room.volumeReset": "Reset to 100%",
+  "room.muteUser": "Mute {name}",
+  "room.unmuteUser": "Unmute {name}",
   "room.mute": "Mute microphone",
   "room.deafen": "Mute sound",
   "room.stats": "{rtt} ms · buffer {jitter} ms",

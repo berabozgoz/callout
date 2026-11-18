@@ -5,6 +5,8 @@ export const fr: Messages = {
   "header.connecting": "connexion…",
   "header.reconnecting": "reconnexion…",
   "header.settings": "Paramètres",
+  "window.minimize": "Réduire",
+  "window.close": "Fermer",
 
   "update.available": "CallOut {version} est disponible.",
   "update.availablePortable": "CallOut {version} est disponible. Téléchargez le nouveau callout-app.exe et remplacez celui-ci.",
@@ -60,7 +62,7 @@ export const fr: Messages = {
   "test.hintPtt":
     "Parlez pendant 5 s ; l'enregistrement est rejoué tel que les autres membres du salon vous entendront. Avec Appuyer pour parler activé, le test enregistre sans la touche.",
   "test.hintVad":
-    "Parlez pendant 5 s ; l'enregistrement est rejoué tel que les autres membres du salon vous entendront. La ligne représente le seuil de détection de la voix : quand la barre la dépasse, votre voix est envoyée (vert).",
+    "Parlez pendant 5 s ; l'enregistrement est rejoué tel que les autres membres du salon vous entendront. La ligne représente le seuil de détection de la voix : quand la barre la dépasse, votre voix est envoyée (jaune).",
 
   "connect.title": "Se connecter à un serveur",
   "connect.nickname": "Pseudo",
@@ -99,6 +101,8 @@ export const fr: Messages = {
   "room.volume": "Volume : {pct} %",
   "room.volumePct": "{pct} %",
   "room.volumeReset": "Rétablir à 100 %",
+  "room.muteUser": "Couper le son de {name}",
+  "room.unmuteUser": "Rétablir le son de {name}",
   "room.mute": "Couper le micro",
   "room.deafen": "Couper le son",
   "room.stats": "{rtt} ms · tampon {jitter} ms",

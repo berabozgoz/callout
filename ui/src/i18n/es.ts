@@ -5,6 +5,8 @@ export const es: Messages = {
   "header.connecting": "conectando…",
   "header.reconnecting": "reconectando…",
   "header.settings": "Ajustes",
+  "window.minimize": "Minimizar",
+  "window.close": "Cerrar",
 
   "update.available": "CallOut {version} está disponible.",
   "update.availablePortable": "CallOut {version} está disponible. Descarga el nuevo callout-app.exe y reemplaza este.",
@@ -60,7 +62,7 @@ export const es: Messages = {
   "test.hintPtt":
     "Habla durante 5 s; la grabación se reproduce tal como te oirán los demás en la sala. Con pulsar para hablar activado, la prueba graba sin la tecla.",
   "test.hintVad":
-    "Habla durante 5 s; la grabación se reproduce tal como te oirán los demás en la sala. La línea es el umbral de detección de voz: cuando la barra la supera, tu voz se envía (verde).",
+    "Habla durante 5 s; la grabación se reproduce tal como te oirán los demás en la sala. La línea es el umbral de detección de voz: cuando la barra la supera, tu voz se envía (amarillo).",
 
   "connect.title": "Conectarse a un servidor",
   "connect.nickname": "Apodo",
@@ -99,6 +101,8 @@ export const es: Messages = {
   "room.volume": "Volumen: {pct} %",
   "room.volumePct": "{pct} %",
   "room.volumeReset": "Restablecer al 100 %",
+  "room.muteUser": "Silenciar a {name}",
+  "room.unmuteUser": "Dejar de silenciar a {name}",
   "room.mute": "Silenciar micrófono",
   "room.deafen": "Silenciar sonido",
   "room.stats": "{rtt} ms · búfer {jitter} ms",

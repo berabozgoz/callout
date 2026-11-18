@@ -5,6 +5,8 @@ export const de: Messages = {
   "header.connecting": "wird verbunden…",
   "header.reconnecting": "verbinde neu…",
   "header.settings": "Einstellungen",
+  "window.minimize": "Minimieren",
+  "window.close": "Schließen",
 
   "update.available": "CallOut {version} ist verfügbar.",
   "update.availablePortable": "CallOut {version} ist verfügbar. Lade die neue callout-app.exe herunter und ersetze diese.",
@@ -60,7 +62,7 @@ export const de: Messages = {
   "test.hintPtt":
     "Sprich 5 s lang; die Aufnahme wird so abgespielt, wie andere im Raum dich hören werden. Bei aktiviertem Push-to-Talk nimmt der Test auch ohne Taste auf.",
   "test.hintVad":
-    "Sprich 5 s lang; die Aufnahme wird so abgespielt, wie andere im Raum dich hören werden. Die Linie ist der Schwellenwert der Sprachaktivierung: Überschreitet der Balken sie, wird deine Stimme gesendet (grün).",
+    "Sprich 5 s lang; die Aufnahme wird so abgespielt, wie andere im Raum dich hören werden. Die Linie ist der Schwellenwert der Sprachaktivierung: Überschreitet der Balken sie, wird deine Stimme gesendet (gelb).",
 
   "connect.title": "Mit einem Server verbinden",
   "connect.nickname": "Spitzname",
@@ -99,6 +101,8 @@ export const de: Messages = {
   "room.volume": "Lautstärke: {pct} %",
   "room.volumePct": "{pct} %",
   "room.volumeReset": "Auf 100 % zurücksetzen",
+  "room.muteUser": "{name} stummschalten",
+  "room.unmuteUser": "Stummschaltung für {name} aufheben",
   "room.mute": "Mikrofon stummschalten",
   "room.deafen": "Ton stummschalten",
   "room.stats": "{rtt} ms · Puffer {jitter} ms",

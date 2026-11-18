@@ -5,6 +5,8 @@ export const ja: Messages = {
   "header.connecting": "接続中…",
   "header.reconnecting": "再接続中…",
   "header.settings": "設定",
+  "window.minimize": "最小化",
+  "window.close": "閉じる",
 
   "update.available": "CallOut {version} が利用可能です。",
   "update.availablePortable": "CallOut {version} が利用可能です。新しい callout-app.exe をダウンロードして、このファイルと置き換えてください。",
@@ -60,7 +62,7 @@ export const ja: Messages = {
   "test.hintPtt":
     "5 秒間話してください。録音はルームのほかの人に聞こえるとおりに再生されます。プッシュトゥトークがオンでも、テストではキーを押さずに録音します。",
   "test.hintVad":
-    "5 秒間話してください。録音はルームのほかの人に聞こえるとおりに再生されます。線は音声検出のしきい値で、バーが線を超えると声が送信されます（緑）。",
+    "5 秒間話してください。録音はルームのほかの人に聞こえるとおりに再生されます。線は音声検出のしきい値で、バーが線を超えると声が送信されます（黄色）。",
 
   "connect.title": "サーバーに接続",
   "connect.nickname": "ニックネーム",
@@ -99,6 +101,8 @@ export const ja: Messages = {
   "room.volume": "音量：{pct}%",
   "room.volumePct": "{pct}%",
   "room.volumeReset": "100% に戻す",
+  "room.muteUser": "{name} をミュート",
+  "room.unmuteUser": "{name} のミュートを解除",
   "room.mute": "マイクをミュート",
   "room.deafen": "スピーカーをミュート",
   "room.stats": "{rtt} ms · バッファー {jitter} ms",

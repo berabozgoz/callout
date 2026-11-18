@@ -4,13 +4,14 @@
   import {
     send, getSettings, saveSettings, listDevices, appVersion, onEngine, onPtt, prettyCode,
     engineSnapshot, pttCapture, prettyShortcut, setTrayLabels, isInstalled, openReleasesPage, sendLog,
-    pttInputAccess, openInputMonitoringSettings, isMac, isLobby,
+    pttInputAccess, openInputMonitoringSettings, isMac, isWindows, isLobby, setUserMuted,
     type Settings, type Device, type Member, type JoinSound, JOIN_SOUNDS, type RoomInfo, type ConnectionState, type MicTestState,
     type ErrorKind, type LogUploadOutcome,
   } from "./engine";
   import { t, i18n, setLanguage, LANGUAGES } from "./i18n/index.svelte";
   import Icon from "./Icon.svelte";
   import { check, type Update } from "@tauri-apps/plugin-updater";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import type { MessageKey } from "./i18n/en";
 
   /** Errors are stored untranslated so they follow a language change. */
@@ -18,7 +19,7 @@
   const fail = (e: unknown): UiError => ({ key: "error.generic", vars: { detail: String(e) } });
 
   // ---- state ----
-  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "", noise_suppression: true, echo_cancellation: true, vad_sensitivity: 0, agc: false, language: null, recent_rooms: [], user_volumes: {}, join_sound: "chime" });
+  let settings = $state<Settings>({ nickname: "", last_invite: "", input_device: null, output_device: null, push_to_talk: false, ptt_shortcut: "", noise_suppression: true, echo_cancellation: true, vad_sensitivity: 0, agc: false, language: null, recent_rooms: [], user_volumes: {}, muted_users: [], join_sound: "chime" });
   let devices = $state<Device[]>([]);
   let version = $state("");
   let conn = $state<ConnectionState>("disconnected");
@@ -402,6 +403,32 @@
     send({ type: "set_vad_sensitivity", db });
   }
   const formatDb = (db: number) => (db > 0 ? `+${db} dB` : `${db} dB`);
+
+  // ---- own title bar (Windows: the window has no system decorations there, see
+  // tauri.windows.conf.json; macOS keeps its native title bar and traffic lights). No maximize
+  // button: the window is not maximizable (owner's choice), its default height fits the settings. ----
+  const appWindow = isWindows ? getCurrentWindow() : null;
+  const winMinimize = () => appWindow?.minimize().catch(() => {});
+  // Goes through CloseRequested like the system button did: the app hides the window to the tray.
+  const winClose = () => appWindow?.close().catch(() => {});
+
+  // ---- per-player mute (the speaker button next to the volume slider) ----
+  // Muting keeps the slider's value: unmuting brings the same volume back. The app stores the
+  // muted nicknames apart from the volumes (`set_user_muted`); this copy mirrors it for the UI.
+  const isUserMuted = (m: Member) => (settings.muted_users ?? []).includes(m.nickname) || volumeOf(m) === 0;
+  async function toggleUserMute(m: Member) {
+    const list = settings.muted_users ?? [];
+    if (list.includes(m.nickname)) {
+      settings.muted_users = list.filter((n) => n !== m.nickname);
+      await setUserMuted(m.user_id, false).catch((e) => (error = fail(e)));
+    } else if (volumeOf(m) === 0) {
+      // A slider pulled down to 0 by hand: the speaker brings it back to normal.
+      setVolume(m, 1);
+    } else {
+      settings.muted_users = [...list, m.nickname];
+      await setUserMuted(m.user_id, true).catch((e) => (error = fail(e)));
+    }
+  }
 </script>
 
 <svelte:window onkeydowncapture={onWindowKey} oncontextmenu={onContextMenu} onfocus={refreshInputAccess}
@@ -434,9 +461,24 @@
   </div>
 {/snippet}
 
-<main>
+{#if isWindows}
+  <!-- Drag region: Tauri moves the window (a double click does nothing: not maximizable). -->
+  <div class="titlebar" data-tauri-drag-region>
+    <div class="tb-title" data-tauri-drag-region><img src="/logo-small.png" alt="CallOut" data-tauri-drag-region /></div>
+    <div class="tb-buttons">
+      <button class="tb-btn" onclick={winMinimize} aria-label={t("window.minimize")} title={t("window.minimize")}>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5h10" stroke="currentColor" /></svg>
+      </button>
+      <button class="tb-btn close" onclick={winClose} aria-label={t("window.close")} title={t("window.close")}>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M.5.5l9 9M9.5.5l-9 9" stroke="currentColor" /></svg>
+      </button>
+    </div>
+  </div>
+{/if}
+
+<main class:withtitlebar={isWindows} class:settingsopen={showSettings} class:connectscreen={!showSettings && conn !== "connected" && conn !== "reconnecting"}>
   <header>
-    <h1>CallOut</h1>
+    <div class="brand"><img src="/logo-small.png" alt="" /><h1>Call<span>Out</span></h1></div>
     <div class="right">
       {#if conn === "connected"}
         <span class="pill ok">{t("header.connected", { ms: stats.rtt_ms })}</span>
@@ -445,7 +487,7 @@
       {:else if conn === "reconnecting"}
         <span class="pill warn">{t("header.reconnecting")}</span>
       {/if}
-      <button class="icon" title={t("header.settings")} onclick={() => (showSettings ? cancelSettings() : openSettings())}>⚙</button>
+      <button class="icon" class:ghost={!showSettings} title={t("header.settings")} aria-label={t("header.settings")} onclick={() => (showSettings ? cancelSettings() : openSettings())}><Icon name={showSettings ? "x" : "settings"} size={18} /></button>
     </div>
   </header>
 
@@ -494,10 +536,10 @@
   {/if}
 
   {#if showSettings}
-    <section class="card">
-      <h2>{t("settings.title")}</h2>
+    <section class="card settings">
+      <div class="cardhead"><Icon name="sliders" size={16} /><h2>{t("settings.title")}</h2></div>
       <!-- Caption and control side by side: keeps the page short enough to fit without scrolling. -->
-      <div class="formgrid">
+      <div class="group"><div class="formgrid">
         <label for="set-mic"><Icon name="microphone" size={14} />{t("settings.microphone")}</label>
         <select id="set-mic" bind:value={settings.input_device} onchange={pickInput}>
           <option value={null}>{t("settings.default")}</option>
@@ -524,9 +566,8 @@
           <option value={null}>{t("settings.languageAuto")}</option>
           {#each LANGUAGES as l (l.code)}<option value={l.code}>{l.name}</option>{/each}
         </select>
-      </div>
-      <!-- Two short toggles on one line keep the page from scrolling; the details are tooltips. -->
-      <div class="toggles">
+      </div></div>
+      <div class="group switches">
         <label class="row" title={t("settings.noiseSuppression")}>
           <input type="checkbox" bind:checked={settings.noise_suppression}
             onchange={(e) => send({ type: "set_noise_suppression", enabled: (e.currentTarget as HTMLInputElement).checked })} />
@@ -537,7 +578,6 @@
             onchange={(e) => send({ type: "set_echo_cancellation", enabled: (e.currentTarget as HTMLInputElement).checked })} />
           {t("settings.echoCancellation")}
         </label>
-      </div>
       <label class="row">
         <input type="checkbox" bind:checked={settings.agc}
           onchange={(e) => send({ type: "set_agc", enabled: (e.currentTarget as HTMLInputElement).checked })} />
@@ -547,9 +587,10 @@
         <input type="checkbox" bind:checked={settings.push_to_talk} onchange={onPushToTalkToggle} />
         {t("settings.pushToTalk")}
       </label>
+      </div>
       {#if !settings.push_to_talk}
         <!-- Not a <label>: a click on the caption would otherwise trigger the reset button. -->
-        <div class="field">
+        <div class="group"><div class="field">
           <span class="senshead">
             {t("settings.sensitivity")}
             <span class="sensval">{formatDb(Number(settings.vad_sensitivity))}</span>
@@ -564,10 +605,10 @@
               oninput={() => setSensitivity(Number(settings.vad_sensitivity))} />
             <span>{t("settings.sensitivityHigh")}</span>
           </div>
-        </div>
+        </div></div>
       {/if}
       {#if settings.push_to_talk}
-        <div class="formgrid">
+        <div class="group"><div class="formgrid">
           <label for="set-ptt">{t("settings.pttKey")}</label>
           <button id="set-ptt" type="button" class="capture" class:listening={capturing} onclick={(e) => { if (e.detail === 0) return; /* ignore the click synthesized when Space/Enter is the captured key */ capturing ? stopCapture() : startCapture(); }}>
             {capturing ? t("settings.pttCapturing") : settings.ptt_shortcut ? prettyShortcut(settings.ptt_shortcut) : t("settings.pttUnassigned")}
@@ -575,9 +616,10 @@
         </div>
         <p class="hint">{t(isMac ? "settings.pttHintMac" : "settings.pttHint")}</p>
         {@render inputAccessHint()}
+        </div>
       {/if}
 
-      <div class="soundtest">
+      <div class="group soundtest">
         <h3>{t("test.title")}</h3>
         {@render meter()}
         {@render inputHint()}
@@ -603,7 +645,7 @@
       </div>
 
       <div class="actions">
-        <button class="primary" onclick={applySettings}>{t("settings.save")}</button>
+        <button class="primary" style="flex:1" onclick={applySettings}>{t("settings.save")}</button>
         <button onclick={cancelSettings}>{t("settings.cancel")}</button>
       </div>
     </section>
@@ -616,6 +658,7 @@
     </section>
   {:else if conn !== "connected"}
     <!-- ---------- Connect ---------- -->
+    <div class="hero"><img src="/logo.png" alt="" /><h1>Call<span>Out</span></h1></div>
     <section class="card">
       <h2>{t("connect.title")}</h2>
       <label>{t("connect.nickname")}
@@ -625,7 +668,7 @@
         <input type="text" bind:value={settings.last_invite} placeholder={t("connect.invitePlaceholder")} />
       </label>
       <div class="actions">
-        <button class="primary" disabled={conn === "connecting"} onclick={connect}>
+        <button class="primary block" disabled={conn === "connecting"} onclick={connect}>
           {conn === "connecting" ? t("connect.connecting") : t("connect.button")}
         </button>
       </div>
@@ -636,7 +679,8 @@
     {#if hasLobby}
       <section class="card serverlobby">
         <div class="serverlobbyrow">
-          <div>
+          <span class="lobbyicon"><Icon name="users" size={20} /></span>
+          <div class="txt">
             <h2>{t("serverLobby.name")}</h2>
             <p class="hint">{t("serverLobby.hint")}</p>
           </div>
@@ -645,35 +689,40 @@
       </section>
     {/if}
     <section class="card">
-      <h2>{t("lobby.create")}</h2>
+      <div class="cardhead"><Icon name="plus" size={16} /><h2>{t("lobby.create")}</h2></div>
       <label>{t("lobby.roomName")}
-        <input type="text" bind:value={roomName} placeholder={defaultRoomName} maxlength="32" />
+        <span class="inline">
+          <input type="text" bind:value={roomName} placeholder={defaultRoomName} maxlength="32" />
+          <button class="primary" onclick={createRoom}>{t("lobby.createButton")}</button>
+        </span>
       </label>
-      <div class="actions"><button class="primary" onclick={createRoom}>{t("lobby.createButton")}</button></div>
     </section>
     <section class="card">
-      <h2>{t("lobby.join")}</h2>
+      <div class="cardhead"><Icon name="login" size={16} /><h2>{t("lobby.join")}</h2></div>
       {#if settings.recent_rooms.length}
         <ul class="recent">
           {#each settings.recent_rooms as r (r.code)}
             <li>
               <button class="recentbtn" onclick={() => joinRecent(r.code)} title={t("lobby.joinButton")}>
+                <span class="dot">{r.name.trim().charAt(0).toUpperCase()}</span>
                 <span class="name">{r.name}</span>
                 <span class="codetag">{prettyCode(r.code)}</span>
               </button>
-              <button class="icon forget" onclick={() => forgetRoom(r.code)} title={t("lobby.forget")} aria-label={t("lobby.forget")}>×</button>
+              <button class="icon forget" onclick={() => forgetRoom(r.code)} title={t("lobby.forget")} aria-label={t("lobby.forget")}><Icon name="x" size={16} /></button>
             </li>
           {/each}
         </ul>
       {/if}
       <label>{t("lobby.code")}
-        <input type="text" bind:value={joinCode} placeholder="ABCD-1234" class="code" onkeydown={(e) => e.key === "Enter" && joinRoom()} />
+        <span class="inline">
+          <input type="text" bind:value={joinCode} placeholder="ABCD-1234" class="code" onkeydown={(e) => e.key === "Enter" && joinRoom()} />
+          <button class="primary" onclick={joinRoom}>{t("lobby.joinButton")}</button>
+        </span>
       </label>
-      <div class="actions">
-        <button class="primary" onclick={joinRoom}>{t("lobby.joinButton")}</button>
-        <button onclick={disconnect}>{t("lobby.disconnect")}</button>
-      </div>
     </section>
+    <div class="actions" style="justify-content:center">
+      <button class="ghost iconlabel" onclick={disconnect}><Icon name="logout" size={15} />{t("lobby.disconnect")}</button>
+    </div>
   {:else}
     <!-- ---------- Room ---------- -->
     <section class="card room">
@@ -682,9 +731,10 @@
           <h2>{roomTitle(room)}</h2>
           {#if !isLobby(room)}
             <button class="codebtn" title={t("room.copyCode")} onclick={copyCode}>
-              {prettyCode(room.code)} {copied ? "✓" : "⧉"}
+              {prettyCode(room.code)} <Icon name={copied ? "check" : "copy"} size={14} />
             </button>
           {/if}
+          <span class="membercount"><Icon name="users" size={14} />{members.length}</span>
         </div>
         <div class="roomactions">
           {#if room.owner !== 0 && room.owner === myId}
@@ -692,7 +742,6 @@
               {t("room.close")}
             </button>
           {/if}
-          <button onclick={leaveRoom}>{t("room.leave")}</button>
         </div>
       </div>
       {#if confirmClose}
@@ -707,20 +756,25 @@
 
       <ul class="members">
         {#each members as m (m.user_id)}
-          <li class:speaking={speaking.has(m.user_id)} class:me={m.user_id === myId}>
-            <span class="ring"></span>
-            <span class="name">{m.nickname}{m.user_id === myId ? ` ${t("room.you")}` : ""}</span>
+          <li class:speaking={speaking.has(m.user_id) && !m.muted && !isUserMuted(m)} class:me={m.user_id === myId} class:silent={m.muted || m.deafened} class:usermuted={m.user_id !== myId && isUserMuted(m)}>
+            <span class="avatar">{m.nickname.trim().charAt(0).toUpperCase()}</span>
+            <span class="name">{m.nickname}{#if m.user_id === myId}<span class="you">{t("room.you")}</span>{/if}</span>
             <span class="flags">
               {#if m.muted}<span title={t("room.mute")}><Icon name="microphone-off" size={14} /></span>{/if}
               {#if m.deafened}<span title={t("room.deafen")}><Icon name="headphones-off" size={14} /></span>{/if}
             </span>
             {#if m.user_id !== myId}
-              <input class="vol" type="range" min="0" max="2" step="0.05"
+              <button type="button" class="usermute" class:on={isUserMuted(m)} onclick={() => toggleUserMute(m)}
+                title={t(isUserMuted(m) ? "room.unmuteUser" : "room.muteUser", { name: m.nickname })}
+                aria-label={t(isUserMuted(m) ? "room.unmuteUser" : "room.muteUser", { name: m.nickname })} aria-pressed={isUserMuted(m)}>
+                <Icon name={isUserMuted(m) ? "volume-off" : "volume"} size={16} />
+              </button>
+              <input class="vol" type="range" min="0" max="2" step="0.05" disabled={(settings.muted_users ?? []).includes(m.nickname)}
                 value={volumeOf(m)}
                 oninput={(e) => setVolume(m, Number((e.target as HTMLInputElement).value))}
                 aria-label={t("room.volume", { pct: Math.round(volumeOf(m) * 100) })}
                 title={t("room.volume", { pct: Math.round(volumeOf(m) * 100) })} />
-              <button type="button" class="volpct" class:changed={Math.round(volumeOf(m) * 100) !== 100}
+              <button type="button" class="volpct" class:changed={Math.round(volumeOf(m) * 100) !== 100} class:off={isUserMuted(m)}
                 onclick={() => setVolume(m, 1)} title={t("room.volumeReset")}>
                 {t("room.volumePct", { pct: Math.round(volumeOf(m) * 100) })}
               </button>
@@ -730,15 +784,22 @@
       </ul>
     </section>
 
-    <section class="bar">
-      {@render meter()}
-      <button class="iconbtn" class:active={muted} onclick={toggleMute} title={t("room.mute")} aria-label={t("room.mute")} aria-pressed={muted}>
-        <Icon name={muted ? "microphone-off" : "microphone"} />
-      </button>
-      <button class="iconbtn" class:active={deafened} onclick={toggleDeafen} title={t("room.deafen")} aria-label={t("room.deafen")} aria-pressed={deafened}>
-        <Icon name={deafened ? "headphones-off" : "headphones"} />
-      </button>
-      <span class="stats">{t("room.stats", { rtt: stats.rtt_ms, jitter: stats.jitter_ms })}{stats.lost ? ` · ${t("room.lost", { n: stats.lost })}` : ""}</span>
+    <section class="dock">
+      <div class="dockrow">
+        {@render meter()}
+      </div>
+      <div class="dockrow">
+        <button class="roundbtn" class:active={muted} onclick={toggleMute} title={t("room.mute")} aria-label={t("room.mute")} aria-pressed={muted}>
+          <Icon name={muted ? "microphone-off" : "microphone"} size={20} />
+        </button>
+        <button class="roundbtn" class:active={deafened} onclick={toggleDeafen} title={t("room.deafen")} aria-label={t("room.deafen")} aria-pressed={deafened}>
+          <Icon name={deafened ? "headphones-off" : "headphones"} size={20} />
+        </button>
+        <span class="stats">{t("room.stats", { rtt: stats.rtt_ms, jitter: stats.jitter_ms })}{stats.lost ? ` · ${t("room.lost", { n: stats.lost })}` : ""}</span>
+        <button class="roundbtn leave" onclick={leaveRoom} title={t("room.leave")} aria-label={t("room.leave")}>
+          <Icon name="logout" size={20} />
+        </button>
+      </div>
     </section>
     {@render inputHint()}
     {#if settings.push_to_talk}

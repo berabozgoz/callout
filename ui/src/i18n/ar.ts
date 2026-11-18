@@ -5,6 +5,8 @@ export const ar: Messages = {
   "header.connecting": "جارٍ الاتصال…",
   "header.reconnecting": "جارٍ إعادة الاتصال…",
   "header.settings": "الإعدادات",
+  "window.minimize": "تصغير",
+  "window.close": "إغلاق",
 
   "update.available": "يتوفر CallOut {version}.",
   "update.availablePortable": "يتوفر CallOut {version}. نزّل ملف callout-app.exe الجديد واستبدل به هذا الملف.",
@@ -60,7 +62,7 @@ export const ar: Messages = {
   "test.hintPtt":
     "تحدّث لمدة 5 ث؛ سيُعاد تشغيل التسجيل كما سيسمعه الآخرون في الغرفة. عند تفعيل الضغط للتحدث، يسجّل الاختبار دون الحاجة إلى المفتاح.",
   "test.hintVad":
-    "تحدّث لمدة 5 ث؛ سيُعاد تشغيل التسجيل كما سيسمعه الآخرون في الغرفة. الخط هو عتبة اكتشاف الصوت: عندما يتجاوزه الشريط يُرسَل صوتك (باللون الأخضر).",
+    "تحدّث لمدة 5 ث؛ سيُعاد تشغيل التسجيل كما سيسمعه الآخرون في الغرفة. الخط هو عتبة اكتشاف الصوت: عندما يتجاوزه الشريط يُرسَل صوتك (باللون الأصفر).",
 
   "connect.title": "الاتصال بخادم",
   "connect.nickname": "الاسم المستعار",
@@ -99,6 +101,8 @@ export const ar: Messages = {
   "room.volume": "مستوى الصوت: {pct}%",
   "room.volumePct": "{pct}%",
   "room.volumeReset": "إعادة التعيين إلى 100%",
+  "room.muteUser": "كتم صوت {name}",
+  "room.unmuteUser": "إلغاء كتم صوت {name}",
   "room.mute": "كتم الميكروفون",
   "room.deafen": "كتم الصوت",
   "room.stats": "{rtt} ms · المخزن المؤقت {jitter} ms",

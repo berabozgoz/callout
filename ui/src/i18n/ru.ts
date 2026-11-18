@@ -5,6 +5,8 @@ export const ru: Messages = {
   "header.connecting": "подключение…",
   "header.reconnecting": "переподключение…",
   "header.settings": "Настройки",
+  "window.minimize": "Свернуть",
+  "window.close": "Закрыть",
 
   "update.available": "Доступна версия CallOut {version}.",
   "update.availablePortable": "Доступна версия CallOut {version}. Скачайте новый callout-app.exe и замените этот файл.",
@@ -60,7 +62,7 @@ export const ru: Messages = {
   "test.hintPtt":
     "Говорите 5 с; запись воспроизведётся так, как вас услышат остальные в комнате. В режиме рации проверка записывает без нажатия клавиши.",
   "test.hintVad":
-    "Говорите 5 с; запись воспроизведётся так, как вас услышат остальные в комнате. Линия — порог активации по голосу: когда полоска её пересекает, голос отправляется (зелёный цвет).",
+    "Говорите 5 с; запись воспроизведётся так, как вас услышат остальные в комнате. Линия — порог активации по голосу: когда полоска её пересекает, голос отправляется (жёлтый цвет).",
 
   "connect.title": "Подключение к серверу",
   "connect.nickname": "Никнейм",
@@ -99,6 +101,8 @@ export const ru: Messages = {
   "room.volume": "Громкость: {pct} %",
   "room.volumePct": "{pct} %",
   "room.volumeReset": "Сбросить до 100 %",
+  "room.muteUser": "Заглушить {name}",
+  "room.unmuteUser": "Включить звук {name}",
   "room.mute": "Выключить микрофон",
   "room.deafen": "Выключить звук",
   "room.stats": "{rtt} ms · буфер {jitter} ms",

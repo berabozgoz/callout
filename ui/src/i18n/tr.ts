@@ -5,6 +5,8 @@ export const tr: Messages = {
   "header.connecting": "bağlanıyor…",
   "header.reconnecting": "yeniden bağlanıyor…",
   "header.settings": "Ayarlar",
+  "window.minimize": "Simge durumuna küçült",
+  "window.close": "Kapat",
 
   "update.available": "CallOut {version} çıktı.",
   "update.availablePortable": "CallOut {version} çıktı. Yeni callout-app.exe'yi indirip bununla değiştir.",
@@ -60,7 +62,7 @@ export const tr: Messages = {
   "test.hintPtt":
     "5 sn konuş; kayıt odadakilerin duyacağı haliyle geri çalınır. Bas-konuş açıkken test tuşsuz kaydedilir.",
   "test.hintVad":
-    "5 sn konuş; kayıt odadakilerin duyacağı haliyle geri çalınır. Çizgi konuşma algılama eşiği: çubuk çizgiyi geçince ses gönderilir (yeşil).",
+    "5 sn konuş; kayıt odadakilerin duyacağı haliyle geri çalınır. Çizgi konuşma algılama eşiği: çubuk çizgiyi geçince ses gönderilir (sarı).",
 
   "connect.title": "Sunucuya bağlan",
   "connect.nickname": "Takma ad",
@@ -98,6 +100,8 @@ export const tr: Messages = {
   "room.volume": "Ses: %{pct}",
   "room.volumePct": "%{pct}",
   "room.volumeReset": "%100'e sıfırla",
+  "room.muteUser": "{name} kişisini sustur",
+  "room.unmuteUser": "{name} sesini aç",
   "room.mute": "Mikrofonu sustur",
   "room.deafen": "Sesi kapat",
   "room.stats": "{rtt} ms · tampon {jitter} ms",

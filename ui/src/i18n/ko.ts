@@ -5,6 +5,8 @@ export const ko: Messages = {
   "header.connecting": "연결 중…",
   "header.reconnecting": "다시 연결 중…",
   "header.settings": "설정",
+  "window.minimize": "최소화",
+  "window.close": "닫기",
 
   "update.available": "CallOut {version} 버전이 나왔어요.",
   "update.availablePortable": "CallOut {version} 버전이 나왔어요. 새 callout-app.exe를 내려받아 이 파일과 바꿔 주세요.",
@@ -60,7 +62,7 @@ export const ko: Messages = {
   "test.hintPtt":
     "5초 동안 말해 보세요. 녹음은 방에 있는 다른 사람들이 듣는 그대로 재생돼요. 눌러서 말하기가 켜져 있어도 테스트는 키 없이 녹음해요.",
   "test.hintVad":
-    "5초 동안 말해 보세요. 녹음은 방에 있는 다른 사람들이 듣는 그대로 재생돼요. 선은 음성 감지 임계값이에요. 막대가 선을 넘으면 목소리가 전송돼요(초록색).",
+    "5초 동안 말해 보세요. 녹음은 방에 있는 다른 사람들이 듣는 그대로 재생돼요. 선은 음성 감지 임계값이에요. 막대가 선을 넘으면 목소리가 전송돼요(노란색).",
 
   "connect.title": "서버에 연결",
   "connect.nickname": "닉네임",
@@ -98,6 +100,8 @@ export const ko: Messages = {
   "room.volume": "볼륨: {pct}%",
   "room.volumePct": "{pct}%",
   "room.volumeReset": "100%로 되돌리기",
+  "room.muteUser": "{name} 음소거",
+  "room.unmuteUser": "{name} 음소거 해제",
   "room.mute": "마이크 음소거",
   "room.deafen": "소리 끄기",
   "room.stats": "{rtt} ms · 버퍼 {jitter} ms",

@@ -7,7 +7,7 @@ use callout_core::{
     Member, RoomInfo, UserId,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -50,6 +50,10 @@ pub struct Settings {
     /// than 1.0 are kept. Owned by the app: written when a slider moves, never taken from the UI's
     /// `save_settings` copy (which may be older).
     pub user_volumes: BTreeMap<String, f32>,
+    /// Players muted for us with the speaker button, by nickname (like `user_volumes`). Kept apart
+    /// from the volumes so unmuting brings the slider's value back. Owned by the app: changed by
+    /// `set_user_muted`, never taken from the UI's `save_settings` copy.
+    pub muted_users: BTreeSet<String>,
     /// Sound when someone joins or leaves the room (and when we join one).
     pub join_sound: JoinSound,
     /// Echo cancellation on the microphone; on if missing from older settings files.
@@ -80,6 +84,7 @@ impl Default for Settings {
             recent_rooms: Vec::new(),
             installer_language_seen: None,
             user_volumes: BTreeMap::new(),
+            muted_users: BTreeSet::new(),
             echo_cancellation: true,
             join_sound: JoinSound::default(),
         }
@@ -223,17 +228,31 @@ fn remember_volume(volumes: &mut BTreeMap<String, f32>, nickname: &str, gain: f3
     }
 }
 
-/// Saved volumes to send to the engine for the members of a room (not for ourselves). Sent on every
-/// room update: a `user_id` is new after each join or reconnect, and resending is harmless.
+/// The gain the engine should use for `nickname`: 0 while muted, else the saved volume (1.0 if none).
+fn effective_gain(settings: &Settings, nickname: &str) -> f32 {
+    if settings.muted_users.contains(nickname) {
+        0.0
+    } else {
+        settings.user_volumes.get(nickname).copied().unwrap_or(1.0)
+    }
+}
+
+/// Saved gains to send to the engine for the members of a room (not for ourselves): 0 for muted
+/// players, the saved volume for the others that have one. Sent on every room update: a `user_id`
+/// is new after each join or reconnect, and resending is harmless.
 fn saved_volumes_for(
     members: &[Member],
     me: Option<UserId>,
-    volumes: &BTreeMap<String, f32>,
+    settings: &Settings,
 ) -> Vec<(UserId, f32)> {
     members
         .iter()
         .filter(|m| Some(m.user_id) != me)
-        .filter_map(|m| volumes.get(&m.nickname).map(|g| (m.user_id, *g)))
+        .filter(|m| {
+            settings.muted_users.contains(&m.nickname)
+                || settings.user_volumes.contains_key(&m.nickname)
+        })
+        .map(|m| (m.user_id, effective_gain(settings, &m.nickname)))
         .collect()
 }
 
@@ -300,6 +319,7 @@ fn save_settings(
     settings.installer_language_seen = old.installer_language_seen;
     settings.agc_default_off_seen = old.agc_default_off_seen;
     settings.user_volumes = old.user_volumes;
+    settings.muted_users = old.muted_users;
     *state.settings.lock().unwrap() = settings.clone();
     state.save_settings()?;
     let applied = state.applied.lock().unwrap().clone();
@@ -369,6 +389,29 @@ fn save_settings(
 #[tauri::command]
 fn engine_command(state: State<AppState>, command: Command) {
     send_command(&state, command);
+}
+
+/// Mutes or unmutes a player for us only (the speaker button next to the volume slider). The
+/// engine gets gain 0, or the saved volume back; the nickname is remembered for later rooms.
+#[tauri::command]
+fn set_user_muted(state: State<AppState>, user_id: UserId, muted: bool) -> Result<(), String> {
+    let nickname = (state.snapshot.lock().unwrap().members.iter())
+        .find(|m| m.user_id == user_id)
+        .map(|m| m.nickname.clone())
+        .ok_or("no such player in the room")?;
+    let gain = {
+        let mut settings = state.settings.lock().unwrap();
+        if muted {
+            settings.muted_users.insert(nickname.clone());
+        } else {
+            settings.muted_users.remove(&nickname);
+        }
+        effective_gain(&settings, &nickname)
+    };
+    state.save_settings()?;
+    // Straight to the engine: through `send_command` gain 0 would be remembered as the volume.
+    state.engine.send(Command::SetUserVolume { user_id, gain });
+    Ok(())
 }
 
 /// Forwards a command to the engine; updates the state the app keeps (snapshot, applied devices).
@@ -834,11 +877,8 @@ pub fn run() {
                             snap.user_id
                         };
                         if let Event::RoomUpdated { members, .. } = &ev {
-                            let saved = saved_volumes_for(
-                                members,
-                                me,
-                                &st.settings.lock().unwrap().user_volumes,
-                            );
+                            let saved =
+                                saved_volumes_for(members, me, &st.settings.lock().unwrap());
                             for (user_id, gain) in saved {
                                 st.engine.send(Command::SetUserVolume { user_id, gain });
                             }
@@ -945,6 +985,7 @@ pub fn run() {
             is_installed,
             open_releases_page,
             send_log,
+            set_user_muted,
             ptt_input_access,
             open_input_monitoring_settings
         ])
@@ -990,8 +1031,8 @@ fn _assert_event_serializable(e: &Event) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        forget_old_default_ptt_key, remember_volume, saved_volumes_for, scrub_log, tail_lines,
-        turn_off_old_agc_default, Settings,
+        effective_gain, forget_old_default_ptt_key, remember_volume, saved_volumes_for, scrub_log,
+        tail_lines, turn_off_old_agc_default, Settings,
     };
     use callout_core::Member;
     use std::collections::BTreeMap;
@@ -1026,12 +1067,41 @@ mod tests {
 
     #[test]
     fn saved_volumes_apply_to_others_in_the_room() {
-        let mut v = BTreeMap::new();
-        v.insert("kuzen".to_string(), 0.5);
-        v.insert("bera".to_string(), 1.5);
+        let mut s = Settings::default();
+        s.user_volumes.insert("kuzen".to_string(), 0.5);
+        s.user_volumes.insert("bera".to_string(), 1.5);
         let members = [member(7, "bera"), member(8, "kuzen"), member(9, "cocart")];
         // Ourselves (7, even with a matching name) and players without a saved value are skipped.
-        assert_eq!(saved_volumes_for(&members, Some(7), &v), vec![(8, 0.5)]);
+        assert_eq!(saved_volumes_for(&members, Some(7), &s), vec![(8, 0.5)]);
+    }
+
+    #[test]
+    fn muted_players_get_zero_and_keep_their_volume() {
+        let mut s = Settings::default();
+        s.user_volumes.insert("kuzen".to_string(), 0.5);
+        s.muted_users.insert("kuzen".to_string());
+        s.muted_users.insert("cocart".to_string());
+        s.muted_users.insert("bera".to_string());
+        let members = [
+            member(7, "bera"),
+            member(8, "kuzen"),
+            member(9, "cocart"),
+            member(10, "x"),
+        ];
+        // Muted ones get 0 (also without a saved volume); never ourselves.
+        assert_eq!(
+            saved_volumes_for(&members, Some(7), &s),
+            vec![(8, 0.0), (9, 0.0)]
+        );
+        assert_eq!(effective_gain(&s, "kuzen"), 0.0);
+        s.muted_users.remove("kuzen");
+        assert_eq!(
+            effective_gain(&s, "kuzen"),
+            0.5,
+            "unmuting brings the volume back"
+        );
+        s.muted_users.remove("cocart");
+        assert_eq!(effective_gain(&s, "cocart"), 1.0, "no saved volume: normal");
     }
 
     #[test]
@@ -1052,6 +1122,9 @@ mod tests {
         assert!(!s.echo_cancellation, "a saved choice is kept");
         let s: Settings = serde_json::from_str(r#"{"user_volumes":{"kuzen":0.7}}"#).unwrap();
         assert_eq!(s.user_volumes.get("kuzen"), Some(&0.7));
+        assert!(s.muted_users.is_empty(), "older files have nobody muted");
+        let s: Settings = serde_json::from_str(r#"{"muted_users":["kuzen"]}"#).unwrap();
+        assert!(s.muted_users.contains("kuzen"));
     }
 
     #[test]
