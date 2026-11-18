@@ -1,7 +1,7 @@
 //! Engine (callout-core) against the server: connect without an audio device, create a room, leave.
 
 use callout_core::{
-    Command, ConnectionState, Engine, EngineConfig, ErrorKind, Event, LogUploadOutcome,
+    Command, ConnectionState, Engine, EngineConfig, ErrorKind, Event, LogUploadOutcome, LOBBY_CODE,
 };
 use std::io::{BufRead, BufReader};
 use std::process::{Command as Proc, Stdio};
@@ -66,9 +66,10 @@ async fn engine_connects_creates_room_and_disconnects() {
             state: ConnectionState::Connected
         }
     );
-    let Event::Connected { user_id } = next(&mut rx).await else {
+    let Event::Connected { user_id, lobby } = next(&mut rx).await else {
         panic!("expected Connected")
     };
+    assert!(lobby, "this server has a lobby");
 
     engine.send(Command::CreateRoom {
         name: "team".into(),
@@ -125,6 +126,66 @@ async fn engine_connects_creates_room_and_disconnects() {
         }
     }
     assert!(saw_error, "RoomNotFound not received");
+
+    // The lobby cannot be joined by its code…
+    engine.send(Command::JoinRoom {
+        code: LOBBY_CODE.into(),
+    });
+    let mut saw_error = false;
+    for _ in 0..6 {
+        match next(&mut rx).await {
+            Event::Error {
+                kind: ErrorKind::RoomNotFound,
+                ..
+            } => {
+                saw_error = true;
+                break;
+            }
+            Event::RoomUpdated { room: Some(r), .. } => panic!("joined {r:?} by code"),
+            _ => continue,
+        }
+    }
+    assert!(saw_error, "lobby code: RoomNotFound not received");
+
+    // …only with JoinLobby, and it can be left and entered again at will.
+    for _ in 0..2 {
+        engine.send(Command::JoinLobby);
+        let room = loop {
+            match next(&mut rx).await {
+                Event::RoomUpdated {
+                    room: Some(r),
+                    members,
+                } => {
+                    assert_eq!(members.len(), 1);
+                    break r;
+                }
+                Event::Stats { .. } => continue,
+                other => panic!("unexpected: {other:?}"),
+            }
+        };
+        assert_eq!(room.code, LOBBY_CODE);
+        assert_eq!(room.owner, 0, "the lobby has no owner");
+        // Nobody may close it.
+        engine.send(Command::CloseRoom);
+        loop {
+            match next(&mut rx).await {
+                Event::Error {
+                    kind: ErrorKind::NotOwner,
+                    ..
+                } => break,
+                Event::Stats { .. } => continue,
+                other => panic!("unexpected: {other:?}"),
+            }
+        }
+        engine.send(Command::LeaveRoom);
+        loop {
+            match next(&mut rx).await {
+                Event::RoomUpdated { room: None, .. } => break,
+                Event::Stats { .. } => continue,
+                other => panic!("unexpected: {other:?}"),
+            }
+        }
+    }
 
     engine.send(Command::Disconnect);
     let mut disconnected = false;

@@ -3,6 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type RoomInfo = { code: string; name: string; owner: number };
+/** `callout_proto::LOBBY_CODE`: the server lobby's room code (not joinable by code, only with `join_lobby`). */
+export const LOBBY_CODE = "LOBBY";
+export const isLobby = (room: RoomInfo | null | undefined) => room?.code === LOBBY_CODE;
 export type Member = { user_id: number; nickname: string; muted: boolean; deafened: boolean };
 export type ConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
 export type MicTestState = "calibrating" | "recording" | "playing" | "idle";
@@ -15,7 +18,7 @@ export type ErrorKind =
 
 export type EngineEvent =
   | { type: "connection_state"; state: ConnectionState }
-  | { type: "connected"; user_id: number }
+  | { type: "connected"; user_id: number; lobby: boolean }
   | { type: "room_updated"; room: RoomInfo | null; members: Member[] }
   | { type: "speaking_changed"; user_id: number; speaking: boolean }
   | { type: "input_level"; level: number; transmitting: boolean; threshold: number }
@@ -34,6 +37,7 @@ export type Command =
   | { type: "disconnect" }
   | { type: "create_room"; name: string }
   | { type: "join_room"; code: string }
+  | { type: "join_lobby" }
   | { type: "leave_room" }
   | { type: "set_muted"; muted: boolean }
   | { type: "set_deafened"; deafened: boolean }
@@ -87,6 +91,8 @@ export type Settings = {
 export type Snapshot = {
   connection: ConnectionState;
   user_id: number | null;
+  /** The connected server has a lobby. */
+  lobby: boolean;
   room: RoomInfo | null;
   members: Member[];
   muted: boolean;

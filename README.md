@@ -26,9 +26,11 @@ Status: **Phase 2 (audio quality) in progress.** Rooms for 5–10 people, Window
    says the app is damaged, run `xattr -cr /Applications/CallOut.app` in Terminal once. Allow the
    microphone when asked.
 2. Get an invite link (`callout://…`) from whoever runs the server, enter a nickname and connect.
-3. Create a room and share its code, or join a room with a code. Rooms are permanent: the same code
-   works next time (rooms unused for 30 days are removed), and the lobby lists your recent rooms.
-   Whoever created a room can close it for good ("Close room").
+3. Join the **Server Lobby**, a room every server has: it is always on the home screen, open to everyone
+   connected to that server, and needs no code. Or create a room and share its code, or join a room with
+   a code. Rooms are permanent: the same code works next time (rooms unused for 30 days are removed), and
+   the home screen lists your recent rooms. Whoever created a room can close it for good ("Close room");
+   nobody can close the Server Lobby.
 
 Before your first session, open **Settings (⚙)**:
 
@@ -100,6 +102,7 @@ cargo run -p callout-audio --example loopback   # mic → headphones local loop
 cargo run -p callout-server                     # local server; prints the invite link
 cargo run -p callout-core --example talk -- "<invite>" Name --create     # headless client: open a room
 cargo run -p callout-core --example talk -- "<invite>" Name --room CODE  # headless client: join a room
+cargo run -p callout-core --example talk -- "<invite>" Name --lobby      # headless client: join the Server Lobby
 cd ui && npm install && cd ../apps/callout-app && cargo tauri dev        # desktop app
 ```
 

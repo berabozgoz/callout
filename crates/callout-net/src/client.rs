@@ -10,7 +10,8 @@ use crate::identity::DeviceKey;
 use crate::{frame_control, transport_config, unframe_control, NetError, ALPN, MAX_CONTROL_FRAME};
 use bytes::Bytes;
 use callout_proto::{
-    ClientMsg, ErrorCode, LogUpload, LogUploadReply, ServerMsg, UserId, PROTOCOL_VERSION,
+    ClientMsg, ErrorCode, LogUpload, LogUploadReply, ServerMsg, UserId, MIN_PROTOCOL_VERSION,
+    PROTOCOL_VERSION,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -58,16 +59,73 @@ pub struct Client {
     conn: quinn::Connection,
     control: ControlStream<ClientMsg, ServerMsg>,
     user_id: UserId,
+    /// Protocol version the server accepted (see [`Client::has_lobby`]).
+    version: u16,
     /// Used to wait for the close frame to go out on the wire (`close_graceful`).
     endpoint: quinn::Endpoint,
 }
 
+/// How far a handshake got (to tell a refused protocol version from an unreachable server).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Stage {
+    Connecting,
+    HelloSent,
+    Welcomed,
+}
+
 impl Client {
     /// Connects to the server in the invite link and completes authentication.
+    ///
+    /// Speaks [`PROTOCOL_VERSION`]; a server that rejects it as too new (an older server) gets a
+    /// second connection with [`MIN_PROTOCOL_VERSION`], and the newer features stay off.
     pub async fn connect(
         invite: &Invite,
         key: &DeviceKey,
         nickname: &str,
+    ) -> Result<Self, ClientError> {
+        let mut stage = Stage::Connecting;
+        let first = Self::handshake(invite, key, nickname, PROTOCOL_VERSION, &mut stage).await;
+        // Servers before 0.1.21 send VersionMismatch and drop the connection at once, so the
+        // error often arrives as a lost stream instead: anything that ends the connection
+        // between our Hello and the server's Welcome counts as a refused version.
+        let refused = stage == Stage::HelloSent
+            && matches!(
+                &first,
+                Err(ClientError::Rejected {
+                    code: ErrorCode::VersionMismatch,
+                    ..
+                }) | Err(ClientError::Control(_))
+                    | Err(ClientError::Connection(_))
+            );
+        match first {
+            Err(e) if refused && MIN_PROTOCOL_VERSION < PROTOCOL_VERSION => {
+                tracing::info!(
+                    "server refused protocol {PROTOCOL_VERSION} ({e}); retrying with {MIN_PROTOCOL_VERSION}"
+                );
+                Self::connect_with(invite, key, nickname, MIN_PROTOCOL_VERSION).await
+            }
+            r => r,
+        }
+    }
+
+    /// [`Client::connect`] with a fixed protocol version and no fallback (tests use it to play
+    /// an older client).
+    pub async fn connect_with(
+        invite: &Invite,
+        key: &DeviceKey,
+        nickname: &str,
+        version: u16,
+    ) -> Result<Self, ClientError> {
+        Self::handshake(invite, key, nickname, version, &mut Stage::Connecting).await
+    }
+
+    /// Connects and authenticates; `stage` tells how far it got when it fails.
+    async fn handshake(
+        invite: &Invite,
+        key: &DeviceKey,
+        nickname: &str,
+        version: u16,
+        stage: &mut Stage,
     ) -> Result<Self, ClientError> {
         let bind: SocketAddr = if invite.addr.is_ipv4() {
             "0.0.0.0:0"
@@ -98,13 +156,17 @@ impl Client {
 
         control
             .send(&ClientMsg::Hello {
-                version: PROTOCOL_VERSION,
+                version,
                 device_pubkey: key.public_key(),
                 nickname: nickname.to_string(),
             })
             .await?;
+        *stage = Stage::HelloSent;
         let (user_id, challenge) = match control.recv().await? {
-            ServerMsg::Welcome { user_id, challenge } => (user_id, challenge),
+            ServerMsg::Welcome { user_id, challenge } => {
+                *stage = Stage::Welcomed;
+                (user_id, challenge)
+            }
             ServerMsg::Error { code, message } => {
                 return Err(ClientError::Rejected { code, message })
             }
@@ -123,17 +185,34 @@ impl Client {
             other => return Err(ClientError::Unexpected(other)),
         }
 
-        tracing::info!(user_id, rtt_ms = conn.rtt().as_millis(), "connected");
+        tracing::info!(
+            user_id,
+            version,
+            rtt_ms = conn.rtt().as_millis(),
+            "connected"
+        );
         Ok(Self {
             conn,
             control,
             user_id,
+            version,
             endpoint,
         })
     }
 
     pub fn user_id(&self) -> UserId {
         self.user_id
+    }
+
+    /// Whether the server has a lobby ([`Client::join_lobby`]); servers before protocol 2 do not.
+    pub fn has_lobby(&self) -> bool {
+        self.version >= 2
+    }
+
+    /// Joins the server lobby; the reply is `RoomState` (code [`callout_proto::LOBBY_CODE`]) or
+    /// `Error`. Only when [`Client::has_lobby`]: an older server would drop the connection.
+    pub async fn join_lobby(&mut self) -> Result<(), ClientError> {
+        Ok(self.control.send(&ClientMsg::JoinLobby).await?)
     }
 
     pub fn control(&mut self) -> &mut ControlStream<ClientMsg, ServerMsg> {

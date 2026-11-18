@@ -92,6 +92,8 @@ impl Default for Settings {
 struct Snapshot {
     connection: ConnectionState,
     user_id: Option<UserId>,
+    /// The connected server has a lobby (`Event::Connected`).
+    lobby: bool,
     room: Option<RoomInfo>,
     members: Vec<Member>,
     muted: bool,
@@ -105,6 +107,7 @@ impl Snapshot {
         Self {
             connection: ConnectionState::Disconnected,
             user_id: None,
+            lobby: false,
             room: None,
             members: Vec::new(),
             muted: false,
@@ -119,11 +122,15 @@ impl Snapshot {
                 self.connection = *state;
                 if *state == ConnectionState::Disconnected {
                     self.user_id = None;
+                    self.lobby = false;
                     self.room = None;
                     self.members.clear();
                 }
             }
-            Event::Connected { user_id } => self.user_id = Some(*user_id),
+            Event::Connected { user_id, lobby } => {
+                self.user_id = Some(*user_id);
+                self.lobby = *lobby;
+            }
             Event::RoomUpdated { room, members } => {
                 self.room = room.clone();
                 self.members = members.clone();

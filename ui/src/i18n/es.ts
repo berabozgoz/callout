@@ -87,6 +87,8 @@ export const es: Messages = {
   "lobby.joinButton": "Unirse",
   "lobby.forget": "Quitar de la lista",
   "lobby.disconnect": "Desconectar",
+  "serverLobby.name": "Lobby del servidor",
+  "serverLobby.hint": "Abierta a todos en este servidor; no hace falta código.",
 
   "room.copyCode": "Copiar código",
   "room.leave": "Salir",

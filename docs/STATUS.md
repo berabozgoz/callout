@@ -21,12 +21,15 @@
   microphone / Input Monitoring permission on every update). Push-to-talk via a listen-only Quartz event
   tap, audio thread at QoS user-interactive, in-app updates through the same `latest.json`. Tested on the
   owner's 2014 MacBook Air (Intel, macOS 11.7.11); no Apple Silicon Mac yet.
-- **Unreleased on `main`:** the Bluetooth mic warning now fires up to 24 kHz (AirPods on macOS); check
+- **Unreleased on `main`:** the Bluetooth mic warning now fires up to 24 kHz (AirPods on macOS); the
+  **Server Lobby** (protocol 2; needs the server updated too, see Pending manual tests); check
   `git log v0.1.20..`.
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
-  joined before, can find them); rooms persist until closed by their creator's device or unused for 30 days;
+  joined before, can find them), except the **Server Lobby** (unreleased): one room per server, always on the
+  home screen, open to everyone connected, no code, no owner (nobody can close it), not joinable by typing
+  a code; rooms persist until closed by their creator's device or unused for 30 days;
   the client reconnects and rejoins on its own; the app starts in the installer's language once per new
   installer choice; the portable exe gets a "Download" link instead of the in-app updater.
 - The home network is behind CGNAT, so hosting the server from home is not possible; Tailscale was not wanted.
@@ -36,6 +39,21 @@
 Things that passed automated checks but still need a person, a real Windows PC or a real network.
 Tick and move the result to "Last session" (or `GATE_TEST.md`) when done; release only after the
 items marked **before release** pass.
+
+- [ ] **Server Lobby in the app** (before release; unreleased since 18 Nov): with a local server
+      (`cargo run -p callout-server`) and `cargo tauri dev`: after connecting, the home screen shows the
+      "Server Lobby" card on top (in Turkish "Sunucu Lobisi"; check one more language and Arabic RTL),
+      dark purple box `#2a2140` with a `#8634eb` frame and a lilac `#c9a7ff` title and a purple "Join" (owner's choice);
+      "Join" enters it: title is the translated name, **no code button**, no "Close room"; "Leave" goes back
+      and the lobby does **not** appear in the recent rooms; typing `LOBBY` in the code field says the room
+      does not exist. Two PCs (or the app + `talk --lobby`) in the lobby hear each other. Kill and restart
+      the server while in the lobby: the app reconnects and lands in the lobby again.
+- [ ] **Server Lobby with old/new versions** (before release): the new app against the **current Oracle
+      server (v0.1.16)** connects normally and shows **no** lobby card (checked headless on 18 Nov with the
+      talk example against a local v0.1.16 server: "server refused protocol 2 … retrying with 1",
+      `lobby=false`); after the release the server must be updated (`install.sh`), then an **old app**
+      (v0.1.20) still connects and uses rooms by code. Release order: update the server right after the
+      release is published (the lobby only shows once it runs protocol 2).
 
 - [x] **macOS: CI build** (before release): the `app-macos` CI job (clippy incl. the app, library tests on
       macOS) is green. Then a release dry run is the tag itself: the `macos` job must upload
@@ -293,6 +311,11 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
+- **Server Lobby (unreleased, 18 Nov):** run the two "Server Lobby" items in Pending manual tests (the UI was
+  only type-checked, never seen in the app), then release (v0.1.21, app **and** server) and update the
+  Oracle server with `install.sh` right after. Ideas the owner may want later (not built): member count of
+  the lobby on the home screen before joining (needs a new server message), a server setting to turn the
+  lobby off for self-hosters.
 - **macOS app (released in v0.1.20):** next the open macOS items in "Pending manual tests" on the owner's Apple Silicon Mac,
   then release. Known gaps: no Apple Developer ID (Gatekeeper "Open Anyway", permissions may reset on
   update; signing + notarization are prepared in `release.yml` comments), a denied microphone gives
@@ -450,6 +473,36 @@ items marked **before release** pass.
 
 ## Last session
 
+- 18 Nov: **Server Lobby** (owner's request: a fixed public room on every server, open to everyone with the
+  invite link, no password, no auto-join, **not joinable by code**, only shown in the UI; costs nothing while
+  empty). Owner chose: no auto-join, no code.
+  - Protocol 2 (`callout-proto`): `ClientMsg::JoinLobby` appended, `PROTOCOL_VERSION` 2, new
+    `MIN_PROTOCOL_VERSION` 1 (the server accepts 1–2, so v0.1.20 apps keep working), `LOBBY_CODE` "LOBBY"
+    (the lobby's `RoomInfo.code`; `JoinRoom` never finds it: generated codes have 8 characters and no `O`).
+  - Server: `Registry` holds the lobby next to the code map (name "Server Lobby", no owner → `CloseRoom`
+    gives `NotOwner`; not in `rooms.tsv`, never expires; speaking ticks include it). Handshake refusals now
+    go through `refuse()`, which waits up to 3 s for the client to hang up: before, the server dropped the
+    connection right after `VersionMismatch` and the client mostly saw "connection lost".
+  - Client: `Client::connect` tries protocol 2; if the connection ends between `Hello` and `Welcome`
+    (`VersionMismatch` or a lost stream, which is what v0.1.16 servers produce) it reconnects once with
+    protocol 1. `Client::has_lobby`, `join_lobby`; engine `Command::JoinLobby`, `Event::Connected { lobby }`,
+    reconnect rejoins the lobby with `JoinLobby`; app snapshot carries `lobby`; talk example `--lobby`.
+  - UI: a "Server Lobby" card on top of the home screen when the server has one (translated name in all 11
+    languages, `serverLobby.*`); in the lobby no code button, no close; never added to recent rooms.
+    Owner's colours (second try; the bright `#8634eb` box with a yellow title did not please): dark purple
+    `#2a2140` background, `#8634eb` frame, lilac `#c9a7ff` title, purple `#8634eb` "Join" button (hover
+    `#9a4ff0`) instead of the blue primary. Seen in the dev app on a local server: the
+    card shows with the new build and protocol 2; the new build on the Oracle server (v0.1.16) fell back to
+    protocol 1 and showed no card, as intended.
+  - Checks: new tests (registry: lobby not saved/not joinable by code; e2e: two clients in the lobby hear
+    each other, leave and rejoin, protocol 1 client served, unknown version refused; engine: lobby join/
+    leave twice, `LOBBY` by code → RoomNotFound, close → NotOwner). `cargo test` for the touched crates and
+    clippy (`-D warnings`) clean, `cargo check -p callout-app`, svelte-check 0 errors, UI build fine.
+    Live with the talk example: against a local **v0.1.16** server it fell back to protocol 1
+    (`lobby=false`, "this server has no lobby"); against the new server it entered "Server Lobby" and wrote
+    no `rooms.tsv` entry. Not seen in the app window yet (see Pending manual tests). One unrelated flake:
+    `engine_reconnects_after_server_restart_and_rejoins_its_room` once failed because its server did not
+    print an invite link (port bind); three reruns passed.
 - 16 Nov: **first long-distance field test** (logs only, no code change): "Furkan" in Canada (macOS,
   v0.1.20, ISP Bell) + Windows "bera" in Turkey, room GX4ANAKQ 17:29–19:16 UTC (~107 min), both sent logs,
   both left with `bye`. Owner: Furkan's voice clean. RTT Furkan ↔ Frankfurt **118 ms** median (bera 38 ms),

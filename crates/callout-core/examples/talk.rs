@@ -4,17 +4,19 @@
 //! Run:
 //!   cargo run -p callout-core --example talk -- "callout://IP:4433#FINGERPRINT" Nickname --create [--name RoomName]
 //!   cargo run -p callout-core --example talk -- "callout://IP:4433#FINGERPRINT" Nickname --room CODE
+//!   cargo run -p callout-core --example talk -- "callout://IP:4433#FINGERPRINT" Nickname --lobby
 //! Extra: [--ptt] (push-to-talk: pressing Enter sends for 3 s) [--volume ID=GAIN] [--input NAME] [--output NAME]
 //!        [--no-aec] (echo cancellation off)
 
 use anyhow::{Context, Result};
-use callout_core::{Command, Engine, EngineConfig, Event};
+use callout_core::{Command, Engine, EngineConfig, Event, LOBBY_CODE};
 use std::path::PathBuf;
 use std::time::Duration;
 
 enum RoomArg {
     Create(String),
     Join(String),
+    Lobby,
 }
 
 struct Args {
@@ -48,6 +50,7 @@ fn parse_args() -> Result<Args> {
                 }
             }
             "--room" => room = Some(RoomArg::Join(it.next().context("--room CODE")?)),
+            "--lobby" => room = Some(RoomArg::Lobby),
             "--volume" => {
                 let v = it.next().context("--volume ID=GAIN")?;
                 let (id, g) = v.split_once('=').context("--volume ID=GAIN")?;
@@ -60,7 +63,7 @@ fn parse_args() -> Result<Args> {
             other => anyhow::bail!("unknown argument: {other}"),
         }
     }
-    let room = room.context("--create or --room CODE is required")?;
+    let room = room.context("--create, --room CODE or --lobby is required")?;
     Ok(Args {
         invite,
         nickname,
@@ -127,18 +130,22 @@ async fn main() -> Result<()> {
                 let Some(ev) = ev else { break };
                 match ev {
                     Event::ConnectionState { state } => tracing::info!(?state, "connection"),
-                    Event::Connected { user_id } => {
-                        tracing::info!(user_id, "connected");
+                    Event::Connected { user_id, lobby } => {
+                        tracing::info!(user_id, lobby, "connected");
                         match &args.room {
                             RoomArg::Create(name) => engine.send(Command::CreateRoom { name: name.clone() }),
                             RoomArg::Join(code) => engine.send(Command::JoinRoom { code: code.clone() }),
+                            RoomArg::Lobby => engine.send(Command::JoinLobby),
                         }
                     }
                     Event::RoomUpdated { room, members } => {
                         let names: Vec<_> = members.iter().map(|m| format!("{}#{}{}", m.nickname, m.user_id, if m.muted { " (muted)" } else { "" })).collect();
                         match room {
                             Some(r) => {
-                                if !joined {
+                                if !joined && r.code == LOBBY_CODE {
+                                    joined = true;
+                                    tracing::info!("in the server lobby");
+                                } else if !joined {
                                     joined = true;
                                     tracing::info!("ROOM CODE: {}-{}  (give it to your friends: --room {})", &r.code[..4], &r.code[4..], r.code);
                                 }

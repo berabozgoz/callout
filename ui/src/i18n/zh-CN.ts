@@ -86,6 +86,8 @@ export const zhCN: Messages = {
   "lobby.joinButton": "加入",
   "lobby.forget": "从列表中移除",
   "lobby.disconnect": "断开连接",
+  "serverLobby.name": "服务器大厅",
+  "serverLobby.hint": "向此服务器上的所有人开放，无需房间码。",
 
   "room.copyCode": "复制代码",
   "room.leave": "离开",

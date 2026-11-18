@@ -87,6 +87,8 @@ export const ja: Messages = {
   "lobby.joinButton": "参加",
   "lobby.forget": "リストから削除",
   "lobby.disconnect": "切断",
+  "serverLobby.name": "サーバーロビー",
+  "serverLobby.hint": "このサーバーの誰でも参加できます。コードは不要です。",
 
   "room.copyCode": "コードをコピー",
   "room.leave": "退出",

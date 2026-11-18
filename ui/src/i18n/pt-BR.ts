@@ -87,6 +87,8 @@ export const ptBR: Messages = {
   "lobby.joinButton": "Entrar",
   "lobby.forget": "Remover da lista",
   "lobby.disconnect": "Desconectar",
+  "serverLobby.name": "Lobby do servidor",
+  "serverLobby.hint": "Aberto a todos neste servidor; não precisa de código.",
 
   "room.copyCode": "Copiar código",
   "room.leave": "Sair",

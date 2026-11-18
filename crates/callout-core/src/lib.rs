@@ -12,7 +12,7 @@ mod timing;
 use serde::{Deserialize, Serialize};
 
 pub use callout_audio::{list_devices, AudioError, DeviceInfo, Direction};
-pub use callout_proto::{Member, RoomInfo, UserId};
+pub use callout_proto::{Member, RoomInfo, UserId, LOBBY_CODE};
 pub use engine::{Engine, EngineConfig};
 
 /// UI → core.
@@ -31,6 +31,9 @@ pub enum Command {
     JoinRoom {
         code: String,
     },
+    /// Join the server lobby (no code; only when [`Event::Connected`] said `lobby`). Leaving it
+    /// is [`Command::LeaveRoom`]; in [`Event::RoomUpdated`] its code is [`LOBBY_CODE`].
+    JoinLobby,
     LeaveRoom,
     SetMuted {
         muted: bool,
@@ -161,9 +164,11 @@ pub enum Event {
     ConnectionState {
         state: ConnectionState,
     },
-    /// Connection established; the ID assigned by the server.
+    /// Connection established; the ID assigned by the server. `lobby`: the server has a lobby
+    /// ([`Command::JoinLobby`]); servers before protocol 2 do not.
     Connected {
         user_id: UserId,
+        lobby: bool,
     },
     /// Room state changed; no `room` means we are not in a room.
     RoomUpdated {

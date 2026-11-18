@@ -60,10 +60,18 @@ Client A (Tauri)             callout-server (VPS / home PC)       Client B…N
 Single tokio process, single UDP port. Modules: `sfu` (one task per room, stamps with `stamp_sender` and forwards;
 packets from muted members are not forwarded), `rooms`, `auth` (challenge → Ed25519 signature), `store` (sqlx/SQLite),
 `admin` (health + metrics). Phase 3: `presence`, `chat`. Rooms are pinned to a server; no cross-server routing.
+Every server also has one **Server Lobby** (since protocol 2): a room that always exists, open to every
+connected user without a code (`JoinLobby`; its `RoomInfo.code` is `LOBBY_CODE`, which `JoinRoom` never
+finds), with no owner (nobody can close it), never saved to `rooms.tsv` and never expired. Like any room
+it costs nothing while empty.
 
 ## Protocol
 
-Control: `[u32 LE length][postcard(ClientMsg|ServerMsg)]`, rejected on `PROTOCOL_VERSION` mismatch.
+Control: `[u32 LE length][postcard(ClientMsg|ServerMsg)]`. The server accepts client protocol versions
+`MIN_PROTOCOL_VERSION..=PROTOCOL_VERSION` (1–2) and refuses others with `VersionMismatch`; a client the server
+refuses retries once with `MIN_PROTOCOL_VERSION` and leaves the newer features off (no lobby on a protocol 1
+server, which also drops the connection before its refusal arrives, so a lost connection right after `Hello`
+counts as a refusal too). New `ClientMsg` variants that a client must know the server supports bump the version.
 Handshake: `Hello` → `Welcome{challenge}` → `Auth{signature}` → `Authed`.
 Diagnostic log upload (user consent each time): a second bidirectional stream after authentication,
 `[u32 LE length][postcard(LogUpload)]` + log text, answered by one `LogUploadReply`. Control messages are

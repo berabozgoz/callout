@@ -10,6 +10,10 @@
 //! Rules:
 //! - An incompatible change bumps [`PROTOCOL_VERSION`]; the server rejects old
 //!   clients with [`ServerMsg::Error`] + [`ErrorCode::VersionMismatch`].
+//! - A compatible addition the client must know the server supports (a new [`ClientMsg`]) also
+//!   bumps it, and the server keeps accepting versions down to [`MIN_PROTOCOL_VERSION`]. A client
+//!   rejected with `VersionMismatch` retries with `MIN_PROTOCOL_VERSION` (an older server) and then
+//!   leaves the newer features out.
 //! - When adding something, append it to the end of the enum variants; the order
 //!   determines `postcard`'s wire format.
 
@@ -18,8 +22,20 @@
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
-/// Control protocol version. Bump on incompatible changes.
-pub const PROTOCOL_VERSION: u16 = 1;
+/// Control protocol version. Bump on incompatible changes, and on additions a client must know
+/// the server supports.
+///
+/// - 1: rooms by code.
+/// - 2: [`ClientMsg::JoinLobby`] (the server's always-open lobby room).
+pub const PROTOCOL_VERSION: u16 = 2;
+
+/// Oldest client protocol the server still accepts (version 2 only added messages).
+pub const MIN_PROTOCOL_VERSION: u16 = 1;
+
+/// [`RoomInfo::code`] of the server lobby. It cannot be joined with [`ClientMsg::JoinRoom`]
+/// (generated codes are 8 characters and never contain an `O`), only with
+/// [`ClientMsg::JoinLobby`]; clients recognize the lobby by it.
+pub const LOBBY_CODE: &str = "LOBBY";
 
 /// Room code length (uppercase letters + digits, e.g. `K7Q2-MX9P`).
 pub const ROOM_CODE_LEN: usize = 8;
@@ -74,6 +90,10 @@ pub enum ClientMsg {
     /// Close the current room for everyone and delete it from the server. Only the device that
     /// created the room may do this (`ErrorCode::NotOwner` otherwise).
     CloseRoom,
+    /// Join the server lobby: a room every connected user may enter without a code. It always
+    /// exists, has no owner (it cannot be closed) and is answered like `JoinRoom`, with a
+    /// `RoomState` whose code is [`LOBBY_CODE`]. Protocol version 2 and later.
+    JoinLobby,
 }
 
 /// Server → client.
@@ -298,6 +318,7 @@ mod tests {
             },
             ClientMsg::SetMuted(true),
             ClientMsg::Ping(42),
+            ClientMsg::JoinLobby,
         ];
         for m in msgs {
             let bytes = encode(&m).unwrap();

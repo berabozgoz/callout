@@ -62,6 +62,7 @@ cargo run -p callout-audio --example loopback   # mic → headphones, latency me
 cargo run -p callout-server                 # server; prints the invite link
 cargo run -p callout-core --example talk -- "<invite>" Name --create   # open a room (prints the code)
 cargo run -p callout-core --example talk -- "<invite>" Name --room CODE # join a room
+cargo run -p callout-core --example talk -- "<invite>" Name --lobby     # join the Server Lobby
 cd ui && npm install && cd ../apps/callout-app && cargo tauri dev   # app
 ```
 

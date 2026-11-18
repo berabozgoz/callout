@@ -86,6 +86,8 @@ export const tr: Messages = {
   "lobby.joinButton": "Gir",
   "lobby.forget": "Listeden kaldır",
   "lobby.disconnect": "Bağlantıyı kes",
+  "serverLobby.name": "Sunucu Lobisi",
+  "serverLobby.hint": "Bu sunucudaki herkese açık; kod gerekmez.",
 
   "room.copyCode": "Kodu kopyala",
   "room.leave": "Ayrıl",

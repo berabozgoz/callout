@@ -86,6 +86,8 @@ export const ko: Messages = {
   "lobby.joinButton": "참가",
   "lobby.forget": "목록에서 삭제",
   "lobby.disconnect": "연결 끊기",
+  "serverLobby.name": "서버 로비",
+  "serverLobby.hint": "이 서버의 모든 사람에게 열려 있습니다. 코드가 필요 없습니다.",
 
   "room.copyCode": "코드 복사",
   "room.leave": "나가기",

@@ -5,13 +5,18 @@
 //! server restart). The list is saved to `rooms.tsv` in the data directory; rooms unused for
 //! `ROOM_TTL` are dropped. Codes are 8 characters long and avoid confusable characters (I, O, 0, 1).
 //!
+//! Next to these, every server has one lobby ([`Registry::lobby`]): a room that always exists,
+//! has no owner and no code anyone can type (its code is [`LOBBY_CODE`], which `get` never finds),
+//! so it is never saved, never expires and cannot be closed. Like any room, it costs nothing while
+//! empty (no task or timer per room; audio only flows while someone talks).
+//!
 //! Forwarding rule: an incoming datagram is stamped with `stamp_sender` and copied
 //! to every non-deafened member except the sender. A muted member's packets are
 //! never forwarded (the client does not send them anyway; this is a server-side safeguard).
 
 use bytes::{Bytes, BytesMut};
 use callout_proto::{
-    AudioPacket, Member, RoomInfo, ServerMsg, UserId, MAX_ROOM_MEMBERS, ROOM_CODE_LEN,
+    AudioPacket, Member, RoomInfo, ServerMsg, UserId, LOBBY_CODE, MAX_ROOM_MEMBERS, ROOM_CODE_LEN,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -140,11 +145,43 @@ impl Rooms {
     }
 }
 
-/// Code → room registry.
-#[derive(Clone, Default)]
-pub struct Registry(Arc<Mutex<Rooms>>);
+/// Name of the lobby as the server reports it (the app shows its own translation).
+pub const LOBBY_NAME: &str = "Server Lobby";
+
+/// Code → room registry, plus the lobby.
+#[derive(Clone)]
+pub struct Registry {
+    rooms: Arc<Mutex<Rooms>>,
+    lobby: SharedRoom,
+}
+
+impl Default for Registry {
+    /// In memory only (nothing saved).
+    fn default() -> Self {
+        Self::with_rooms(Rooms::default())
+    }
+}
 
 impl Registry {
+    fn with_rooms(rooms: Rooms) -> Self {
+        Self {
+            rooms: Arc::new(Mutex::new(rooms)),
+            lobby: SharedRoom::new(
+                RoomInfo {
+                    code: LOBBY_CODE.into(),
+                    name: LOBBY_NAME.into(),
+                    owner: 0,
+                },
+                None,
+            ),
+        }
+    }
+
+    /// The server lobby (always the same room).
+    pub fn lobby(&self) -> SharedRoom {
+        self.lobby.clone()
+    }
+
     /// Registry backed by `path`: loads the rooms saved there (skipping expired ones) and saves
     /// every change. A missing or unreadable file starts empty.
     pub fn load(path: PathBuf) -> Self {
@@ -185,12 +222,12 @@ impl Registry {
             rooms.save();
         }
         tracing::info!(rooms = rooms.rooms.len(), expired, "rooms loaded");
-        Self(Arc::new(Mutex::new(rooms)))
+        Self::with_rooms(rooms)
     }
 
     /// Creates and registers a new room; the code is guaranteed unique.
     pub fn create(&self, name: String, owner: UserId, owner_key: [u8; 32]) -> SharedRoom {
-        let mut map = self.0.lock().unwrap();
+        let mut map = self.rooms.lock().unwrap();
         if map.rooms.len() >= MAX_ROOMS {
             // Make room by dropping the longest-unused empty room.
             let oldest = map
@@ -225,7 +262,7 @@ impl Registry {
     }
 
     pub fn get(&self, code: &str) -> Option<SharedRoom> {
-        self.0
+        self.rooms
             .lock()
             .unwrap()
             .rooms
@@ -235,9 +272,15 @@ impl Registry {
 
     /// Called after a member left: an empty room is kept (same code later) and its last use noted.
     pub fn member_left(&self, room: &SharedRoom) {
+        if room.is_same(&self.lobby) {
+            if room.len() == 0 {
+                tracing::info!("lobby empty");
+            }
+            return;
+        }
         if room.len() == 0 {
             let code = room.code();
-            let mut map = self.0.lock().unwrap();
+            let mut map = self.rooms.lock().unwrap();
             map.last_used.insert(code.clone(), unix_now());
             map.save();
             tracing::info!(code, "room empty (kept)");
@@ -247,7 +290,7 @@ impl Registry {
     /// Removes a room for good (owner closed it); members are not touched here.
     pub fn delete(&self, room: &SharedRoom) {
         let code = room.code();
-        let mut map = self.0.lock().unwrap();
+        let mut map = self.rooms.lock().unwrap();
         map.rooms.remove(&code);
         map.last_used.remove(&code);
         map.save();
@@ -255,21 +298,22 @@ impl Registry {
 
     /// Drops rooms unused for longer than [`ROOM_TTL`]; call periodically.
     pub fn expire(&self) {
-        let mut map = self.0.lock().unwrap();
+        let mut map = self.rooms.lock().unwrap();
         if map.expire(unix_now(), ROOM_TTL) > 0 {
             map.save();
         }
     }
 
+    /// Number of stored rooms (the lobby not counted).
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
-        self.0.lock().unwrap().rooms.len()
+        self.rooms.lock().unwrap().rooms.len()
     }
 
-    /// Clears timed-out speakers in all rooms.
+    /// Clears timed-out speakers in all rooms and the lobby.
     pub fn tick_speaking(&self) {
-        let rooms: Vec<SharedRoom> = self.0.lock().unwrap().rooms.values().cloned().collect();
-        for r in rooms {
+        let rooms: Vec<SharedRoom> = self.rooms.lock().unwrap().rooms.values().cloned().collect();
+        for r in rooms.iter().chain(std::iter::once(&self.lobby)) {
             r.tick_speaking();
         }
     }
@@ -282,6 +326,11 @@ impl SharedRoom {
             peers: HashMap::new(),
             owner_key,
         })))
+    }
+
+    /// Whether both handles are the same room.
+    pub fn is_same(&self, other: &SharedRoom) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
     }
 
     pub fn owner_key(&self) -> Option<[u8; 32]> {
@@ -487,6 +536,28 @@ mod tests {
         assert!(again.is_owner(&[9; 32]), "owner lost on restart");
         assert!(!again.is_owner(&[8; 32]));
         assert_eq!(reloaded.len(), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn lobby_has_no_code_owner_or_file_entry() {
+        let path = temp_file("lobby");
+        let _ = std::fs::remove_file(&path);
+        let reg = Registry::load(path.clone());
+        let lobby = reg.lobby();
+        assert!(lobby.is_same(&reg.lobby()), "lobby is one room");
+        assert_eq!(lobby.code(), LOBBY_CODE);
+        assert_eq!(lobby.name(), LOBBY_NAME);
+        assert!(lobby.owner_key().is_none(), "nobody may close the lobby");
+        // Not reachable by code, whatever the spelling.
+        for typed in [LOBBY_CODE, "lobby", "LOB-BY"] {
+            assert!(reg.get(typed).is_none(), "lobby joinable by code {typed:?}");
+        }
+        reg.member_left(&lobby);
+        reg.create("team".into(), 1, [1; 32]);
+        assert_eq!(reg.len(), 1, "lobby counted as a room");
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(!saved.contains(LOBBY_CODE), "lobby saved: {saved}");
         let _ = std::fs::remove_file(&path);
     }
 

@@ -93,6 +93,8 @@ export const en = {
   "lobby.joinButton": "Join",
   "lobby.forget": "Remove from the list",
   "lobby.disconnect": "Disconnect",
+  "serverLobby.name": "Server Lobby",
+  "serverLobby.hint": "Open to everyone on this server; no code needed.",
 
   // room
   "room.copyCode": "Copy code",

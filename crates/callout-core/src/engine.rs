@@ -30,7 +30,7 @@ use callout_net::cert::Invite;
 use callout_net::client::Client;
 use callout_net::identity::DeviceKey;
 use callout_proto::{
-    flags, AudioPacket, ClientMsg, Member, RoomInfo, ServerMsg, UserId, FRAME_SAMPLES,
+    flags, AudioPacket, ClientMsg, Member, RoomInfo, ServerMsg, UserId, FRAME_SAMPLES, LOBBY_CODE,
     SAMPLE_RATE_HZ,
 };
 use cpal::traits::{DeviceTrait, StreamTrait};
@@ -1328,10 +1328,24 @@ async fn run(
         emit(Event::ConnectionState {
             state: ConnectionState::Connected,
         });
-        emit(Event::Connected { user_id: my_id });
+        let lobby = client.has_lobby();
+        emit(Event::Connected {
+            user_id: my_id,
+            lobby,
+        });
         if let Some(code) = reconnect.take().and_then(|r| r.room) {
             tracing::info!(code, "reconnected; rejoining room");
-            if let Err(e) = client.join_room(&code).await {
+            let rejoin = if code == LOBBY_CODE {
+                if lobby {
+                    client.join_lobby().await
+                } else {
+                    // Reconnected to an older server (downgraded meanwhile): no lobby to go back to.
+                    Ok(())
+                }
+            } else {
+                client.join_room(&code).await
+            };
+            if let Err(e) = rejoin {
                 emit(Event::Error {
                     kind: ErrorKind::RequestFailed,
                     message: format!("rejoin room: {e}"),
@@ -1363,12 +1377,14 @@ async fn run(
                         // re-emit the current state.
                         Command::Connect { .. } => {
                             emit(Event::ConnectionState { state: ConnectionState::Connected });
-                            emit(Event::Connected { user_id: my_id });
+                            emit(Event::Connected { user_id: my_id, lobby });
                             emit(Event::RoomUpdated { room: room.clone(), members: members.clone() });
                             Ok(())
                         }
                         Command::CreateRoom { name } => client.create_room(&name).await.map_err(request_err),
                         Command::JoinRoom { code } => client.join_room(&code).await.map_err(request_err),
+                        Command::JoinLobby if !lobby => Err((ErrorKind::RoomNotFound, "this server has no lobby".into())),
+                        Command::JoinLobby => client.join_lobby().await.map_err(request_err),
                         Command::CloseRoom => client.close_room().await.map_err(request_err),
                         Command::LeaveRoom => {
                             // The server sends no confirmation to the leaver; clear local state right away.

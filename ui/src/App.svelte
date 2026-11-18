@@ -4,7 +4,7 @@
   import {
     send, getSettings, saveSettings, listDevices, appVersion, onEngine, onPtt, prettyCode,
     engineSnapshot, pttCapture, prettyShortcut, setTrayLabels, isInstalled, openReleasesPage, sendLog,
-    pttInputAccess, openInputMonitoringSettings, isMac,
+    pttInputAccess, openInputMonitoringSettings, isMac, isLobby,
     type Settings, type Device, type Member, type JoinSound, JOIN_SOUNDS, type RoomInfo, type ConnectionState, type MicTestState,
     type ErrorKind, type LogUploadOutcome,
   } from "./engine";
@@ -23,6 +23,8 @@
   let version = $state("");
   let conn = $state<ConnectionState>("disconnected");
   let myId = $state<number | null>(null);
+  // The connected server has a lobby (older servers do not; the lobby card is hidden then).
+  let hasLobby = $state(false);
   let room = $state<RoomInfo | null>(null);
   let members = $state<Member[]>([]);
   let speaking = $state<Set<number>>(new Set());
@@ -155,12 +157,13 @@
         case "connection_state":
           if (e.state === "reconnecting") hadProblem = true;
           conn = e.state;
-          if (e.state === "disconnected") { room = null; members = []; myId = null; speaking = new Set(); }
+          if (e.state === "disconnected") { room = null; members = []; myId = null; hasLobby = false; speaking = new Set(); }
           break;
-        case "connected": myId = e.user_id; error = null; break;
+        case "connected": myId = e.user_id; hasLobby = e.lobby; error = null; break;
         case "room_updated":
-          if (e.room && e.room.code !== room?.code) rememberRoom(e.room);
-          if (!e.room && room) closedCode = room.code;
+          // The lobby is always on the home screen, so it never goes into the recent rooms.
+          if (e.room && e.room.code !== room?.code && !isLobby(e.room)) rememberRoom(e.room);
+          if (!e.room && room && !isLobby(room)) closedCode = room.code;
           if (e.room) joiningCode = null;
           if (e.room?.code !== room?.code) confirmClose = false;
           room = e.room; members = e.members;
@@ -202,7 +205,7 @@
     // Read after the listeners are set up so no events in between are missed.
     try {
       const s = await engineSnapshot();
-      conn = s.connection; myId = s.user_id; room = s.room; members = s.members;
+      conn = s.connection; myId = s.user_id; hasLobby = s.lobby; room = s.room; members = s.members;
       muted = s.muted; deafened = s.deafened;
       if (s.input_rate !== undefined) inputRate = s.input_rate;
     } catch (e) { error = fail(e); }
@@ -279,7 +282,10 @@
   const defaultRoomName = $derived(t("lobby.defaultRoomName", { name: settings.nickname.trim() }));
   const createRoom = () => send({ type: "create_room", name: roomName.trim() || defaultRoomName });
   const joinRoom = () => { if (joinCode.trim()) send({ type: "join_room", code: joinCode.trim() }); };
+  const joinLobby = () => send({ type: "join_lobby" });
   const leaveRoom = () => send({ type: "leave_room" });
+  // The lobby's name in the user's language (the server calls it "Server Lobby").
+  const roomTitle = (r: RoomInfo) => (isLobby(r) ? t("serverLobby.name") : r.name);
 
   // ---- recent rooms (persistent on the server: the same code works next time) ----
   const MAX_RECENT = 5;
@@ -627,6 +633,17 @@
     </section>
   {:else if !room}
     <!-- ---------- Lobby ---------- -->
+    {#if hasLobby}
+      <section class="card serverlobby">
+        <div class="serverlobbyrow">
+          <div>
+            <h2>{t("serverLobby.name")}</h2>
+            <p class="hint">{t("serverLobby.hint")}</p>
+          </div>
+          <button class="primary" onclick={joinLobby}>{t("lobby.joinButton")}</button>
+        </div>
+      </section>
+    {/if}
     <section class="card">
       <h2>{t("lobby.create")}</h2>
       <label>{t("lobby.roomName")}
@@ -662,10 +679,12 @@
     <section class="card room">
       <div class="roomhead">
         <div class="roomtitle">
-          <h2>{room.name}</h2>
-          <button class="codebtn" title={t("room.copyCode")} onclick={copyCode}>
-            {prettyCode(room.code)} {copied ? "✓" : "⧉"}
-          </button>
+          <h2>{roomTitle(room)}</h2>
+          {#if !isLobby(room)}
+            <button class="codebtn" title={t("room.copyCode")} onclick={copyCode}>
+              {prettyCode(room.code)} {copied ? "✓" : "⧉"}
+            </button>
+          {/if}
         </div>
         <div class="roomactions">
           {#if room.owner !== 0 && room.owner === myId}

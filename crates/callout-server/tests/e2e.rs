@@ -4,7 +4,7 @@ use bytes::Bytes;
 use callout_net::cert::Invite;
 use callout_net::client::Client;
 use callout_net::identity::DeviceKey;
-use callout_proto::{AudioPacket, ErrorCode, ServerMsg};
+use callout_proto::{AudioPacket, ErrorCode, ServerMsg, LOBBY_CODE};
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
@@ -282,4 +282,91 @@ async fn only_the_creator_can_close_a_room() {
 
     a.close();
     b.close();
+}
+
+#[tokio::test]
+async fn lobby_is_open_to_everyone_without_a_code() {
+    let server = Server::start("server-lobby");
+    let invite = &server.invite;
+    let mut a = Client::connect(invite, &DeviceKey::generate(), "alice")
+        .await
+        .expect("A");
+    let mut b = Client::connect(invite, &DeviceKey::generate(), "bob")
+        .await
+        .expect("B");
+    assert!(a.has_lobby() && b.has_lobby());
+
+    a.join_lobby().await.unwrap();
+    match recv(&mut a).await {
+        ServerMsg::RoomState { room, members } => {
+            assert_eq!(room.code, LOBBY_CODE);
+            assert_eq!(room.owner, 0);
+            assert_eq!(members.len(), 1);
+        }
+        other => panic!("unexpected: {other:?}"),
+    }
+    b.join_lobby().await.unwrap();
+    match recv(&mut b).await {
+        ServerMsg::RoomState { members, .. } => assert_eq!(members.len(), 2),
+        other => panic!("unexpected: {other:?}"),
+    }
+    assert!(matches!(recv(&mut a).await, ServerMsg::MemberJoined(_)));
+
+    // Audio flows like in any room.
+    let mut buf = Vec::new();
+    AudioPacket {
+        sender_id: 0,
+        seq: 1,
+        timestamp: 960,
+        flags: 0,
+        opus: &[1, 2, 3],
+    }
+    .write_to(&mut buf)
+    .unwrap();
+    a.send_audio(Bytes::from(buf)).unwrap();
+    let got = tokio::time::timeout(Duration::from_secs(3), b.recv_audio())
+        .await
+        .expect("no audio in the lobby")
+        .unwrap();
+    assert_eq!(AudioPacket::parse(&got).unwrap().sender_id, a.user_id());
+
+    // Leaving and coming back works at will; the lobby is still there when empty.
+    b.leave_room().await.unwrap();
+    assert!(matches!(
+        recv_skip_speaking(&mut a).await,
+        ServerMsg::MemberLeft(_)
+    ));
+    a.leave_room().await.unwrap();
+    b.join_lobby().await.unwrap();
+    match recv_skip_speaking(&mut b).await {
+        ServerMsg::RoomState { room, members } => {
+            assert_eq!(room.code, LOBBY_CODE);
+            assert_eq!(members.len(), 1);
+        }
+        other => panic!("unexpected: {other:?}"),
+    }
+    a.close();
+    b.close();
+}
+
+#[tokio::test]
+async fn protocol_1_clients_are_still_served() {
+    let server = Server::start("proto-one");
+    let invite = &server.invite;
+    let mut old = Client::connect_with(invite, &DeviceKey::generate(), "old", 1)
+        .await
+        .expect("a protocol 1 client was refused");
+    assert!(!old.has_lobby());
+    old.create_room("team").await.unwrap();
+    assert!(matches!(recv(&mut old).await, ServerMsg::RoomState { .. }));
+
+    // A version the server does not know is still refused.
+    match Client::connect_with(invite, &DeviceKey::generate(), "future", 999).await {
+        Err(callout_net::client::ClientError::Rejected { code, .. }) => {
+            assert_eq!(code, ErrorCode::VersionMismatch)
+        }
+        Err(e) => panic!("unexpected error: {e}"),
+        Ok(_) => panic!("protocol 999 accepted"),
+    }
+    old.close();
 }

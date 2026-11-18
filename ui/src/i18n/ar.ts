@@ -87,6 +87,8 @@ export const ar: Messages = {
   "lobby.joinButton": "انضمام",
   "lobby.forget": "إزالة من القائمة",
   "lobby.disconnect": "قطع الاتصال",
+  "serverLobby.name": "ردهة الخادم",
+  "serverLobby.hint": "مفتوحة لكل من على هذا الخادم، دون رمز.",
 
   "room.copyCode": "نسخ الرمز",
   "room.leave": "مغادرة",

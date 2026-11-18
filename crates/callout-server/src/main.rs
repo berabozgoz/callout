@@ -17,7 +17,7 @@ use callout_net::{frame_control, unframe_control};
 use callout_net::{identity, transport_config, ALPN, DEFAULT_PORT};
 use callout_proto::{
     ClientMsg, ErrorCode, LogUpload, LogUploadReply, Member, PublicKey, ServerMsg, UserId,
-    MAX_LOG_UPLOAD, PROTOCOL_VERSION,
+    MAX_LOG_UPLOAD, MIN_PROTOCOL_VERSION, PROTOCOL_VERSION,
 };
 use logs::LogStore;
 use room::{Registry, SharedRoom};
@@ -135,19 +135,19 @@ async fn handle_connection(
     let mut control: ControlStream<ServerMsg, ClientMsg> = ControlStream::new(send, recv);
 
     // --- Handshake ---
-    let (pubkey, nickname) = match control.recv().await? {
+    // Older clients (down to MIN_PROTOCOL_VERSION) only lack messages, so they are served as is.
+    let (pubkey, nickname, version) = match control.recv().await? {
         ClientMsg::Hello {
             version,
             device_pubkey,
             nickname,
-        } if version == PROTOCOL_VERSION => (device_pubkey, nickname),
+        } if (MIN_PROTOCOL_VERSION..=PROTOCOL_VERSION).contains(&version) => {
+            (device_pubkey, nickname, version)
+        }
         ClientMsg::Hello { version, .. } => {
-            control
-                .send(&ServerMsg::Error {
-                    code: ErrorCode::VersionMismatch,
-                    message: format!("protocol {version}, server {PROTOCOL_VERSION}"),
-                })
-                .await?;
+            let message =
+                format!("protocol {version}, server {MIN_PROTOCOL_VERSION}–{PROTOCOL_VERSION}");
+            refuse(&mut control, &conn, ErrorCode::VersionMismatch, message).await;
             anyhow::bail!("protocol version mismatch: {version}");
         }
         other => anyhow::bail!("expected Hello: {other:?}"),
@@ -161,17 +161,13 @@ async fn handle_connection(
         ClientMsg::Auth { signature }
             if identity::verify(&pubkey, &challenge, &signature).is_ok() => {}
         _ => {
-            control
-                .send(&ServerMsg::Error {
-                    code: ErrorCode::BadSignature,
-                    message: "invalid signature".into(),
-                })
-                .await?;
+            let message = "invalid signature".to_string();
+            refuse(&mut control, &conn, ErrorCode::BadSignature, message).await;
             anyhow::bail!("invalid signature");
         }
     }
     control.send(&ServerMsg::Authed).await?;
-    tracing::info!(user_id, nickname, remote = %conn.remote_address(), "authenticated");
+    tracing::info!(user_id, nickname, version, remote = %conn.remote_address(), "authenticated");
 
     // --- Room state: the user starts out in no room ---
     let (tx, mut rx) = mpsc::unbounded_channel::<ServerMsg>();
@@ -278,6 +274,19 @@ async fn handle_connection(
                             }
                         }
                     }
+                    ClientMsg::JoinLobby => {
+                        if current.read().unwrap().is_some() {
+                            control.send(&ServerMsg::Error { code: ErrorCode::AlreadyInRoom, message: "leave the room first".into() }).await?;
+                            continue;
+                        }
+                        let room = registry.lobby();
+                        if room.join(member.clone(), pubkey, tx.clone(), conn.clone()).is_none() {
+                            control.send(&ServerMsg::Error { code: ErrorCode::RoomFull, message: "the lobby is full".into() }).await?;
+                        } else {
+                            tracing::info!(user_id, members = room.len(), "joined lobby");
+                            *current.write().unwrap() = Some(room);
+                        }
+                    }
                     ClientMsg::LeaveRoom => {
                         if let Some(code) = leave(&current, &registry) {
                             tracing::info!(user_id, code, "left room");
@@ -345,6 +354,25 @@ async fn handle_connection(
         "connection closed"
     );
     result
+}
+
+/// Sends a handshake refusal and waits (briefly) for the client to hang up: dropping the
+/// connection right away could discard the error before it is delivered, and the client then only
+/// sees a lost connection (it needs `VersionMismatch` to fall back to an older protocol).
+async fn refuse(
+    control: &mut ControlStream<ServerMsg, ClientMsg>,
+    conn: &quinn::Connection,
+    code: ErrorCode,
+    message: String,
+) {
+    if control
+        .send(&ServerMsg::Error { code, message })
+        .await
+        .is_ok()
+    {
+        let _ = control.finish().await;
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(3), conn.closed()).await;
+    }
 }
 
 /// Reads one log upload (header + text, up to `MAX_LOG_UPLOAD`), stores it and answers.

@@ -87,6 +87,8 @@ export const ru: Messages = {
   "lobby.joinButton": "Войти",
   "lobby.forget": "Убрать из списка",
   "lobby.disconnect": "Отключиться",
+  "serverLobby.name": "Лобби сервера",
+  "serverLobby.hint": "Открыто для всех на этом сервере, код не нужен.",
 
   "room.copyCode": "Копировать код",
   "room.leave": "Выйти",
