@@ -40,7 +40,7 @@ Things that passed automated checks but still need a person, a real Windows PC o
 Tick and move the result to "Last session" (or `GATE_TEST.md`) when done; release only after the
 items marked **before release** pass.
 
-- [ ] **Server Lobby in the app** (before release; unreleased since 18 Nov): with a local server
+- [x] **Server Lobby in the app** (before release; v0.1.21): with a local server
       (`cargo run -p callout-server`) and `cargo tauri dev`: after connecting, the home screen shows the
       "Server Lobby" card on top (in Turkish "Sunucu Lobisi"; check one more language and Arabic RTL),
       dark purple box `#2a2140` with a `#8634eb` frame and a lilac `#c9a7ff` title and a purple "Join" (owner's choice);
@@ -48,10 +48,16 @@ items marked **before release** pass.
       and the lobby does **not** appear in the recent rooms; typing `LOBBY` in the code field says the room
       does not exist. Two PCs (or the app + `talk --lobby`) in the lobby hear each other. Kill and restart
       the server while in the lobby: the app reconnects and lands in the lobby again.
-- [ ] **Server Lobby with old/new versions** (before release): the new app against the **current Oracle
+      ✓ 18 Nov (owner, `cargo tauri dev` on a local server): card shows with the final colours, joining and
+      leaving the lobby several times works (server log: `joined lobby` / `lobby empty`). Checked by Claude
+      in a mocked UI: Turkish, English, Arabic RTL, no code button/close, not in recent rooms, `LOBBY` by
+      code refused. Two members hearing each other is covered by the e2e test (`lobby_is_open_to_everyone…`),
+      not by ears; the reconnect into the lobby is untested in the app. Owner asked to release.
+- [ ] **Server Lobby with old/new versions** (at release): the new app against the **current Oracle
       server (v0.1.16)** connects normally and shows **no** lobby card (checked headless on 18 Nov with the
       talk example against a local v0.1.16 server: "server refused protocol 2 … retrying with 1",
-      `lobby=false`); after the release the server must be updated (`install.sh`), then an **old app**
+      `lobby=false`; ✓ also live on 18 Nov 01:28 UTC: the dev app connected to the Oracle server with
+      `version=1`, no card); after the release the server must be updated (`install.sh`), then an **old app**
       (v0.1.20) still connects and uses rooms by code. Release order: update the server right after the
       release is published (the lobby only shows once it runs protocol 2).
 
