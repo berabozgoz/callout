@@ -257,7 +257,8 @@ fn saved_volumes_for(
 }
 
 /// The default window height fits the settings page without scrolling; on a short screen
-/// (e.g. 1366×768) shrink it to the work area instead of letting it run under the taskbar.
+/// (e.g. 1366×768) shrink it to the work area instead of letting it run under the taskbar. The
+/// window is neither resizable nor maximizable for the user (owner's choice); `set_size` still works.
 fn fit_window_to_screen(w: &tauri::WebviewWindow) -> tauri::Result<()> {
     let Some(monitor) = w.current_monitor()? else {
         return Ok(());

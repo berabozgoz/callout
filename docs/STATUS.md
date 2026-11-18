@@ -24,8 +24,9 @@
   microphone / Input Monitoring permission on every update). Push-to-talk via a listen-only Quartz event
   tap, audio thread at QoS user-interactive, in-app updates through the same `latest.json`. Tested on the
   owner's 2014 MacBook Air (Intel, macOS 11.7.11); no Apple Silicon Mac yet.
-- **Unreleased (working tree, 18 Nov):** macOS restarts by itself after an in-app update (`restart_app`); the
-  header logo also on Windows, no icon in the title bar; not committed yet (check `git log v0.1.22..`). The server needs no update for v0.1.22
+- **Unreleased on `main` (since v0.1.22):** macOS restarts by itself after an in-app update (`restart_app`); the
+  header logo also on Windows, no icon in the title bar; errors shown to the user go to the log; the window
+  is no longer resizable (19 Nov). Check `git log v0.1.22..`. The server needs no update for v0.1.22
   (no server or protocol change); it stays on v0.1.21.
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
@@ -149,7 +150,7 @@ items marked **before release** pass.
       native title bar stays (no plum strip); the green button must not zoom or go full screen.
       ✓ 18 Nov (owner, released v0.1.22 after the in-app update from v0.1.21): the new window and icon came
       with the update, the window cannot be maximized; Win+Up does not maximize it either, and the window
-      resizes from its edges (owner: edge resizing stays).
+      resizes from its edges (owner first kept that; on 19 Nov asked to turn it off, see below).
 - [x] **Redesign: per-player mute** (v0.1.22; not tried before the release): in a room with two people, the speaker button next
       to the other player's slider mutes them for you only (red icon, slider locked, the percentage
       struck through, no speaking ring); unmuting brings back the same volume (try at 50 %). Pulling the
@@ -165,6 +166,12 @@ items marked **before release** pass.
       915 px). On a screen shorter than that the window shrinks to the work area (`fit_window_to_screen`)
       and the settings scroll again.
       ✓ 18 Nov (owner, v0.1.22): settings fit, looks right on Windows and on the Mac.
+- [ ] **Window not resizable** (next release; 19 Nov, owner's wish): `resizable: false` in `tauri.conf.json`
+      and `tauri.windows.conf.json` (it was already not maximizable). Check on Windows and the Mac: the
+      window edges no longer resize it (no resize cursor), dragging the title bar still moves it, minimize
+      and close work; settings still fit at 420×920 / 420×890. On a screen shorter than that the window
+      still starts shrunk to the work area (`fit_window_to_screen`; e.g. Windows display scaling 150 % on
+      1080p) and the settings scroll there.
 - [ ] **macOS: restart after an in-app update** (next release; found 18 Nov): updating the Mac to v0.1.22
       downloaded and installed it, but the app stayed at "100%" and only a manual restart started the new
       version: on macOS the updater replaces the bundle without relaunching (the Windows installer restarts
@@ -528,6 +535,9 @@ items marked **before release** pass.
 
 ## Last session
 
+- 19 Nov (owner): **the window is no longer resizable** (`resizable: false` on Windows and macOS; it was
+  already not maximizable). `fit_window_to_screen` keeps shrinking it on short screens (`set_size` is not
+  limited by `resizable`). Clippy (app) and `cargo test -p callout-app` clean; not tried in the real app.
 - 19 Nov (owner: "add it"): **errors shown to the user now go to the log.** `engine.rs`: the `emit` helper
   and `open_preview` call the new `log_error`, which writes `error shown to the user kind=… detail="…"`
   (`warn`; `RoomClosed` at `info`); an invalid invite logs only its kind, since the detail echoes what the

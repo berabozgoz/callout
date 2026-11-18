@@ -10,7 +10,7 @@
         "center": true,
         "minWidth": 360,
         "minHeight": 512,
-        "resizable": true,
+        "resizable": false,
         "maximizable": false,
         "decorations": false
       }
