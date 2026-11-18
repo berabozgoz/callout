@@ -15,9 +15,9 @@
 - **Server:** Oracle Always Free (Frankfurt) runs **v0.1.21** (protocol 2, Server Lobby; persistent rooms in
   `/var/lib/callout/rooms.tsv`, owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated
   18 Nov 02:05 UTC, nobody was connected, invite link unchanged, 12 rooms loaded). Ubuntu
-  `unattended-upgrades` is on, but a **reboot has been pending since 13 Nov** (kernel 7.0.0-1016-oracle,
-  `libc6`; running 6.17.0-1020-oracle, up since 27 Oct). Details in `CLAUDE.local.md`; update with
-  `install.sh` (see Workflow).
+  `unattended-upgrades` is on (daily); rebooted 18 Nov 02:10 UTC for the pending kernel/`libc6` updates (now
+  kernel 7.0.0-1016-oracle, no reboot pending; the `callout` service came back by itself). Check
+  `/var/run/reboot-required` now and then. Details in `CLAUDE.local.md`; update with `install.sh` (see Workflow).
 - **macOS app (released in v0.1.20, 11 Nov):** universal DMG (Apple Silicon + Intel, macOS 11+), outside the
   App Store, ad-hoc signed (no Apple Developer ID; users click "Open Anyway" once, and macOS may drop the
   microphone / Input Monitoring permission on every update). Push-to-talk via a listen-only Quartz event
@@ -321,8 +321,6 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- **Oracle server reboot:** a kernel/`libc6` reboot has been pending since 13 Nov; do it at a quiet time
-  with the owner's OK (`sudo reboot`; the `callout` service starts on boot; check nobody is connected first).
 - **Server Lobby (released in v0.1.21, 18 Nov):** the open part of "Server Lobby with old/new versions" in
   Pending manual tests (old app on the new server; the released app in the live lobby with friends). Ideas
   the owner may want later (not built): member count of the lobby on the home screen before joining (needs
@@ -491,8 +489,9 @@ items marked **before release** pass.
   `.sig`, portable exe, `CallOut_0.1.21_universal.dmg`, `CallOut_universal.app.tar.gz` + `.sig`, both servers,
   `latest.json` (0.1.21; windows-x86_64, darwin-aarch64, darwin-x86_64). Release notes got a "What's new".
   Oracle server updated at 02:05 UTC (nobody connected): protocol 2, 12 rooms loaded, invite link unchanged;
-  the talk example joined the live lobby. Ubuntu auto-updates are on, but a reboot is pending since 13 Nov
-  (not done; owner's call). Owner asked in passing about Oracle's Nov 2026 Critical Security Patch Update:
+  the talk example joined the live lobby. Ubuntu auto-updates are on; a kernel/`libc6` reboot pending since
+  13 Nov was done at 02:10 UTC with the owner's OK (nobody connected, back in ~60 s on kernel
+  7.0.0-1016-oracle, service active, 12 rooms, firewall rule kept, live lobby joined again). Owner asked in passing about Oracle's Nov 2026 Critical Security Patch Update:
   it covers Oracle software products only (Database, MySQL, Java, WebLogic, VirtualBox…), nothing on the
   server; OCI compute and Ubuntu are not in it.
 - 18 Nov: **Server Lobby** (owner's request: a fixed public room on every server, open to everyone with the
