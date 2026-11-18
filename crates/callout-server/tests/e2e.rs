@@ -330,15 +330,17 @@ async fn lobby_is_open_to_everyone_without_a_code() {
         .unwrap();
     assert_eq!(AudioPacket::parse(&got).unwrap().sender_id, a.user_id());
 
-    // Leaving and coming back works at will; the lobby is still there when empty.
+    // Leaving and coming back works at will; the lobby is still there when empty. A leaves and
+    // rejoins on its own connection, so the server sees the leave (lobby empty) before the join;
+    // B's MemberLeft above A's leave makes sure B is gone by then.
     b.leave_room().await.unwrap();
     assert!(matches!(
         recv_skip_speaking(&mut a).await,
         ServerMsg::MemberLeft(_)
     ));
     a.leave_room().await.unwrap();
-    b.join_lobby().await.unwrap();
-    match recv_skip_speaking(&mut b).await {
+    a.join_lobby().await.unwrap();
+    match recv_skip_speaking(&mut a).await {
         ServerMsg::RoomState { room, members } => {
             assert_eq!(room.code, LOBBY_CODE);
             assert_eq!(members.len(), 1);
