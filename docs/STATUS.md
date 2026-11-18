@@ -3,31 +3,31 @@
 > Read this file at the start of every session; at the end of a session update the "Last session" and "Next" sections.
 > Private details such as the server address and invite link are not written here but in `CLAUDE.local.md`, which is not in git.
 
-## Where we left off (11 Nov 2026)
+## Where we left off (18 Nov 2026)
 
 - **Phases 0–1 done; Phase 2 (audio quality) mostly done:** FEC/PLC measured, noise suppression (RNNoise),
   adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (v0.1.14; retuned to a comfort band and
   off by default in v0.1.17 after the CS2 test). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
-- **Released:** v0.1.20 on GitHub Releases (Windows installer, portable exe, **macOS universal DMG** + updater
-  bundle, both servers, `latest.json` with Windows and macOS entries). Installed
+- **Released:** v0.1.21 on GitHub Releases (18 Nov; the Server Lobby; Windows installer, portable exe,
+  **macOS universal DMG** + updater bundle, both servers, `latest.json` with Windows and macOS entries). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
-- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.16** (v0.1.17–v0.1.20 are app-only, no server update needed) (persistent rooms in `/var/lib/callout/rooms.tsv`,
-  owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated 4 Nov 17:04 UTC, nobody was
-  connected, invite link unchanged, 7 rooms loaded). Details in
-  `CLAUDE.local.md`; update with `install.sh` (see Workflow).
+- **Server:** Oracle Always Free (Frankfurt) runs **v0.1.21** (protocol 2, Server Lobby; persistent rooms in
+  `/var/lib/callout/rooms.tsv`, owner-only room closing, log uploads into `/var/lib/callout/logs/`; updated
+  18 Nov 02:05 UTC, nobody was connected, invite link unchanged, 12 rooms loaded). Ubuntu
+  `unattended-upgrades` is on, but a **reboot has been pending since 13 Nov** (kernel 7.0.0-1016-oracle,
+  `libc6`; running 6.17.0-1020-oracle, up since 27 Oct). Details in `CLAUDE.local.md`; update with
+  `install.sh` (see Workflow).
 - **macOS app (released in v0.1.20, 11 Nov):** universal DMG (Apple Silicon + Intel, macOS 11+), outside the
   App Store, ad-hoc signed (no Apple Developer ID; users click "Open Anyway" once, and macOS may drop the
   microphone / Input Monitoring permission on every update). Push-to-talk via a listen-only Quartz event
   tap, audio thread at QoS user-interactive, in-app updates through the same `latest.json`. Tested on the
   owner's 2014 MacBook Air (Intel, macOS 11.7.11); no Apple Silicon Mac yet.
-- **Unreleased on `main`:** the Bluetooth mic warning now fires up to 24 kHz (AirPods on macOS); the
-  **Server Lobby** (protocol 2; needs the server updated too, see Pending manual tests); check
-  `git log v0.1.20..`.
+- **Unreleased on `main`:** nothing (check `git log v0.1.21..`).
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
-  joined before, can find them), except the **Server Lobby** (unreleased): one room per server, always on the
+  joined before, can find them), except the **Server Lobby** (v0.1.21): one room per server, always on the
   home screen, open to everyone connected, no code, no owner (nobody can close it), not joinable by typing
   a code; rooms persist until closed by their creator's device or unused for 30 days;
   the client reconnects and rejoins on its own; the app starts in the installer's language once per new
@@ -60,6 +60,10 @@ items marked **before release** pass.
       `version=1`, no card); after the release the server must be updated (`install.sh`), then an **old app**
       (v0.1.20) still connects and uses rooms by code. Release order: update the server right after the
       release is published (the lobby only shows once it runs protocol 2).
+      ✓ 18 Nov 02:05 UTC: Oracle server updated to v0.1.21; the talk example (protocol 2) joined the live
+      lobby (`lobby=true`, "in the server lobby"). **Open:** an old v0.1.20 app on the updated server (rooms
+      by code, no lobby card), and the v0.1.21 app from the release (installer or in-app update) showing the
+      lobby on the Oracle server.
 
 - [x] **macOS: CI build** (before release): the `app-macos` CI job (clippy incl. the app, library tests on
       macOS) is green. Then a release dry run is the tag itself: the `macos` job must upload
@@ -83,7 +87,7 @@ items marked **before release** pass.
       below for what to watch: microphone / Input Monitoring permissions afterwards).
       ✓ (a) 14 Nov: "cakal" (a second Mac, v0.1.20, AirPods) + Windows "bera" (same home network) in room
       8LLBVGX7, ~4 min, both logs sent: voices clean (owner). Details in "Last session". Open: (b), (c).
-- [ ] **Bluetooth mic warning at 24 kHz** (unreleased, since the commit after 136690b): AirPods on macOS
+- [ ] **Bluetooth mic warning at 24 kHz** (v0.1.21): AirPods on macOS
       capture at 24 kHz, which the old `<= 16000` limit missed; now `<= 24000` (`ui/src/App.svelte`). Check
       on a Mac with AirPods as the microphone: the warning shows "24 kHz" in settings and in the room; a
       48 kHz built-in or USB mic shows none (Windows AirPods at 16 kHz still warn).
@@ -317,11 +321,12 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- **Server Lobby (unreleased, 18 Nov):** run the two "Server Lobby" items in Pending manual tests (the UI was
-  only type-checked, never seen in the app), then release (v0.1.21, app **and** server) and update the
-  Oracle server with `install.sh` right after. Ideas the owner may want later (not built): member count of
-  the lobby on the home screen before joining (needs a new server message), a server setting to turn the
-  lobby off for self-hosters.
+- **Oracle server reboot:** a kernel/`libc6` reboot has been pending since 13 Nov; do it at a quiet time
+  with the owner's OK (`sudo reboot`; the `callout` service starts on boot; check nobody is connected first).
+- **Server Lobby (released in v0.1.21, 18 Nov):** the open part of "Server Lobby with old/new versions" in
+  Pending manual tests (old app on the new server; the released app in the live lobby with friends). Ideas
+  the owner may want later (not built): member count of the lobby on the home screen before joining (needs
+  a new server message), a server setting to turn the lobby off for self-hosters.
 - **macOS app (released in v0.1.20):** next the open macOS items in "Pending manual tests" on the owner's Apple Silicon Mac,
   then release. Known gaps: no Apple Developer ID (Gatekeeper "Open Anyway", permissions may reset on
   update; signing + notarization are prepared in `release.yml` comments), a denied microphone gives
@@ -479,6 +484,17 @@ items marked **before release** pass.
 
 ## Last session
 
+- 18 Nov: **v0.1.21 released** (Server Lobby + the 24 kHz Bluetooth warning). The first CI run on the lobby
+  commit failed on Linux: a race in the new e2e test (A's leave and B's join on two connections; the server
+  took B's join first), fixed in a376edf (A leaves and rejoins on its own connection), CI green. Tag
+  v0.1.21 on a376edf; Release run 44218274149 green (windows, macos, linux-server); assets: installer +
+  `.sig`, portable exe, `CallOut_0.1.21_universal.dmg`, `CallOut_universal.app.tar.gz` + `.sig`, both servers,
+  `latest.json` (0.1.21; windows-x86_64, darwin-aarch64, darwin-x86_64). Release notes got a "What's new".
+  Oracle server updated at 02:05 UTC (nobody connected): protocol 2, 12 rooms loaded, invite link unchanged;
+  the talk example joined the live lobby. Ubuntu auto-updates are on, but a reboot is pending since 13 Nov
+  (not done; owner's call). Owner asked in passing about Oracle's Nov 2026 Critical Security Patch Update:
+  it covers Oracle software products only (Database, MySQL, Java, WebLogic, VirtualBox…), nothing on the
+  server; OCI compute and Ubuntu are not in it.
 - 18 Nov: **Server Lobby** (owner's request: a fixed public room on every server, open to everyone with the
   invite link, no password, no auto-join, **not joinable by code**, only shown in the UI; costs nothing while
   empty). Owner chose: no auto-join, no code.
