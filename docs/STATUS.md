@@ -9,7 +9,8 @@
   adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (v0.1.14; retuned to a comfort band and
   off by default in v0.1.17 after the CS2 test). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
-- **Released:** v0.1.21 on GitHub Releases (18 Nov; the Server Lobby; Windows installer, portable exe,
+- **Released:** v0.1.22 on GitHub Releases (18 Nov; the redesign: new icon and theme, own Windows title bar,
+  not maximizable, per-player mute; Windows installer, portable exe,
   **macOS universal DMG** + updater bundle, both servers, `latest.json` with Windows and macOS entries). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
 - **Server:** Oracle Always Free (Frankfurt) runs **v0.1.21** (protocol 2, Server Lobby; persistent rooms in
@@ -23,9 +24,8 @@
   microphone / Input Monitoring permission on every update). Push-to-talk via a listen-only Quartz event
   tap, audio thread at QoS user-interactive, in-app updates through the same `latest.json`. Tested on the
   owner's 2014 MacBook Air (Intel, macOS 11.7.11); no Apple Silicon Mac yet.
-- **Unreleased (working tree, not committed yet, 18 Nov):** the **redesign**: new app icon (plum + honey headset with
-  mic), the UI themed from it, an own title bar on Windows (no system decorations there), and a per-player
-  mute button (speaker next to the volume slider). See "Last session" and "Pending manual tests".
+- **Unreleased on `main`:** nothing (check `git log v0.1.22..`). The server needs no update for v0.1.22
+  (no server or protocol change); it stays on v0.1.21.
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
 - **Product behavior worth knowing:** rooms are private (no server-side list; only people with the code, or who
@@ -344,8 +344,9 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- **Redesign (18 Nov, in the working tree):** commit when the owner asks, then the three "Redesign" items in
-  "Pending manual tests" (title bar and window behaviour on Windows first). Source of the icon:
+- **Redesign (released in v0.1.22, 18 Nov, before its manual tests, owner's call):** the three "Redesign"
+  items in "Pending manual tests" with the released app (in-app update from v0.1.21 on Windows and the Mac
+  first: the new frameless window and icon must come with the update). Source of the icon:
   `make_flat.py B` in the icon work folder outside the repo.
 - **Server Lobby (released in v0.1.21, 18 Nov; old/new versions checked by the owner):** left is the lobby
   with friends (several people talking in it). Ideas the owner may want later (not built): member count of the lobby on the home screen before joining (needs
@@ -507,6 +508,13 @@ items marked **before release** pass.
 
 ## Last session
 
+- 18 Nov: **v0.1.22 released** (the redesign below), at the owner's request before the three "Redesign"
+  manual tests (asked once; owner: release now). Local checks before the tag: fmt, clippy (workspace and
+  app), `cargo test` (all green), svelte-check, UI build. Tag v0.1.22 on c1f5e8a; Release run 44242886541
+  green (windows, macos, linux-server), CI on main green; assets: installer + `.sig`, portable exe,
+  `CallOut_0.1.22_universal.dmg`, `CallOut_universal.app.tar.gz` + `.sig`, both servers; `latest.json`
+  0.1.22 with windows-x86_64, darwin-aarch64, darwin-x86_64, all signed. Release notes got a "What's new".
+  No server update (no server/protocol change).
 - 18 Nov: **redesign** (owner's request, after previews outside the repo). New icon: plum rounded square
   (`#4a3468` → `#34244a`), honey (`#e8ba46`) headset with a mic boom, thin dark outline (`#14101a`), a bolder
   drawing for 16–48 px; all seven files in `apps/callout-app/icons/` replaced, `ui/public/logo*.png` for the
