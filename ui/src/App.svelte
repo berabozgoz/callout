@@ -3,7 +3,7 @@
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import {
     send, getSettings, saveSettings, listDevices, appVersion, onEngine, onPtt, prettyCode,
-    engineSnapshot, pttCapture, prettyShortcut, setTrayLabels, isInstalled, openReleasesPage, sendLog,
+    engineSnapshot, pttCapture, prettyShortcut, setTrayLabels, isInstalled, openReleasesPage, restartApp, sendLog,
     pttInputAccess, openInputMonitoringSettings, isMac, isWindows, isLobby, setUserMuted,
     type Settings, type Device, type Member, type JoinSound, JOIN_SOUNDS, type RoomInfo, type ConnectionState, type MicTestState,
     type ErrorKind, type LogUploadOutcome,
@@ -123,6 +123,9 @@
         await new Promise((r) => setTimeout(r, 700));
       }
       await update.install();
+      // Windows does not get here (the installer has closed the app). macOS: the bundle is replaced
+      // but the old version keeps running until restarted.
+      await restartApp();
     } catch (e) {
       console.error("update failed", e);
       updating = "failed";
@@ -464,7 +467,6 @@
 {#if isWindows}
   <!-- Drag region: Tauri moves the window (a double click does nothing: not maximizable). -->
   <div class="titlebar" data-tauri-drag-region>
-    <div class="tb-title" data-tauri-drag-region><img src="/logo-small.png" alt="CallOut" data-tauri-drag-region /></div>
     <div class="tb-buttons">
       <button class="tb-btn" onclick={winMinimize} aria-label={t("window.minimize")} title={t("window.minimize")}>
         <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5h10" stroke="currentColor" /></svg>

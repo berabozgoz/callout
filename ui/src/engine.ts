@@ -124,6 +124,8 @@ export const appVersion = () => invoke<string>("app_version");
 /** Installed (updatable in place) or portable exe. */
 export const isInstalled = () => invoke<boolean>("is_installed");
 export const openReleasesPage = () => invoke<void>("open_releases_page");
+/** Restarts CallOut (after an installed update; macOS needs it, the Windows installer restarts by itself). */
+export const restartApp = () => invoke<void>("restart_app");
 /** Tray menu labels live in the Rust shell; the UI sends them in the current language. */
 export const setTrayLabels = (show: string, quit: string) => invoke<void>("set_tray_labels", { show, quit });
 

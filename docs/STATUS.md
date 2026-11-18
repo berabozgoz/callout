@@ -24,7 +24,8 @@
   microphone / Input Monitoring permission on every update). Push-to-talk via a listen-only Quartz event
   tap, audio thread at QoS user-interactive, in-app updates through the same `latest.json`. Tested on the
   owner's 2014 MacBook Air (Intel, macOS 11.7.11); no Apple Silicon Mac yet.
-- **Unreleased on `main`:** nothing (check `git log v0.1.22..`). The server needs no update for v0.1.22
+- **Unreleased (working tree, 18 Nov):** macOS restarts by itself after an in-app update (`restart_app`); the
+  header logo also on Windows, no icon in the title bar; not committed yet (check `git log v0.1.22..`). The server needs no update for v0.1.22
   (no server or protocol change); it stays on v0.1.21.
 - **Everything is English** (code, docs, logs, commits); the UI is localized in 11 languages (`ui/src/i18n/`,
   English is the source; add keys to every dictionary, the `Messages` type enforces it).
@@ -136,26 +137,39 @@ items marked **before release** pass.
       `listener active`: the ad-hoc signature changed, so macOS no longer matches the old entry. This is
       what every in-app update will do to push-to-talk until there is an Apple Developer ID (fix for the
       user: Input Monitoring → remove CallOut with "−", reopen CallOut, allow again).
-- [ ] **Redesign: own title bar on Windows** (v0.1.22; released before this was tried, owner's call): `cargo tauri dev` on Windows. The window
+- [x] **Redesign: own title bar on Windows** (v0.1.22; released before this was tried, owner's call): `cargo tauri dev` on Windows. The window
       has no system frame (`tauri.windows.conf.json`, `decorations: false`); the plum strip on top has the
       icon, minimize and close (**no maximize**: the window is `maximizable: false`, owner's wish). Check:
       dragging the strip moves the window, a double click does nothing, Win+Up and dragging to the top edge
       do not maximize, minimize works, **close hides to the tray** like before (tray "Show" brings it back;
       "Quit" quits). The window can be **resized from its edges** and still has its shadow. macOS: the
       native title bar stays (no plum strip); the green button must not zoom or go full screen.
-- [ ] **Redesign: per-player mute** (v0.1.22; not tried before the release): in a room with two people, the speaker button next
+      ✓ 18 Nov (owner, released v0.1.22 after the in-app update from v0.1.21): the new window and icon came
+      with the update, the window cannot be maximized; Win+Up does not maximize it either, and the window
+      resizes from its edges (owner: edge resizing stays).
+- [x] **Redesign: per-player mute** (v0.1.22; not tried before the release): in a room with two people, the speaker button next
       to the other player's slider mutes them for you only (red icon, slider locked, the percentage
       struck through, no speaking ring); unmuting brings back the same volume (try at 50 %). Pulling the
       slider to 0 shows the speaker as muted; the speaker then brings it back to 100 %. The mute survives
       leaving and rejoining the room and an app restart (`muted_users` in `settings.json`), and the
       saved volume is not overwritten with 0.
-- [ ] **Redesign: look** (v0.1.22; tried by the owner on Windows in `cargo tauri dev` before the height/no-maximize change; the Mac is open): connect, home (Server Lobby card, recent rooms), room, settings
+      ✓ 18 Nov (owner, v0.1.22): muting works in a room and is still there after a restart.
+- [x] **Redesign: look** (v0.1.22; tried by the owner on Windows in `cargo tauri dev` before the height/no-maximize change; the Mac is open): connect, home (Server Lobby card, recent rooms), room, settings
       (switches, groups) in the real app on Windows and on the old Mac (Safari 14 WebKit: switches drawn,
       no blank page). New icon on the taskbar, tray (16 px), installer, Dock. **Settings fit without
       scrolling** at the default size (Windows 420×920 incl. the bar, macOS 420×890), with push-to-talk on
       and off (measured in the mocked UI for all 11 languages; the longest is Japanese with push-to-talk,
       915 px). On a screen shorter than that the window shrinks to the work area (`fit_window_to_screen`)
       and the settings scroll again.
+      ✓ 18 Nov (owner, v0.1.22): settings fit, looks right on Windows and on the Mac.
+- [ ] **macOS: restart after an in-app update** (next release; found 18 Nov): updating the Mac to v0.1.22
+      downloaded and installed it, but the app stayed at "100%" and only a manual restart started the new
+      version: on macOS the updater replaces the bundle without relaunching (the Windows installer restarts
+      the app itself). Fixed after v0.1.22: the UI calls the new `restart_app` command (`AppHandle::restart`)
+      right after `install()`. The running version's code does the update, so **the update to the next
+      release still needs a manual restart on the Mac**; the fix shows from the update after that
+      (v0.1.23 → later). Check then: "Update and restart" relaunches CallOut by itself, the new version
+      shows in the footer; on Windows nothing changes (the installer restarts it as before).
 - [x] **macOS: Dock icon size** (since the commit after 94175fe): the owner saw CallOut larger than the other
       Dock icons (the icon filled the whole canvas). Now `icons/icon.icns` on Apple's grid (824 px body in
       1024, soft shadow; made by `make_mac.py` outside the repo). Check: same size as its Dock neighbours.
@@ -177,7 +191,8 @@ items marked **before release** pass.
       asking macOS`, then after reopening `push-to-talk listener active mouse=false`. Not yet tried: a
       mouse side button, release inside a password field.
 - [ ] **macOS: in-app update** (after the first macOS release, with the next one): the update banner
-      shows, "Update and restart" replaces the app in Applications and restarts it. Check whether
+      shows, "Update and restart" replaces the app in Applications and restarts it (18 Nov, v0.1.22: the
+      update installs, but no restart; see "macOS: restart after an in-app update"). Check whether
       microphone and Input Monitoring still work afterwards (ad-hoc signatures change with every build, so
       macOS may ask again or need CallOut toggled off/on in Input Monitoring; this decides whether an Apple
       Developer ID is worth it). Started from the DMG window instead of Applications: the banner offers
@@ -344,10 +359,10 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- **Redesign (released in v0.1.22, 18 Nov, before its manual tests, owner's call):** the three "Redesign"
-  items in "Pending manual tests" with the released app (in-app update from v0.1.21 on Windows and the Mac
-  first: the new frameless window and icon must come with the update). Source of the icon:
-  `make_flat.py B` in the icon work folder outside the repo.
+- **Redesign (released in v0.1.22):** the owner's tests passed (update, window, icon, mute, settings fit,
+  Mac look). Left: the Mac did not restart after the in-app update; fixed in the working tree
+  (`restart_app`), goes out with the next release (and is first visible on the update after that).
+  Source of the icon: `make_flat.py B` in the icon work folder outside the repo.
 - **Server Lobby (released in v0.1.21, 18 Nov; old/new versions checked by the owner):** left is the lobby
   with friends (several people talking in it). Ideas the owner may want later (not built): member count of the lobby on the home screen before joining (needs
   a new server message), a server setting to turn the lobby off for self-hosters.
@@ -508,6 +523,16 @@ items marked **before release** pass.
 
 ## Last session
 
+- 18 Nov: the owner tested v0.1.22 (in-app update from v0.1.21 brought the new window and icon; mute
+  survives a restart; settings fit; no maximize; the Mac looks fine). Found: on the Mac the update stops
+  at "100%" and needs a manual restart, because the macOS updater does not relaunch. Fix: new app command
+  `restart_app` (`AppHandle::restart`), called by the UI after `update.install()`. svelte-check, UI build,
+  clippy (app), `cargo test -p callout-app`, fmt clean; the macOS build itself is left to CI (the cross
+  check from Windows needs a C toolchain). Then (owner): the Mac shows the icon left of "CallOut" in the
+  header, Windows did not (hidden there because the title bar has a small one); now shown on Windows too
+  (header height unchanged, settings still fit; checked in the mocked UI). The owner then asked to drop
+  the small icon from the title bar (only minimize and close remain there, right-aligned). Not committed,
+  not released.
 - 18 Nov: **v0.1.22 released** (the redesign below), at the owner's request before the three "Redesign"
   manual tests (asked once; owner: release now). Local checks before the tag: fmt, clippy (workspace and
   app), `cargo test` (all green), svelte-check, UI build. Tag v0.1.22 on c1f5e8a; Release run 44242886541

@@ -489,6 +489,14 @@ fn set_tray_labels(app: AppHandle, show: String, quit: String) -> Result<(), Str
     items.quit.set_text(quit).map_err(|e| e.to_string())
 }
 
+/// Restarts the app after an update was installed. On Windows the NSIS installer closes and restarts
+/// the app itself; on macOS the updater only replaces the bundle, and without this the window stayed
+/// at "100%" until the user restarted CallOut by hand.
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    app.restart();
+}
+
 /// `true` when running from an installation (the NSIS installer puts `uninstall.exe` next to the
 /// app), `false` for the portable exe. The updater replaces only installed copies; a portable exe
 /// would just get a second, installed copy, so the UI offers a download link instead.
@@ -985,6 +993,7 @@ pub fn run() {
             is_installed,
             open_releases_page,
             send_log,
+            restart_app,
             set_user_muted,
             ptt_input_access,
             open_input_monitoring_settings
