@@ -1028,12 +1028,23 @@ fn open_preview(
     match start_audio(cfg, ctl.clone(), tx_net, rx_net, ev.clone()) {
         Ok(a) => Some(a),
         Err(e) => {
-            let _ = ev.send(Event::Error {
-                kind: ErrorKind::from_audio_error(&e),
-                message: format!("audio pipeline: {e}"),
-            });
+            let (kind, message) = audio_err(e);
+            log_error(kind, &message);
+            let _ = ev.send(Event::Error { kind, message });
             None
         }
+    }
+}
+
+/// Writes an [`Event::Error`] to the log too: the UI shows it only for a moment, and without
+/// this an uploaded log had no reason for a failed audio start or connect. An invalid invite's
+/// detail is left out, since it echoes what the user typed or pasted.
+fn log_error(kind: ErrorKind, message: &str) {
+    match kind {
+        ErrorKind::InvalidInvite => tracing::warn!(?kind, "error shown to the user"),
+        // Not a failure: the owner closed the room.
+        ErrorKind::RoomClosed => tracing::info!(?kind, detail = message, "error shown to the user"),
+        _ => tracing::warn!(?kind, detail = message, "error shown to the user"),
     }
 }
 
@@ -1074,6 +1085,9 @@ async fn run(
     ev: mpsc::UnboundedSender<Event>,
 ) {
     let emit = |e: Event| {
+        if let Event::Error { kind, message } = &e {
+            log_error(*kind, message);
+        }
         let _ = ev.send(e);
     };
     let ctl = AudioControl::new(

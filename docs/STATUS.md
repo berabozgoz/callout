@@ -362,10 +362,8 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- **Log errors shown to the user (found 19 Nov in the field logs):** `Event::Error` is never written to the
-  log, so a failed audio start (mamitest after the v0.1.22 update) or a failed connect (macBera on v0.1.20)
-  leaves no reason in uploaded logs. Add a `tracing::warn!` with kind + message where the engine emits it
-  (check that messages carry no personal data beyond what the log scrub handles, e.g. device names).
+- **Errors shown to the user are now logged (19 Nov, unreleased):** goes out with the next release; then
+  the next field log with a failed audio start or connect should say why (see "Last session").
 - **Redesign (released in v0.1.22):** the owner's tests passed (update, window, icon, mute, settings fit,
   Mac look). Left: the Mac did not restart after the in-app update; fixed in the working tree
   (`restart_app`), goes out with the next release (and is first visible on the update after that).
@@ -530,6 +528,14 @@ items marked **before release** pass.
 
 ## Last session
 
+- 19 Nov (owner: "add it"): **errors shown to the user now go to the log.** `engine.rs`: the `emit` helper
+  and `open_preview` call the new `log_error`, which writes `error shown to the user kind=… detail="…"`
+  (`warn`; `RoomClosed` at `info`); an invalid invite logs only its kind, since the detail echoes what the
+  user typed. The messages hold no device names (`find_device` fails with `NoDevice`); user paths and the
+  fingerprint are masked by the upload scrub anyway. Checked with the talk example: an unreachable server
+  logs `kind=ConnectFailed detail="could not connect: connection lost: timed out"`, a bad invite
+  `kind=InvalidInvite`. fmt, clippy (workspace without the app, `-D warnings`), `cargo test -p callout-core`
+  clean. Not released.
 - 19 Nov: **reviewed the new server logs** (logs only, no code change): six uploads (17 Nov bera + Furkan,
   18 Nov mamitest, macBera, 18 Nov evening bera + Furkan) and the server journal since 17 Nov.
   - **17 Nov, bera + Furkan (Canada, Mac, v0.1.20), room GX4ANAKQ 17:25–18:21 UTC (~56 min)**, both `bye`.
