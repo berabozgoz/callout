@@ -91,6 +91,9 @@ items marked **before release** pass.
       below for what to watch: microphone / Input Monitoring permissions afterwards).
       ✓ (a) 14 Nov: "cakal" (a second Mac, v0.1.20, AirPods) + Windows "bera" (same home network) in room
       8LLBVGX7, ~4 min, both logs sent: voices clean (owner). Details in "Last session". Open: (b), (c).
+      (c) partly seen in the field, 18 Nov: Furkan's Mac updated 0.1.20 → 0.1.22 (27 s between the two
+      starts, so in-app with a manual restart, as expected) and the microphone still worked; macBera also
+      reached 0.1.22 (how is not in the log). Push-to-talk after the update not checked.
 - [ ] **Bluetooth mic warning at 24 kHz** (v0.1.21): AirPods on macOS
       capture at 24 kHz, which the old `<= 16000` limit missed; now `<= 24000` (`ui/src/App.svelte`). Check
       on a Mac with AirPods as the microphone: the warning shows "24 kHz" in settings and in the room; a
@@ -359,6 +362,10 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
+- **Log errors shown to the user (found 19 Nov in the field logs):** `Event::Error` is never written to the
+  log, so a failed audio start (mamitest after the v0.1.22 update) or a failed connect (macBera on v0.1.20)
+  leaves no reason in uploaded logs. Add a `tracing::warn!` with kind + message where the engine emits it
+  (check that messages carry no personal data beyond what the log scrub handles, e.g. device names).
 - **Redesign (released in v0.1.22):** the owner's tests passed (update, window, icon, mute, settings fit,
   Mac look). Left: the Mac did not restart after the in-app update; fixed in the working tree
   (`restart_app`), goes out with the next release (and is first visible on the update after that).
@@ -523,6 +530,41 @@ items marked **before release** pass.
 
 ## Last session
 
+- 19 Nov: **reviewed the new server logs** (logs only, no code change): six uploads (17 Nov bera + Furkan,
+  18 Nov mamitest, macBera, 18 Nov evening bera + Furkan) and the server journal since 17 Nov.
+  - **17 Nov, bera + Furkan (Canada, Mac, v0.1.20), room GX4ANAKQ 17:25–18:21 UTC (~56 min)**, both `bye`.
+    Furkan restarted the app twice in the first minute (user quits, 3 connections), then stayed. His network
+    was worse than on 16 Nov: RTT median 134 ms, p90 ~290, max 580 (server: median 137, p90 276, max 603).
+    bera hearing Furkan: almost nothing concealed (lost 61, late 55, FEC 42 of ~168k frames) but the jitter
+    target sat at **median 140 ms, p90 240 (the cap)**: the adaptive buffer bought quality with latency.
+    Furkan hearing bera: lost 286, late 119, **FEC 1**, target median 40 ms; the server lost only 1 packet
+    to him, so these are stall clumps trimmed by the resync (e.g. 17:59 lost 27, late 1), the pattern of 16 Nov.
+  - **18 Nov evening, same pair, both v0.1.22, room GX4ANAKQ 21:12–22:22 UTC (~70 min)**, both `bye`.
+    Furkan RTT median 124 ms, p90 151, max 523. bera hearing Furkan: lost 578, late 288, FEC 8 (~0.5% of
+    frames), target median 80, p90 240; the losses again come as clumps (12 steps of 16–51 frames, e.g.
+    22:19 lost 51 late 3), i.e. Furkan's uplink stalls. Furkan hearing bera: lost 490, late 562, **FEC 123**;
+    most of it one real loss burst 21:16:23–21:17:03 (server → Furkan lost 365 packets in 40 s, ~18%, cwnd
+    at its 2904-byte floor), where FEC recovered ~62%; target median 60, p90 120.
+  - **First real macOS in-app update:** Furkan's Mac went 0.1.20 → 0.1.22 at 21:09 (27 s between the two
+    starts, so a manual restart, as expected before `restart_app`); the microphone kept working
+    (`has_input=true`, real noise floor). macBera (2014 MacBook) also went 0.1.20 → 0.1.22 on 18 Nov morning.
+    mamitest (Windows) updated 0.1.21 → 0.1.22 in-app in 14 s.
+  - **Lobby with three devices, 18 Nov 05:29–05:57 UTC** (bera, mamitest on Windows, macBera; up to
+    members=3): clean, bera saw 0 lost from mamitest and 5 from macBera; joins/leaves/mute/deafen all on the
+    server log; macBera quit twice while in the lobby, both `bye`.
+  - **Found: errors shown to the user never reach the log.** mamitest's first connection after the update
+    (05:26) closed after 0 s with `bye`; its log shows the audio thread starting three times (priority
+    raised at :28, :33, :41) before `audio pipeline started`, with no warning in between. In `engine.rs`
+    a failed `start_audio` sends only `Event::Error` and closes the client; `Event::Error` is never traced,
+    so the reason (output device? default config?) is lost. The same hides failed connects: macBera's four
+    v0.1.20 starts on 18 Nov 05:15–05:42 never logged `connected` and nothing else. Proposed fix: log every
+    `Event::Error` (kind + message) with `tracing::warn!` in the engine (not in the cpal callback).
+  - Minor: two single ~100 ms stalls on bera's Windows (17 Nov 17:25, capture and playback callbacks too,
+    so the whole system; 18 Nov 05:39); start-up underruns of 1056–2048 samples as before; AEC ERLE ~0 on both
+    sides (headphones). bera's VAD calibrated at -32 dB once (talking during calibration); the adaptive floor
+    follows down fast, and bera sent in 60% of the stats windows that evening, so no harm.
+  - Takeaway: Furkan's Wi-Fi stalls stay the main source of concealment and push bera's jitter target to its
+    240 ms cap for long stretches; step (5) of the jitter plan (faster recovery after a spike) is the lever.
 - 18 Nov: the owner tested v0.1.22 (in-app update from v0.1.21 brought the new window and icon; mute
   survives a restart; settings fit; no maximize; the Mac looks fine). Found: on the Mac the update stops
   at "100%" and needs a manual restart, because the macOS updater does not relaunch. Fix: new app command
