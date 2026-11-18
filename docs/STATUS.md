@@ -53,7 +53,7 @@ items marked **before release** pass.
       in a mocked UI: Turkish, English, Arabic RTL, no code button/close, not in recent rooms, `LOBBY` by
       code refused. Two members hearing each other is covered by the e2e test (`lobby_is_open_to_everyone…`),
       not by ears; the reconnect into the lobby is untested in the app. Owner asked to release.
-- [ ] **Server Lobby with old/new versions** (at release): the new app against the **current Oracle
+- [x] **Server Lobby with old/new versions** (at release): the new app against the **current Oracle
       server (v0.1.16)** connects normally and shows **no** lobby card (checked headless on 18 Nov with the
       talk example against a local v0.1.16 server: "server refused protocol 2 … retrying with 1",
       `lobby=false`; ✓ also live on 18 Nov 01:28 UTC: the dev app connected to the Oracle server with
@@ -61,9 +61,10 @@ items marked **before release** pass.
       (v0.1.20) still connects and uses rooms by code. Release order: update the server right after the
       release is published (the lobby only shows once it runs protocol 2).
       ✓ 18 Nov 02:05 UTC: Oracle server updated to v0.1.21; the talk example (protocol 2) joined the live
-      lobby (`lobby=true`, "in the server lobby"). **Open:** an old v0.1.20 app on the updated server (rooms
-      by code, no lobby card), and the v0.1.21 app from the release (installer or in-app update) showing the
-      lobby on the Oracle server.
+      lobby (`lobby=true`, "in the server lobby").
+      ✓ 18 Nov 02:12 UTC (owner, Windows): v0.1.20 on the updated server connected (`version=1`), entered
+      three rooms by code, no lobby card; then the **in-app update** to v0.1.21 worked, the app connected with
+      `version=2`, showed the lobby card, joined and left the lobby and a room by code (server log agrees).
 
 - [x] **macOS: CI build** (before release): the `app-macos` CI job (clippy incl. the app, library tests on
       macOS) is green. Then a release dry run is the tag itself: the `macos` job must upload
@@ -321,9 +322,8 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
-- **Server Lobby (released in v0.1.21, 18 Nov):** the open part of "Server Lobby with old/new versions" in
-  Pending manual tests (old app on the new server; the released app in the live lobby with friends). Ideas
-  the owner may want later (not built): member count of the lobby on the home screen before joining (needs
+- **Server Lobby (released in v0.1.21, 18 Nov; old/new versions checked by the owner):** left is the lobby
+  with friends (several people talking in it). Ideas the owner may want later (not built): member count of the lobby on the home screen before joining (needs
   a new server message), a server setting to turn the lobby off for self-hosters.
 - **macOS app (released in v0.1.20):** next the open macOS items in "Pending manual tests" on the owner's Apple Silicon Mac,
   then release. Known gaps: no Apple Developer ID (Gatekeeper "Open Anyway", permissions may reset on
@@ -491,7 +491,9 @@ items marked **before release** pass.
   Oracle server updated at 02:05 UTC (nobody connected): protocol 2, 12 rooms loaded, invite link unchanged;
   the talk example joined the live lobby. Ubuntu auto-updates are on; a kernel/`libc6` reboot pending since
   13 Nov was done at 02:10 UTC with the owner's OK (nobody connected, back in ~60 s on kernel
-  7.0.0-1016-oracle, service active, 12 rooms, firewall rule kept, live lobby joined again). Owner asked in passing about Oracle's Nov 2026 Critical Security Patch Update:
+  7.0.0-1016-oracle, service active, 12 rooms, firewall rule kept, live lobby joined again).
+  Then the owner (Windows): v0.1.20 on the new server used rooms by code with no lobby card; the in-app
+  update to v0.1.21 worked and the lobby card showed, join/leave fine ("Süper!"). Owner asked in passing about Oracle's Nov 2026 Critical Security Patch Update:
   it covers Oracle software products only (Database, MySQL, Java, WebLogic, VirtualBox…), nothing on the
   server; OCI compute and Ubuntu are not in it.
 - 18 Nov: **Server Lobby** (owner's request: a fixed public room on every server, open to everyone with the
