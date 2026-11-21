@@ -369,6 +369,14 @@ items marked **before release** pass.
 ## Next
 
 **Start here next session** (pick with the owner):
+- **From the 21 Nov CS2 session (see "Last session"), candidates:** (a) jitter target tuning: it jumps
+  ×4–6 on a few late packets and drops back to 40 ms too soon, so kuzen's later late packets became
+  underflows; replay the 21 Nov numbers in `tests/jitter_sim.rs` before changing it (fits plan steps 3/5
+  below); (b) re-probe the microphone while listen-only, so a re-plugged headset works without restarting
+  the app (check first whether the engine already retries); (c) fall back to the default device when the
+  saved input/output name is gone (and tell the user); (d) device names in the
+  `audio pipeline started` line would have made the diagnosis direct; ask the owner first, since the
+  19 Nov change deliberately keeps device names out of logged messages (they reach uploaded logs).
 - **Errors shown to the user are now logged (19 Nov, unreleased):** goes out with the next release; then
   the next field log with a failed audio start or connect should say why (see "Last session").
 - **Redesign (released in v0.1.22):** the owner's tests passed (update, window, icon, mute, settings fit,
@@ -534,6 +542,30 @@ items marked **before release** pass.
 - If the protocol changes: `callout-proto` + `PROTOCOL_VERSION`; client and server are updated together.
 
 ## Last session
+
+- 21 Nov: **CS2 session bera + kuzen in the Server Lobby, followed live** (logs only, no code change):
+  server journal over SSH, bera's client log, kuzen's two uploads (16:23 and 17:07 UTC). Both v0.1.22,
+  server v0.1.21. bera 16:13–17:07 UTC (54 min, RTT 40–44 ms, 0 lost); kuzen's last connection
+  16:30–17:07 (38 min, RTT mostly 39–47 ms, spikes to 80 and 123 ms, 12 QUIC packets lost, cwnd down to 4116).
+  - **kuzen's headset kept dropping out (hardware):** 16:25:45–16:26:59 Windows reported the device as
+    removed seven times (`output error` / `input error: The requested device is no longer available`).
+    The engine recovered every time (`audio pipeline recovered attempts=1…6`, `fallback=true` switched to
+    another output at 44.1 kHz) and fell back to listen-only when the mic was gone. kuzen reported audio
+    only in the right ear and no mic at first; both match a loose USB/jack connection. He restarted the app
+    three times (all `bye`); from 16:29 on no device error. The first upload's
+    `no microphone, listening only: input device: audio device not found` was the same cause.
+  - **Possible gaps seen:** after the mic came back, the app stayed listen-only (16:27:20 until kuzen
+    restarted the app at 16:28/16:29; not confirmed whether the engine re-probes the input at all);
+    `find_device` with a saved name that no longer exists fails with `NoDevice` instead of falling back to
+    the default device; the `audio pipeline started` line has no device names, so a fallback to another
+    device is only visible through the rate change.
+  - **bera hearing kuzen (~37 min, ~111k frames):** late 296, underflow 333 (~0.3%), lost 45, FEC 13. The
+    jitter target jumped from 40 to 160–240 ms on a handful of late packets (16:31, 16:34–16:35) and fell back to 40
+    within ~30 s, after which new late packets turned into underflows (e.g. +27 late / +27 underflow in
+    30 s at target 40, +23/+25 later). Target distribution over the 30 s lines: 40 ms ×27, 60 ×19, 80 ×17,
+    100 ×6, 140 ×2, 160 ×3, 240 ×1. The 123 ms RTT spike at 16:35:22 cost ~10 frames (FEC 0).
+  - **kuzen hearing bera:** late 160, underflow 170, lost 37, FEC 2 by 17:07; worst 30 s at 17:04 (+30 late).
+  - bera's own PC: one 96-sample `out_underrun` at 17:01:58 (2 ms, under CS2 load); no stalls.
 
 - 19 Nov (owner): **the window is no longer resizable** (`resizable: false` on Windows and macOS; it was
   already not maximizable). `fit_window_to_screen` keeps shrinking it on short screens (`set_size` is not
