@@ -165,15 +165,23 @@ items marked **before release** pass.
       no blank page). New icon on the taskbar, tray (16 px), installer, Dock. **Settings fit without
       scrolling** at the default size (Windows 420×920 incl. the bar, macOS 420×890), with push-to-talk on
       and off (measured in the mocked UI for all 11 languages; the longest is Japanese with push-to-talk,
-      915 px). On a screen shorter than that the window shrinks to the work area (`fit_window_to_screen`)
-      and the settings scroll again.
+      915 px). On a screen shorter than that the window shrinks to the work area (now
+      `create_main_window`) and the settings scroll again.
       ✓ 18 Nov (owner, v0.1.22): settings fit, looks right on Windows and on the Mac.
 - [ ] **Window not resizable** (v0.1.23; 19 Nov, owner's wish): `resizable: false` in `tauri.conf.json`
       and `tauri.windows.conf.json` (it was already not maximizable). Check on Windows and the Mac: the
       window edges no longer resize it (no resize cursor), dragging the title bar still moves it, minimize
       and close work; settings still fit at 420×920 / 420×890. On a screen shorter than that the window
-      still starts shrunk to the work area (`fit_window_to_screen`; e.g. Windows display scaling 150 % on
-      1080p) and the settings scroll there.
+      still starts shrunk to the work area (e.g. Windows display scaling 150 % on 1080p) and the settings
+      scroll there.
+      ✗ 23 Nov (owner, v0.1.23 on the 2014 MacBook Air): at the first start the header (Settings button)
+      sat too high, under the title bar; after moving the window it was right. Fixed after v0.1.23, see
+      the next item.
+- [ ] **macOS: first start on a short screen** (next release; found 23 Nov): on the 2014 MacBook Air
+      (screen shorter than 890 + title bar) start CallOut: the window starts shrunk to fit above the Dock,
+      the header and Settings button sit right under the title bar at once (no need to move the window),
+      the settings scroll to the end. Also on Windows: the window still opens centered at 420×920 (✓ 23 Nov
+      debug build on a 1920×1080 screen, by Claude); at 150 % scaling on 1080p it starts shrunk.
 - [ ] **macOS: restart after an in-app update** (in v0.1.23, visible from the update after it; found 18 Nov): updating the Mac to v0.1.22
       downloaded and installed it, but the app stayed at "100%" and only a manual restart started the new
       version: on macOS the updater replaces the bundle without relaunching (the Windows installer restarts
@@ -546,6 +554,17 @@ items marked **before release** pass.
 
 ## Last session
 
+- 23 Nov (owner): **Mac header too high at the first start, fixed (not released).** On the 2014 MacBook
+  Air the v0.1.23 window opened with the header (Settings button) shifted up under the title bar until
+  the window was moved. Cause: since `resizable: false`, macOS no longer shrinks a window that is taller
+  than the screen when it is created, and our later shrink (`fit_window_to_screen`, `setContentSize`
+  async on macOS) left the page laid out for the old size (v0.1.22, still resizable, looked right on the
+  same Mac). Fix: the main window has `create: false` in both configs and `create_main_window`
+  (`apps/callout-app/src/lib.rs`) builds it in `setup` with a height that already fits the primary
+  monitor's work area (minus a 28 pt title bar estimate when the window has decorations; never below
+  `minHeight`), so it is never resized after creation. fmt, clippy (app, `-D warnings`), `cargo test -p
+  callout-app` clean; a Windows debug build opens centered at 420×920. Not tried on the Mac (CI builds
+  macOS); the root cause on the Mac is reasoned, not observed.
 - 23 Nov (owner: "push and release"): **v0.1.23 released.** Version bump commit 25fd78c, tag `v0.1.23`;
   fmt, clippy (workspace without the app, `-D warnings`) and `cargo test` clean before tagging. Release
   workflow green (windows, macos, linux-server); assets: installer + `.sig`, portable exe, universal DMG,

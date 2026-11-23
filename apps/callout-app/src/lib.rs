@@ -256,22 +256,44 @@ fn saved_volumes_for(
         .collect()
 }
 
-/// The default window height fits the settings page without scrolling; on a short screen
-/// (e.g. 1366×768) shrink it to the work area instead of letting it run under the taskbar. The
-/// window is neither resizable nor maximizable for the user (owner's choice); `set_size` still works.
-fn fit_window_to_screen(w: &tauri::WebviewWindow) -> tauri::Result<()> {
-    let Some(monitor) = w.current_monitor()? else {
-        return Ok(());
-    };
-    let avail = monitor.work_area().size.height;
-    let outer = w.outer_size()?;
-    if outer.height > avail {
-        let inner = w.inner_size()?;
-        let height = inner.height.saturating_sub(outer.height - avail);
-        w.set_size(tauri::PhysicalSize::new(inner.width, height))?;
-        w.center()?;
+/// Room for the system title bar when the window has one (macOS: 28 pt since Big Sur; Windows draws
+/// its own bar inside the page, `decorations: false`). A few points too many only costs a little height.
+const TITLE_BAR_ESTIMATE: f64 = 28.0;
+
+/// Creates the main window (`create: false` in the config) with a height that fits the screen.
+/// The default height fits the settings page without scrolling; on a short screen (e.g. 1366×768, or
+/// a 13" MacBook Air) the window starts shrunk to the work area instead of running under the taskbar
+/// or Dock. It is sized before it exists on purpose: the window is not resizable, so macOS does not
+/// shrink it itself, and resizing it after creation (async on macOS) left the page laid out for the
+/// old size, shifted up under the title bar, until the window was moved.
+fn create_main_window(app: &tauri::App) -> tauri::Result<tauri::WebviewWindow> {
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+        .unwrap_or_default();
+    let mut height = config.height;
+    let monitor = app.primary_monitor().unwrap_or_else(|e| {
+        tracing::warn!("window size: {e}");
+        None
+    });
+    if let Some(monitor) = monitor {
+        let avail = f64::from(monitor.work_area().size.height) / monitor.scale_factor();
+        let bar = if config.decorations {
+            TITLE_BAR_ESTIMATE
+        } else {
+            0.0
+        };
+        if height + bar > avail {
+            height = (avail - bar).max(config.min_height.unwrap_or(0.0));
+        }
     }
-    Ok(())
+    tauri::WebviewWindowBuilder::from_config(app, &config)?
+        .inner_size(config.width, height)
+        .build()
 }
 
 // ---------------------------------------------------------------------------
@@ -845,14 +867,10 @@ pub fn run() {
             let mut settings = load_settings(&data_dir);
             let mut save_now = forget_old_default_ptt_key(&mut settings);
             save_now |= turn_off_old_agc_default(&mut settings);
-            if let Some(w) = app.get_webview_window("main") {
-                if let Err(e) = fit_window_to_screen(&w) {
-                    tracing::warn!("window size: {e}");
-                }
-                // Diagnostic builds only (feature `devtools`): show the UI's console and errors.
-                #[cfg(feature = "devtools")]
-                w.open_devtools();
-            }
+            let _w = create_main_window(app)?;
+            // Diagnostic builds only (feature `devtools`): show the UI's console and errors.
+            #[cfg(feature = "devtools")]
+            _w.open_devtools();
             if let Some((lcid, code)) = installer_language() {
                 if settings.installer_language_seen != Some(lcid) {
                     // The user picked this language in the installer: start the app in it.

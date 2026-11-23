@@ -12,6 +12,7 @@
         "minHeight": 512,
         "resizable": false,
         "maximizable": false,
+        "create": false,
         "decorations": false
       }
     ]
