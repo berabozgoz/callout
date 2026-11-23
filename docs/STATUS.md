@@ -3,14 +3,16 @@
 > Read this file at the start of every session; at the end of a session update the "Last session" and "Next" sections.
 > Private details such as the server address and invite link are not written here but in `CLAUDE.local.md`, which is not in git.
 
-## Where we left off (18 Nov 2026)
+## Where we left off (23 Nov 2026)
 
 - **Phases 0–1 done; Phase 2 (audio quality) mostly done:** FEC/PLC measured, noise suppression (RNNoise),
   adaptive jitter (delay-spread estimator + stall resync), VAD preroll/hysteresis/sensitivity, AGC (v0.1.14; retuned to a comfort band and
   off by default in v0.1.17 after the CS2 test). Left: the field checks below. Parts of Phase 4 are done early: in-app updates (signed, verified v0.1.12 → v0.1.13),
   panic logging; code signing (SmartScreen) is not.
-- **Released:** v0.1.22 on GitHub Releases (18 Nov; the redesign: new icon and theme, own Windows title bar,
-  not maximizable, per-player mute; Windows installer, portable exe,
+- **Released:** v0.1.23 on GitHub Releases (23 Nov; macOS restarts after an in-app update, window not
+  resizable, Windows header logo and arrow cursor on the title bar buttons, errors shown to the user are
+  logged). v0.1.22 (18 Nov) was the redesign: new icon and theme, own Windows title bar,
+  not maximizable, per-player mute. Each release has the Windows installer, portable exe,
   **macOS universal DMG** + updater bundle, both servers, `latest.json` with Windows and macOS entries). Installed
   copies from v0.1.12 on update in-app; older ones need one manual install of the latest release.
 - **Server:** Oracle Always Free (Frankfurt) runs **v0.1.21** (protocol 2, Server Lobby; persistent rooms in
@@ -166,13 +168,13 @@ items marked **before release** pass.
       915 px). On a screen shorter than that the window shrinks to the work area (`fit_window_to_screen`)
       and the settings scroll again.
       ✓ 18 Nov (owner, v0.1.22): settings fit, looks right on Windows and on the Mac.
-- [ ] **Window not resizable** (next release; 19 Nov, owner's wish): `resizable: false` in `tauri.conf.json`
+- [ ] **Window not resizable** (v0.1.23; 19 Nov, owner's wish): `resizable: false` in `tauri.conf.json`
       and `tauri.windows.conf.json` (it was already not maximizable). Check on Windows and the Mac: the
       window edges no longer resize it (no resize cursor), dragging the title bar still moves it, minimize
       and close work; settings still fit at 420×920 / 420×890. On a screen shorter than that the window
       still starts shrunk to the work area (`fit_window_to_screen`; e.g. Windows display scaling 150 % on
       1080p) and the settings scroll there.
-- [ ] **macOS: restart after an in-app update** (next release; found 18 Nov): updating the Mac to v0.1.22
+- [ ] **macOS: restart after an in-app update** (in v0.1.23, visible from the update after it; found 18 Nov): updating the Mac to v0.1.22
       downloaded and installed it, but the app stayed at "100%" and only a manual restart started the new
       version: on macOS the updater replaces the bundle without relaunching (the Windows installer restarts
       the app itself). Fixed after v0.1.22: the UI calls the new `restart_app` command (`AppHandle::restart`)
@@ -365,7 +367,7 @@ items marked **before release** pass.
       no capture overruns. The silent 22:50–22:52 gap was Bera alt-tabbing out to move the binding from T
       (Apex: voice chat) to 4 (Apex: heal); both keys kept their in-game action while talking. Apex in
       exclusive fullscreen.
-- [ ] **Title bar cursor on Windows** (23 Nov): hovering the minimize and close buttons in the own title
+- [ ] **Title bar cursor on Windows** (v0.1.23): hovering the minimize and close buttons in the own title
       bar keeps the arrow cursor (no hand), like native caption buttons; hover colours unchanged.
 
 ## Next
@@ -379,11 +381,10 @@ items marked **before release** pass.
   saved input/output name is gone (and tell the user); (d) device names in the
   `audio pipeline started` line would have made the diagnosis direct; ask the owner first, since the
   19 Nov change deliberately keeps device names out of logged messages (they reach uploaded logs).
-- **Errors shown to the user are now logged (19 Nov, unreleased):** goes out with the next release; then
-  the next field log with a failed audio start or connect should say why (see "Last session").
+- **Errors shown to the user are now logged (released in v0.1.23):** the next field log with a failed audio start or connect should say why (see "Last session").
 - **Redesign (released in v0.1.22):** the owner's tests passed (update, window, icon, mute, settings fit,
-  Mac look). Left: the Mac did not restart after the in-app update; fixed in the working tree
-  (`restart_app`), goes out with the next release (and is first visible on the update after that).
+  Mac look). Left: the Mac did not restart after the in-app update; fixed (`restart_app`) and released in
+  v0.1.23 (the Mac's update to v0.1.23 still needs a manual restart; first visible on the update after that).
   Source of the icon: `make_flat.py B` in the icon work folder outside the repo.
 - **Server Lobby (released in v0.1.21, 18 Nov; old/new versions checked by the owner):** left is the lobby
   with friends (several people talking in it). Ideas the owner may want later (not built): member count of the lobby on the home screen before joining (needs
@@ -545,6 +546,13 @@ items marked **before release** pass.
 
 ## Last session
 
+- 23 Nov (owner: "push and release"): **v0.1.23 released.** Version bump commit 25fd78c, tag `v0.1.23`;
+  fmt, clippy (workspace without the app, `-D warnings`) and `cargo test` clean before tagging. Release
+  workflow green (windows, macos, linux-server); assets: installer + `.sig`, portable exe, universal DMG,
+  macOS updater bundle + `.sig`, both servers; `latest.json` says 0.1.23 with Windows and macOS entries.
+  Contents since v0.1.22: macOS `restart_app` after an in-app update, Windows header logo, window not
+  resizable, errors shown to the user in the log, arrow cursor on the title bar buttons. No server or
+  protocol change, so the Oracle server stays on v0.1.21 (not updated).
 - 23 Nov (owner): **title bar buttons keep the arrow cursor.** The minimize/close buttons of the own Windows
   title bar inherited `cursor: pointer` from the global `button` rule; `.tb-btn` now sets `cursor: default`
   (`ui/src/app.css`), like native caption buttons. CSS only; not tried in the real app (the title bar shows
