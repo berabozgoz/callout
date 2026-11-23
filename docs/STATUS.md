@@ -177,11 +177,14 @@ items marked **before release** pass.
       ✗ 23 Nov (owner, v0.1.23 on the 2014 MacBook Air): at the first start the header (Settings button)
       sat too high, under the title bar; after moving the window it was right. Fixed after v0.1.23, see
       the next item.
-- [ ] **macOS: first start on a short screen** (next release; found 23 Nov): on the 2014 MacBook Air
+- [x] **macOS: first start on a short screen** (next release; found 23 Nov): on the 2014 MacBook Air
       (screen shorter than 890 + title bar) start CallOut: the window starts shrunk to fit above the Dock,
       the header and Settings button sit right under the title bar at once (no need to move the window),
       the settings scroll to the end. Also on Windows: the window still opens centered at 420×920 (✓ 23 Nov
       debug build on a 1920×1080 screen, by Claude); at 150 % scaling on 1080p it starts shrunk.
+      ✓ 23 Nov (owner, CI test DMG of 391ae88 on the 2014 MacBook Air): the window is smaller and has the
+      same size from the first start on. The settings scroll there; owner's decision: **keep the scroll on
+      short screens, do not compact the settings page.** Not yet seen: Windows at 150 % scaling.
 - [ ] **macOS: restart after an in-app update** (in v0.1.23, visible from the update after it; found 18 Nov): updating the Mac to v0.1.22
       downloaded and installed it, but the app stayed at "100%" and only a manual restart started the new
       version: on macOS the updater replaces the bundle without relaunching (the Windows installer restarts
@@ -563,8 +566,14 @@ items marked **before release** pass.
   (`apps/callout-app/src/lib.rs`) builds it in `setup` with a height that already fits the primary
   monitor's work area (minus a 28 pt title bar estimate when the window has decorations; never below
   `minHeight`), so it is never resized after creation. fmt, clippy (app, `-D warnings`), `cargo test -p
-  callout-app` clean; a Windows debug build opens centered at 420×920. Not tried on the Mac (CI builds
-  macOS); the root cause on the Mac is reasoned, not observed.
+  callout-app` clean; a Windows debug build opens centered at 420×920. Pushed (391ae88); the owner tried
+  the CI test DMG on the Mac: the window has the right size from the first start. The settings scroll
+  there, which the owner accepts (see below).
+- 23 Nov: **settings height measured** (mocked UI in Chromium, 420 px wide, without the Windows bar):
+  push-to-talk off 726–775 pt (Turkish 726, Russian 775), on 814–883 pt (Turkish 814, Japanese 883).
+  On a 1440×900 Mac with the Dock at the bottom the window is ~790 pt, so the settings scroll there with
+  push-to-talk on in every language; 13.6" Air / 14" Pro are borderline; 15"/16", iMac and external
+  screens fit. **Owner's decision: keep scrolling on short screens, no compact layout.**
 - 23 Nov (owner: "push and release"): **v0.1.23 released.** Version bump commit 25fd78c, tag `v0.1.23`;
   fmt, clippy (workspace without the app, `-D warnings`) and `cargo test` clean before tagging. Release
   workflow green (windows, macos, linux-server); assets: installer + `.sig`, portable exe, universal DMG,
