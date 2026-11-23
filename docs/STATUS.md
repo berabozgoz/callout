@@ -183,8 +183,13 @@ items marked **before release** pass.
       the settings scroll to the end. Also on Windows: the window still opens centered at 420×920 (✓ 23 Nov
       debug build on a 1920×1080 screen, by Claude); at 150 % scaling on 1080p it starts shrunk.
       ✓ 23 Nov (owner, CI test DMG of 391ae88 on the 2014 MacBook Air): the window is smaller and has the
-      same size from the first start on. The settings scroll there; owner's decision: **keep the scroll on
-      short screens, do not compact the settings page.** Not yet seen: Windows at 150 % scaling.
+      same size from the first start on. The settings scrolled there; the owner first kept that, then
+      asked for a compact layout (next item). Not yet seen: Windows at 150 % scaling.
+- [ ] **macOS: compact settings on a short screen** (next release; 23 Nov, owner's wish): on the 2014
+      MacBook Air (Dock at the bottom) open Settings: everything down to Save/Cancel shows without
+      scrolling, with push-to-talk off and on (also while capturing a key, the tallest case), in Turkish
+      and one longer language (Spanish or Japanese); text still readable, nothing clipped. On a Mac whose
+      window has the full 890 pt the settings look as before. Windows unchanged.
 - [ ] **macOS: restart after an in-app update** (in v0.1.23, visible from the update after it; found 18 Nov): updating the Mac to v0.1.22
       downloaded and installed it, but the app stayed at "100%" and only a manual restart started the new
       version: on macOS the updater replaces the bundle without relaunching (the Windows installer restarts
@@ -568,12 +573,21 @@ items marked **before release** pass.
   `minHeight`), so it is never resized after creation. fmt, clippy (app, `-D warnings`), `cargo test -p
   callout-app` clean; a Windows debug build opens centered at 420×920. Pushed (391ae88); the owner tried
   the CI test DMG on the Mac: the window has the right size from the first start. The settings scroll
-  there, which the owner accepts (see below).
+  there (see below).
 - 23 Nov: **settings height measured** (mocked UI in Chromium, 420 px wide, without the Windows bar):
   push-to-talk off 726–775 pt (Turkish 726, Russian 775), on 814–883 pt (Turkish 814, Japanese 883).
   On a 1440×900 Mac with the Dock at the bottom the window is ~790 pt, so the settings scroll there with
   push-to-talk on in every language; 13.6" Air / 14" Pro are borderline; 15"/16", iMac and external
-  screens fit. **Owner's decision: keep scrolling on short screens, no compact layout.**
+  screens fit. The owner first chose to keep the scroll, then asked for a compact layout (next entry).
+- 23 Nov (owner: "compact the Mac window for small screens"): **compact settings on short Mac windows**
+  (not released). `ui/src/app.css`: `@media (max-height: 889px)` scoped to `html.mac` (set in `main.ts`),
+  so it applies only when the Mac window started shrunk; the full 890 pt window and Windows keep the
+  current look. Tighter main padding/gap, smaller header (24 px logo, 16 px title), smaller group,
+  row, select and button padding, 11 px hints. Measured in the mocked UI with a Mac user agent (new
+  `?mac=1` in the preview copy's `mock.ts`): heights needed are now 600–647 pt with push-to-talk off and
+  623–729 pt with it on (Turkish 606/667, Spanish 729), so everything fits a ~790 pt window with room to
+  spare; an 11" Air (~656 pt window) may still scroll a little with push-to-talk on. Screenshot checked
+  at 420×790 (Turkish, capturing a key). `npm run build` clean. Safari 14 on the real Mac not tried.
 - 23 Nov (owner: "push and release"): **v0.1.23 released.** Version bump commit 25fd78c, tag `v0.1.23`;
   fmt, clippy (workspace without the app, `-D warnings`) and `cargo test` clean before tagging. Release
   workflow green (windows, macos, linux-server); assets: installer + `.sig`, portable exe, universal DMG,

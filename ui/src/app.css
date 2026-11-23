@@ -300,3 +300,27 @@ li.usermuted .avatar { opacity: .55; }
 .card.settings .soundtest button { padding-top: 7px; padding-bottom: 7px; }
 /* The log link and version are on every other screen. */
 main.settingsopen footer { display: none; }
+/* macOS on a short screen (e.g. a 13" MacBook Air with the Dock: the window starts shrunk to ~790 pt, see
+   create_main_window): tighter still, so the settings fit without scrolling. The full 890 pt window keeps the
+   layout above; Windows is not affected. */
+@media (max-height: 889px) {
+  html.mac main.settingsopen { padding: 8px 14px 8px; gap: 8px; }
+  html.mac main.settingsopen header { padding: 0; }
+  html.mac main.settingsopen .brand img { width: 24px; height: 24px; }
+  html.mac main.settingsopen header h1 { font-size: 16px; }
+  html.mac main.settingsopen header button.icon { padding: 5px; }
+  html.mac .card.settings { padding: 10px 12px; }
+  html.mac .card.settings .cardhead { margin-bottom: 6px; }
+  html.mac .card.settings .group { padding: 7px 10px; margin-bottom: 6px; }
+  html.mac .card.settings .group.switches { padding: 0 10px; }
+  html.mac .card.settings .formgrid { gap: 4px 12px; }
+  html.mac .card.settings select, html.mac .card.settings button.capture { padding-top: 4px; padding-bottom: 4px; font-size: 13px; }
+  html.mac .card.settings button.iconbtn.small { padding-top: 3px; padding-bottom: 3px; }
+  html.mac .card.settings label.row { padding: 5px 0; }
+  html.mac .card.settings .hint { margin-top: 4px; font-size: 11px; line-height: 1.35; }
+  html.mac .card.settings .soundtest h3 { margin-bottom: 6px; }
+  html.mac .card.settings .soundtest .meter { margin-bottom: 8px; }
+  html.mac .card.settings .soundtest button { padding-top: 5px; padding-bottom: 5px; }
+  html.mac .card.settings .actions { margin-top: 2px; }
+  html.mac .card.settings > .actions button { padding-top: 7px; padding-bottom: 7px; }
+}
