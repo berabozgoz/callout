@@ -610,7 +610,7 @@
         </div></div>
       {/if}
       {#if settings.push_to_talk}
-        <div class="group"><div class="formgrid">
+        <div class="group"><div class="formgrid pttgrid">
           <label for="set-ptt">{t("settings.pttKey")}</label>
           <button id="set-ptt" type="button" class="capture" class:listening={capturing} onclick={(e) => { if (e.detail === 0) return; /* ignore the click synthesized when Space/Enter is the captured key */ capturing ? stopCapture() : startCapture(); }}>
             {capturing ? t("settings.pttCapturing") : settings.ptt_shortcut ? prettyShortcut(settings.ptt_shortcut) : t("settings.pttUnassigned")}

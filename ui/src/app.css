@@ -309,18 +309,22 @@ main.settingsopen footer { display: none; }
   html.mac main.settingsopen .brand img { width: 24px; height: 24px; }
   html.mac main.settingsopen header h1 { font-size: 16px; }
   html.mac main.settingsopen header button.icon { padding: 5px; }
-  html.mac .card.settings { padding: 10px 12px; }
+  html.mac .card.settings { padding: 8px 10px; }
   html.mac .card.settings .cardhead { margin-bottom: 6px; }
-  html.mac .card.settings .group { padding: 7px 10px; margin-bottom: 6px; }
+  html.mac .card.settings .group { padding: 6px 10px; margin-bottom: 5px; }
   html.mac .card.settings .group.switches { padding: 0 10px; }
   html.mac .card.settings .formgrid { gap: 4px 12px; }
-  html.mac .card.settings select, html.mac .card.settings button.capture { padding-top: 4px; padding-bottom: 4px; font-size: 13px; }
+  html.mac .card.settings select, html.mac .card.settings button.capture { padding-top: 3px; padding-bottom: 3px; font-size: 12.5px; }
   html.mac .card.settings button.iconbtn.small { padding-top: 3px; padding-bottom: 3px; }
-  html.mac .card.settings label.row { padding: 5px 0; }
-  html.mac .card.settings .hint { margin-top: 4px; font-size: 11px; line-height: 1.35; }
-  html.mac .card.settings .soundtest h3 { margin-bottom: 6px; }
-  html.mac .card.settings .soundtest .meter { margin-bottom: 8px; }
+  html.mac .card.settings label.row { padding: 4px 0; }
+  html.mac .card.settings .hint { margin-top: 4px; font-size: 11px; line-height: 1.3; }
+  html.mac .card.settings .soundtest h3 { margin-bottom: 5px; }
+  html.mac .card.settings .soundtest .meter { margin-bottom: 6px; }
   html.mac .card.settings .soundtest button { padding-top: 5px; padding-bottom: 5px; }
   html.mac .card.settings .actions { margin-top: 2px; }
   html.mac .card.settings > .actions button { padding-top: 7px; padding-bottom: 7px; }
+  /* Push-to-talk key: caption above a full-width button in the UI font, so a long "press a key…"
+     text (Spanish) takes two lines instead of four. */
+  html.mac .card.settings .pttgrid { grid-template-columns: minmax(0, 1fr); }
+  html.mac .card.settings .pttgrid button.capture.listening { font-family: inherit; font-size: 12px; }
 }

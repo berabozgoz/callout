@@ -190,6 +190,9 @@ items marked **before release** pass.
       scrolling, with push-to-talk off and on (also while capturing a key, the tallest case), in Turkish
       and one longer language (Spanish or Japanese); text still readable, nothing clipped. On a Mac whose
       window has the full 890 pt the settings look as before. Windows unchanged.
+      ✗ 23 Nov (owner, CI test DMG of f566294): fits in every language except **Spanish with push-to-talk
+      on**, which still scrolled. Tightened again after that (see "Last session"); check Spanish (and
+      Japanese, now the tallest) once more with the next test DMG.
 - [ ] **macOS: restart after an in-app update** (in v0.1.23, visible from the update after it; found 18 Nov): updating the Mac to v0.1.22
       downloaded and installed it, but the app stayed at "100%" and only a manual restart started the new
       version: on macOS the updater replaces the bundle without relaunching (the Windows installer restarts
@@ -587,7 +590,19 @@ items marked **before release** pass.
   `?mac=1` in the preview copy's `mock.ts`): heights needed are now 600–647 pt with push-to-talk off and
   623–729 pt with it on (Turkish 606/667, Spanish 729), so everything fits a ~790 pt window with room to
   spare; an 11" Air (~656 pt window) may still scroll a little with push-to-talk on. Screenshot checked
-  at 420×790 (Turkish, capturing a key). `npm run build` clean. Safari 14 on the real Mac not tried.
+  at 420×790 (Turkish, capturing a key). `npm run build` clean. Pushed as f566294; the owner's test DMG:
+  everything fits except Spanish with push-to-talk on (Safari 14 renders a bit taller than Chromium;
+  Turkish at 667 pt in Chromium fit on the Mac, Spanish at 729 did not).
+- 23 Nov (owner): **Spanish with push-to-talk, tightened again** (not released). In Spanish the key
+  capture button took four lines (long "Pulsa una tecla…" in a narrow monospace button next to a long
+  caption) and the two sound test buttons wrapped. Now, in the compact Mac layout only: the push-to-talk
+  caption sits above a full-width key button (`formgrid pttgrid` in `App.svelte`), whose "press a key…"
+  text uses the UI font at 12 px (an assigned shortcut stays monospace); card/group/row/select padding
+  and hint line height a little smaller. Spanish `test.tone` "Reproducir sonido de prueba" → "Probar
+  sonido" (pairs with "Probar micrófono"; on every platform). Heights needed with push-to-talk on (mocked
+  UI, Mac user agent): Spanish 729 → 647, Turkish 667 → 632, the tallest now Japanese 681 and Russian
+  664, all below the 667 that fit on the Mac; push-to-talk off ≤ 608. Screenshot at 420×790 (Spanish,
+  capturing). `npm run build`, `npm run check` clean. Not yet seen on the Mac.
 - 23 Nov (owner: "push and release"): **v0.1.23 released.** Version bump commit 25fd78c, tag `v0.1.23`;
   fmt, clippy (workspace without the app, `-D warnings`) and `cargo test` clean before tagging. Release
   workflow green (windows, macos, linux-server); assets: installer + `.sig`, portable exe, universal DMG,

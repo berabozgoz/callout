@@ -54,7 +54,7 @@ export const es: Messages = {
   "test.recording": "Habla… {s} s",
   "test.playing": "Reproduciendo la grabación… (detener)",
   "test.start": "Probar micrófono",
-  "test.tone": "Reproducir sonido de prueba",
+  "test.tone": "Probar sonido",
   "test.resultNone":
     "No se habría enviado nada de la grabación: tu micrófono se mantuvo por debajo del umbral o está seleccionado el micrófono equivocado.",
   "test.result":
