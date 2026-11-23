@@ -185,7 +185,7 @@ items marked **before release** pass.
       ✓ 23 Nov (owner, CI test DMG of 391ae88 on the 2014 MacBook Air): the window is smaller and has the
       same size from the first start on. The settings scrolled there; the owner first kept that, then
       asked for a compact layout (next item). Not yet seen: Windows at 150 % scaling.
-- [ ] **macOS: compact settings on a short screen** (next release; 23 Nov, owner's wish): on the 2014
+- [x] **macOS: compact settings on a short screen** (next release; 23 Nov, owner's wish): on the 2014
       MacBook Air (Dock at the bottom) open Settings: everything down to Save/Cancel shows without
       scrolling, with push-to-talk off and on (also while capturing a key, the tallest case), in Turkish
       and one longer language (Spanish or Japanese); text still readable, nothing clipped. On a Mac whose
@@ -193,6 +193,8 @@ items marked **before release** pass.
       ✗ 23 Nov (owner, CI test DMG of f566294): fits in every language except **Spanish with push-to-talk
       on**, which still scrolled. Tightened again after that (see "Last session"); check Spanish (and
       Japanese, now the tallest) once more with the next test DMG.
+      ✓ 23 Nov (owner, CI test DMG of cc2cc68 on the 2014 MacBook Air): the settings fit without scrolling
+      in every language now, Spanish with push-to-talk included.
 - [ ] **macOS: restart after an in-app update** (in v0.1.23, visible from the update after it; found 18 Nov): updating the Mac to v0.1.22
       downloaded and installed it, but the app stayed at "100%" and only a manual restart started the new
       version: on macOS the updater replaces the bundle without relaunching (the Windows installer restarts
@@ -602,7 +604,8 @@ items marked **before release** pass.
   sonido" (pairs with "Probar micrófono"; on every platform). Heights needed with push-to-talk on (mocked
   UI, Mac user agent): Spanish 729 → 647, Turkish 667 → 632, the tallest now Japanese 681 and Russian
   664, all below the 667 that fit on the Mac; push-to-talk off ≤ 608. Screenshot at 420×790 (Spanish,
-  capturing). `npm run build`, `npm run check` clean. Not yet seen on the Mac.
+  capturing). `npm run build`, `npm run check` clean. Pushed as cc2cc68 (CI green); the owner's test DMG
+  on the Mac: everything fits in every language.
 - 23 Nov (owner: "push and release"): **v0.1.23 released.** Version bump commit 25fd78c, tag `v0.1.23`;
   fmt, clippy (workspace without the app, `-D warnings`) and `cargo test` clean before tagging. Release
   workflow green (windows, macos, linux-server); assets: installer + `.sig`, portable exe, universal DMG,
