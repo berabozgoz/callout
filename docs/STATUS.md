@@ -365,6 +365,8 @@ items marked **before release** pass.
       no capture overruns. The silent 22:50–22:52 gap was Bera alt-tabbing out to move the binding from T
       (Apex: voice chat) to 4 (Apex: heal); both keys kept their in-game action while talking. Apex in
       exclusive fullscreen.
+- [ ] **Title bar cursor on Windows** (23 Nov): hovering the minimize and close buttons in the own title
+      bar keeps the arrow cursor (no hand), like native caption buttons; hover colours unchanged.
 
 ## Next
 
@@ -543,6 +545,10 @@ items marked **before release** pass.
 
 ## Last session
 
+- 23 Nov (owner): **title bar buttons keep the arrow cursor.** The minimize/close buttons of the own Windows
+  title bar inherited `cursor: pointer` from the global `button` rule; `.tb-btn` now sets `cursor: default`
+  (`ui/src/app.css`), like native caption buttons. CSS only; not tried in the real app (the title bar shows
+  only in the Tauri Windows build). Not released.
 - 21 Nov: **CS2 session bera + kuzen in the Server Lobby, followed live** (logs only, no code change):
   server journal over SSH, bera's client log, kuzen's two uploads (16:23 and 17:07 UTC). Both v0.1.22,
   server v0.1.21. bera 16:13–17:07 UTC (54 min, RTT 40–44 ms, 0 lost); kuzen's last connection

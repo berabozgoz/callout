@@ -261,6 +261,7 @@ main.connectscreen header .brand { visibility: hidden; }
 .tb-btn {
   width: 46px; height: 32px; padding: 0; border: none; border-radius: 0; background: transparent; color: var(--muted);
   display: grid; place-items: center; box-shadow: none;
+  cursor: default; /* native caption buttons keep the arrow cursor */
 }
 .tb-btn:hover { background: var(--panel3); color: var(--text); border: none; }
 .tb-btn:active { transform: none; background: var(--line-strong); }
